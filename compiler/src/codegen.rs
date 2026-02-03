@@ -2,11 +2,103 @@ use std::collections::HashMap;
 
 use crate::ast::{BinOp, Block, Expr, Function, Program, Stmt, Type};
 
+fn collect_strings_from_program(prog: &Program) -> Vec<String> {
+    let mut strings = Vec::new();
+    for f in &prog.functions {
+        collect_strings_from_block(&f.body, &mut strings);
+    }
+    strings
+}
+
+fn collect_strings_from_block(block: &Block, strings: &mut Vec<String>) {
+    for stmt in &block.statements {
+        match stmt {
+            Stmt::Let { expr, .. } => collect_strings_from_expr(expr, strings),
+            Stmt::Assign { expr, .. } => collect_strings_from_expr(expr, strings),
+            Stmt::If { cond, then_block, else_block } => {
+                collect_strings_from_expr(cond, strings);
+                collect_strings_from_block(then_block, strings);
+                if let Some(eb) = else_block {
+                    collect_strings_from_block(eb, strings);
+                }
+            }
+            Stmt::While { cond, body } => {
+                collect_strings_from_expr(cond, strings);
+                collect_strings_from_block(body, strings);
+            }
+            Stmt::Return(expr) => collect_strings_from_expr(expr, strings),
+            Stmt::Expr(expr) => collect_strings_from_expr(expr, strings),
+        }
+    }
+}
+
+fn collect_strings_from_expr(expr: &Expr, strings: &mut Vec<String>) {
+    match expr {
+        Expr::StringLit(s) => {
+            if !strings.contains(s) {
+                strings.push(s.clone());
+            }
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_strings_from_expr(left, strings);
+            collect_strings_from_expr(right, strings);
+        }
+        Expr::Call { args, .. } => {
+            for arg in args {
+                collect_strings_from_expr(arg, strings);
+            }
+        }
+        Expr::FieldAccess { expr, .. } => {
+            collect_strings_from_expr(expr, strings);
+        }
+        Expr::StructInit { fields, .. } => {
+            for (_, val) in fields {
+                collect_strings_from_expr(val, strings);
+            }
+        }
+        _ => {}
+    }
+}
+
 pub fn emit_wat(prog: &Program) -> String {
+    let strings = collect_strings_from_program(prog);
     let mut out = String::new();
     out.push_str("(module\n");
+
+    // Emit memory and string data if we have strings
+    if !strings.is_empty() {
+        out.push_str("  (memory 1)\n");
+        let mut offset = 0;
+        for s in strings.iter() {
+            // Emit string data
+            out.push_str(&format!("  (data (i32.const {}) \"", offset));
+            for c in s.chars() {
+                match c {
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    '\0' => out.push_str("\\00"),
+                    '"' => out.push_str("\\\""),
+                    '\\' => out.push_str("\\\\"),
+                    c if c.is_ascii_graphic() || c == ' ' => out.push(c),
+                    c => out.push_str(&format!("\\{:02x}", c as u8)),
+                }
+            }
+            out.push_str("\")\n");
+            offset += s.len() as i32;
+        }
+    }
+
+    // Build string table for codegen
+    let mut string_offsets = HashMap::new();
+    let mut offset = 0i32;
+    for s in &strings {
+        string_offsets.insert(s.clone(), offset);
+        offset += s.len() as i32;
+    }
+
     for f in &prog.functions {
-        out.push_str(&emit_function_wat(f));
+        out.push_str(&emit_function_wat_with_strings(f, &string_offsets));
     }
     if prog.functions.iter().any(|f| f.name == "main") {
         out.push_str("  (export \"main\" (func $main))\n");
@@ -16,11 +108,28 @@ pub fn emit_wat(prog: &Program) -> String {
 }
 
 pub fn emit_x86_64_asm(prog: &Program) -> String {
+    let strings = collect_strings_from_program(prog);
     let mut out = String::new();
     out.push_str(".intel_syntax noprefix\n");
+
+    // Emit string data in .rodata section
+    if !strings.is_empty() {
+        out.push_str(".section .rodata\n");
+        for (i, s) in strings.iter().enumerate() {
+            out.push_str(&format!(".Lstr_{}:\n", i));
+            out.push_str("  .byte ");
+            let bytes: Vec<String> = s.bytes().map(|b| format!("{}", b)).collect();
+            out.push_str(&bytes.join(", "));
+            if !s.is_empty() {
+                out.push_str(", ");
+            }
+            out.push_str("0\n"); // null terminator
+        }
+    }
+
     out.push_str(".text\n");
     for f in &prog.functions {
-        out.push_str(&emit_function_x86_64(f));
+        out.push_str(&emit_function_x86_64_with_strings(f, &strings));
     }
     out
 }
@@ -29,7 +138,7 @@ fn collect_locals_from_block(block: &Block, locals: &mut HashMap<String, i32>, l
     for stmt in &block.statements {
         match stmt {
             Stmt::Let { name, ty, .. } => {
-                if *ty == Type::I32 || *ty == Type::Bool {
+                if *ty == Type::I32 || *ty == Type::Char || *ty == Type::Bool {
                     local_decls.push(format!("  (local ${} i32)", name));
                     locals.insert(name.clone(), *local_index);
                     *local_index += 1;
@@ -53,7 +162,7 @@ fn collect_locals_x86_64(block: &Block, local_order: &mut Vec<String>) {
     for stmt in &block.statements {
         match stmt {
             Stmt::Let { name, ty, .. } => {
-                if *ty == Type::I32 || *ty == Type::Bool {
+                if *ty == Type::I32 || *ty == Type::Char || *ty == Type::Bool {
                     local_order.push(name.clone());
                 }
             }
@@ -71,7 +180,7 @@ fn collect_locals_x86_64(block: &Block, local_order: &mut Vec<String>) {
     }
 }
 
-fn emit_function_wat(f: &Function) -> String {
+fn emit_function_wat_with_strings(f: &Function, string_offsets: &HashMap<String, i32>) -> String {
     let mut out = String::new();
     let mut locals = HashMap::new();
     for (idx, p) in f.params.iter().enumerate() {
@@ -86,7 +195,7 @@ fn emit_function_wat(f: &Function) -> String {
     for p in &f.params {
         out.push_str(&format!(" (param ${} i32)", p.name));
     }
-    if f.ret == Type::I32 || f.ret == Type::Bool {
+    if f.ret == Type::I32 || f.ret == Type::Char || f.ret == Type::Bool {
         out.push_str(" (result i32)");
     }
     out.push_str("\n");
@@ -96,9 +205,9 @@ fn emit_function_wat(f: &Function) -> String {
     }
 
     let mut label_counter = 0;
-    emit_block_wat(&f.body, &locals, &mut label_counter, &mut out);
+    emit_block_wat_with_strings(&f.body, &locals, &mut label_counter, string_offsets, &mut out);
 
-    if f.ret == Type::I32 || f.ret == Type::Bool {
+    if f.ret == Type::I32 || f.ret == Type::Char || f.ret == Type::Bool {
         out.push_str("  i32.const 0\n  return\n");
     }
 
@@ -106,7 +215,7 @@ fn emit_function_wat(f: &Function) -> String {
     out
 }
 
-fn emit_function_x86_64(f: &Function) -> String {
+fn emit_function_x86_64_with_strings(f: &Function, strings: &[String]) -> String {
     let mut out = String::new();
     let mut locals = HashMap::new();
     let mut local_order = Vec::new();
@@ -145,9 +254,9 @@ fn emit_function_x86_64(f: &Function) -> String {
 
     let ret_label = format!(".Lreturn_{}", f.name);
     let mut label_counter = 0;
-    emit_block_x86_64(&f.body, &locals, &ret_label, &mut label_counter, &mut out);
+    emit_block_x86_64_with_strings(&f.body, &locals, &ret_label, &mut label_counter, strings, &mut out);
 
-    if f.ret == Type::I32 || f.ret == Type::Bool {
+    if f.ret == Type::I32 || f.ret == Type::Char || f.ret == Type::Bool {
         out.push_str("  mov rax, 0\n");
     }
 
@@ -156,31 +265,31 @@ fn emit_function_x86_64(f: &Function) -> String {
     out
 }
 
-fn emit_block_wat(block: &Block, locals: &HashMap<String, i32>, label_counter: &mut i32, out: &mut String) {
+fn emit_block_wat_with_strings(block: &Block, locals: &HashMap<String, i32>, label_counter: &mut i32, string_offsets: &HashMap<String, i32>, out: &mut String) {
     for stmt in &block.statements {
-        emit_stmt_wat(stmt, locals, label_counter, out);
+        emit_stmt_wat_with_strings(stmt, locals, label_counter, string_offsets, out);
     }
 }
 
-fn emit_stmt_wat(stmt: &Stmt, locals: &HashMap<String, i32>, label_counter: &mut i32, out: &mut String) {
+fn emit_stmt_wat_with_strings(stmt: &Stmt, locals: &HashMap<String, i32>, label_counter: &mut i32, string_offsets: &HashMap<String, i32>, out: &mut String) {
     match stmt {
         Stmt::Let { name, expr, .. } => {
-            emit_expr_wat(expr, locals, out);
+            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
             out.push_str(&format!("  local.set ${}\n", name));
         }
         Stmt::Assign { name, expr } => {
-            emit_expr_wat(expr, locals, out);
+            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
             out.push_str(&format!("  local.set ${}\n", name));
         }
         Stmt::If { cond, then_block, else_block } => {
-            emit_expr_wat(cond, locals, out);
+            emit_expr_wat_with_strings(cond, locals, string_offsets, out);
             out.push_str("  (if\n");
             out.push_str("    (then\n");
-            emit_block_wat(then_block, locals, label_counter, out);
+            emit_block_wat_with_strings(then_block, locals, label_counter, string_offsets, out);
             out.push_str("    )\n");
             if let Some(eb) = else_block {
                 out.push_str("    (else\n");
-                emit_block_wat(eb, locals, label_counter, out);
+                emit_block_wat_with_strings(eb, locals, label_counter, string_offsets, out);
                 out.push_str("    )\n");
             }
             out.push_str("  )\n");
@@ -190,41 +299,41 @@ fn emit_stmt_wat(stmt: &Stmt, locals: &HashMap<String, i32>, label_counter: &mut
             *label_counter += 1;
             out.push_str(&format!("  (block $exit_{}\n", n));
             out.push_str(&format!("    (loop $loop_{}\n", n));
-            emit_expr_wat(cond, locals, out);
+            emit_expr_wat_with_strings(cond, locals, string_offsets, out);
             out.push_str("      i32.eqz\n");
             out.push_str(&format!("      br_if $exit_{}\n", n));
-            emit_block_wat(body, locals, label_counter, out);
+            emit_block_wat_with_strings(body, locals, label_counter, string_offsets, out);
             out.push_str(&format!("      br $loop_{}\n", n));
             out.push_str("    )\n");
             out.push_str("  )\n");
         }
         Stmt::Return(expr) => {
-            emit_expr_wat(expr, locals, out);
+            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
             out.push_str("  return\n");
         }
         Stmt::Expr(expr) => {
-            emit_expr_wat(expr, locals, out);
+            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
             out.push_str("  drop\n");
         }
     }
 }
 
-fn emit_block_x86_64(block: &Block, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, out: &mut String) {
+fn emit_block_x86_64_with_strings(block: &Block, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, strings: &[String], out: &mut String) {
     for stmt in &block.statements {
-        emit_stmt_x86_64(stmt, locals, ret_label, label_counter, out);
+        emit_stmt_x86_64_with_strings(stmt, locals, ret_label, label_counter, strings, out);
     }
 }
 
-fn emit_stmt_x86_64(stmt: &Stmt, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, out: &mut String) {
+fn emit_stmt_x86_64_with_strings(stmt: &Stmt, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, strings: &[String], out: &mut String) {
     match stmt {
         Stmt::Let { name, expr, .. } => {
-            emit_expr_x86_64(expr, locals, out);
+            emit_expr_x86_64_with_strings(expr, locals, strings, out);
             if let Some(off) = locals.get(name) {
                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
             }
         }
         Stmt::Assign { name, expr } => {
-            emit_expr_x86_64(expr, locals, out);
+            emit_expr_x86_64_with_strings(expr, locals, strings, out);
             if let Some(off) = locals.get(name) {
                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
             }
@@ -232,14 +341,14 @@ fn emit_stmt_x86_64(stmt: &Stmt, locals: &HashMap<String, i32>, ret_label: &str,
         Stmt::If { cond, then_block, else_block } => {
             let n = *label_counter;
             *label_counter += 1;
-            emit_expr_x86_64(cond, locals, out);
+            emit_expr_x86_64_with_strings(cond, locals, strings, out);
             out.push_str("  cmp rax, 0\n");
             out.push_str(&format!("  je .Lelse_{}\n", n));
-            emit_block_x86_64(then_block, locals, ret_label, label_counter, out);
+            emit_block_x86_64_with_strings(then_block, locals, ret_label, label_counter, strings, out);
             out.push_str(&format!("  jmp .Lendif_{}\n", n));
             out.push_str(&format!(".Lelse_{}:\n", n));
             if let Some(eb) = else_block {
-                emit_block_x86_64(eb, locals, ret_label, label_counter, out);
+                emit_block_x86_64_with_strings(eb, locals, ret_label, label_counter, strings, out);
             }
             out.push_str(&format!(".Lendif_{}:\n", n));
         }
@@ -247,31 +356,41 @@ fn emit_stmt_x86_64(stmt: &Stmt, locals: &HashMap<String, i32>, ret_label: &str,
             let n = *label_counter;
             *label_counter += 1;
             out.push_str(&format!(".Lloop_{}:\n", n));
-            emit_expr_x86_64(cond, locals, out);
+            emit_expr_x86_64_with_strings(cond, locals, strings, out);
             out.push_str("  cmp rax, 0\n");
             out.push_str(&format!("  je .Lexit_{}\n", n));
-            emit_block_x86_64(body, locals, ret_label, label_counter, out);
+            emit_block_x86_64_with_strings(body, locals, ret_label, label_counter, strings, out);
             out.push_str(&format!("  jmp .Lloop_{}\n", n));
             out.push_str(&format!(".Lexit_{}:\n", n));
         }
         Stmt::Return(expr) => {
-            emit_expr_x86_64(expr, locals, out);
+            emit_expr_x86_64_with_strings(expr, locals, strings, out);
             out.push_str(&format!("  jmp {}\n", ret_label));
         }
         Stmt::Expr(expr) => {
-            emit_expr_x86_64(expr, locals, out);
+            emit_expr_x86_64_with_strings(expr, locals, strings, out);
         }
     }
 }
 
-fn emit_expr_wat(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String) {
+fn emit_expr_wat_with_strings(expr: &Expr, locals: &HashMap<String, i32>, string_offsets: &HashMap<String, i32>, out: &mut String) {
     match expr {
         Expr::Int(v) => {
             out.push_str(&format!("  i32.const {}\n", v));
         }
+        Expr::Char(c) => {
+            out.push_str(&format!("  i32.const {}\n", *c as i32));
+        }
         Expr::Bool(v) => {
             let n = if *v { 1 } else { 0 };
             out.push_str(&format!("  i32.const {}\n", n));
+        }
+        Expr::StringLit(s) => {
+             if let Some(offset) = string_offsets.get(s) {
+                 out.push_str(&format!("  i32.const {}\n", offset));
+             } else {
+                 out.push_str("  i32.const 0\n"); 
+             }
         }
         Expr::Ident(name) => {
             if locals.contains_key(name) {
@@ -279,8 +398,8 @@ fn emit_expr_wat(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String) {
             }
         }
         Expr::Binary { op, left, right } => {
-            emit_expr_wat(left, locals, out);
-            emit_expr_wat(right, locals, out);
+            emit_expr_wat_with_strings(left, locals, string_offsets, out);
+            emit_expr_wat_with_strings(right, locals, string_offsets, out);
             let instr = match op {
                 BinOp::Add => "i32.add",
                 BinOp::Sub => "i32.sub",
@@ -297,21 +416,37 @@ fn emit_expr_wat(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String) {
         }
         Expr::Call { callee, args } => {
             for arg in args {
-                emit_expr_wat(arg, locals, out);
+                emit_expr_wat_with_strings(arg, locals, string_offsets, out);
             }
             out.push_str(&format!("  call ${}\n", callee));
+        }
+        Expr::FieldAccess { .. } => {
+            panic!("WAT codegen for field access is not implemented");
+        }
+        Expr::StructInit { .. } => {
+            panic!("WAT codegen for struct init is not implemented");
         }
     }
 }
 
-fn emit_expr_x86_64(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String) {
+fn emit_expr_x86_64_with_strings(expr: &Expr, locals: &HashMap<String, i32>, strings: &[String], out: &mut String) {
     match expr {
         Expr::Int(v) => {
             out.push_str(&format!("  mov rax, {}\n", v));
         }
+        Expr::Char(c) => {
+            out.push_str(&format!("  mov rax, {}\n", *c as i32));
+        }
         Expr::Bool(v) => {
             let n = if *v { 1 } else { 0 };
             out.push_str(&format!("  mov rax, {}\n", n));
+        }
+        Expr::StringLit(s) => {
+             if let Some(idx) = strings.iter().position(|x| x == s) {
+                 out.push_str(&format!("  lea rax, [rip + .Lstr_{}]\n", idx));
+            } else {
+                 out.push_str("  mov rax, 0\n");
+            }
         }
         Expr::Ident(name) => {
             if let Some(off) = locals.get(name) {
@@ -319,9 +454,9 @@ fn emit_expr_x86_64(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String
             }
         }
         Expr::Binary { op, left, right } => {
-            emit_expr_x86_64(left, locals, out);
+            emit_expr_x86_64_with_strings(left, locals, strings, out);
             out.push_str("  push rax\n");
-            emit_expr_x86_64(right, locals, out);
+            emit_expr_x86_64_with_strings(right, locals, strings, out);
             out.push_str("  pop rcx\n");
             match op {
                 BinOp::Add => {
@@ -368,13 +503,13 @@ fn emit_expr_x86_64(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String
 
             if args.len() > arg_regs.len() {
                 for i in (arg_regs.len()..args.len()).rev() {
-                    emit_expr_x86_64(&args[i], locals, out);
+                    emit_expr_x86_64_with_strings(&args[i], locals, strings, out);
                     out.push_str("  push rax\n");
                 }
             }
 
             for i in (0..reg_count).rev() {
-                emit_expr_x86_64(&args[i], locals, out);
+                emit_expr_x86_64_with_strings(&args[i], locals, strings, out);
                 out.push_str(&format!("  mov {}, rax\n", arg_regs[i]));
             }
 
@@ -384,6 +519,12 @@ fn emit_expr_x86_64(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String
                 let cleanup = (stack_count as i32) * 8 + if needs_pad { 8 } else { 0 };
                 out.push_str(&format!("  add rsp, {}\n", cleanup));
             }
+        }
+        Expr::FieldAccess { .. } => {
+            panic!("x86_64 codegen for field access is not implemented");
+        }
+        Expr::StructInit { .. } => {
+            panic!("x86_64 codegen for struct init is not implemented");
         }
     }
 }

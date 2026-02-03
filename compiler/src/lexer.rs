@@ -2,6 +2,8 @@
 pub enum TokenKind {
     Ident(String),
     Int(i32),
+    Char(char),
+    StringLit(String),
     True,
     False,
     Fn,
@@ -18,6 +20,7 @@ pub enum TokenKind {
     Colon,
     Semicolon,
     Comma,
+    Dot,
     LParen,
     RParen,
     LBrace,
@@ -115,6 +118,62 @@ impl<'a> Lexer<'a> {
         self.src[start..self.pos].parse::<i32>().unwrap_or(0)
     }
 
+    fn read_char_literal(&mut self) -> char {
+        self.bump(); // consume opening '
+        let c = match self.peek() {
+            Some('\\') => {
+                self.bump();
+                match self.peek() {
+                    Some('n') => { self.bump(); '\n' }
+                    Some('r') => { self.bump(); '\r' }
+                    Some('t') => { self.bump(); '\t' }
+                    Some('0') => { self.bump(); '\0' }
+                    Some('\\') => { self.bump(); '\\' }
+                    Some('\'') => { self.bump(); '\'' }
+                    _ => { self.bump(); '?' }
+                }
+            }
+            Some(c) => { self.bump(); c }
+            None => '?',
+        };
+        if self.peek() == Some('\'') {
+            self.bump(); // consume closing '
+        }
+        c
+    }
+
+    fn read_string_literal(&mut self) -> String {
+        self.bump(); // consume opening "
+        let mut s = String::new();
+        loop {
+            match self.peek() {
+                Some('"') => {
+                    self.bump(); // consume closing "
+                    break;
+                }
+                Some('\\') => {
+                    self.bump();
+                    match self.peek() {
+                        Some('n') => { self.bump(); s.push('\n'); }
+                        Some('r') => { self.bump(); s.push('\r'); }
+                        Some('t') => { self.bump(); s.push('\t'); }
+                        Some('0') => { self.bump(); s.push('\0'); }
+                        Some('\\') => { self.bump(); s.push('\\'); }
+                        Some('"') => { self.bump(); s.push('"'); }
+                        Some(c) => { self.bump(); s.push(c); }
+                        None => break,
+                    }
+                }
+                Some(c) => {
+                    self.bump();
+                    s.push(c);
+                }
+                None => break,
+            }
+        }
+        s
+    }
+
     pub fn next_token(&mut self) -> Token {
         self.skip_ws();
         let pos = self.pos;
@@ -142,6 +201,7 @@ impl<'a> Lexer<'a> {
             Some(':') => { self.bump(); TokenKind::Colon }
             Some(';') => { self.bump(); TokenKind::Semicolon }
             Some(',') => { self.bump(); TokenKind::Comma }
+            Some('.') => { self.bump(); TokenKind::Dot }
             Some('(') => { self.bump(); TokenKind::LParen }
             Some(')') => { self.bump(); TokenKind::RParen }
             Some('{') => { self.bump(); TokenKind::LBrace }
@@ -194,6 +254,8 @@ impl<'a> Lexer<'a> {
                     TokenKind::Bang
                 }
             }
+            Some('\'') => TokenKind::Char(self.read_char_literal()),
+            Some('"') => TokenKind::StringLit(self.read_string_literal()),
             None => TokenKind::Eof,
             Some(_) => {
                 self.bump();

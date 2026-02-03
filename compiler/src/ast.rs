@@ -1,13 +1,23 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     I32,
+    Char,
     Bool,
+    Str,
     Void,
+    Struct(String),
 }
 
 #[derive(Debug, Clone)]
 pub struct Program {
     pub functions: Vec<Function>,
+    pub structs: Vec<StructDecl>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructDecl {
+    pub name: String,
+    pub fields: Vec<Param>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +66,9 @@ pub enum Stmt {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Int(i32),
+    Char(char),
     Bool(bool),
+    StringLit(String),
     Ident(String),
     Binary {
         op: BinOp,
@@ -66,6 +78,14 @@ pub enum Expr {
     Call {
         callee: String,
         args: Vec<Expr>,
+    },
+    FieldAccess {
+        expr: Box<Expr>,
+        field: String,
+    },
+    StructInit {
+        name: String,
+        fields: Vec<(String, Expr)>,
     },
 }
 
