@@ -1,0 +1,94 @@
+use std::collections::HashMap;
+
+use crate::ast::{Block, Expr, Function, Program, Stmt, Type};
+
+#[derive(Debug)]
+pub struct TypeError {
+    pub message: String,
+}
+
+pub fn typecheck_program(prog: &Program) -> Result<(), TypeError> {
+    let mut fn_sigs: HashMap<String, (Vec<Type>, Type)> = HashMap::new();
+    for f in &prog.functions {
+        let params = f.params.iter().map(|p| p.ty.clone()).collect::<Vec<_>>();
+        fn_sigs.insert(f.name.clone(), (params, f.ret.clone()));
+    }
+
+    for f in &prog.functions {
+        typecheck_function(f, &fn_sigs)?;
+    }
+
+    Ok(())
+}
+
+fn typecheck_function(f: &Function, fn_sigs: &HashMap<String, (Vec<Type>, Type)>) -> Result<(), TypeError> {
+    let mut vars: HashMap<String, Type> = HashMap::new();
+    for p in &f.params {
+        vars.insert(p.name.clone(), p.ty.clone());
+    }
+    typecheck_block(&f.body, &mut vars, fn_sigs, &f.ret)
+}
+
+fn typecheck_block(
+    block: &Block,
+    vars: &mut HashMap<String, Type>,
+    fn_sigs: &HashMap<String, (Vec<Type>, Type)>,
+    ret_ty: &Type,
+) -> Result<(), TypeError> {
+    for stmt in &block.statements {
+        match stmt {
+            Stmt::Let { name, ty, expr } => {
+                let ety = type_of_expr(expr, vars, fn_sigs)?;
+                if &ety != ty {
+                    return Err(TypeError { message: format!("type mismatch in let {}", name) });
+                }
+                vars.insert(name.clone(), ty.clone());
+            }
+            Stmt::Return(expr) => {
+                let ety = type_of_expr(expr, vars, fn_sigs)?;
+                if &ety != ret_ty {
+                    return Err(TypeError { message: "return type mismatch".to_string() });
+                }
+            }
+            Stmt::Expr(expr) => {
+                let _ = type_of_expr(expr, vars, fn_sigs)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn type_of_expr(
+    expr: &Expr,
+    vars: &HashMap<String, Type>,
+    fn_sigs: &HashMap<String, (Vec<Type>, Type)>,
+) -> Result<Type, TypeError> {
+    match expr {
+        Expr::Int(_) => Ok(Type::I32),
+        Expr::Bool(_) => Ok(Type::Bool),
+        Expr::Ident(name) => vars.get(name).cloned().ok_or_else(|| TypeError { message: format!("unknown variable {}", name) }),
+        Expr::Binary { op: _, left, right } => {
+            let l = type_of_expr(left, vars, fn_sigs)?;
+            let r = type_of_expr(right, vars, fn_sigs)?;
+            if l != Type::I32 || r != Type::I32 {
+                return Err(TypeError { message: "binary ops require i32".to_string() });
+            }
+            Ok(Type::I32)
+        }
+        Expr::Call { callee, args } => {
+            let (params, ret) = fn_sigs.get(callee)
+                .ok_or_else(|| TypeError { message: format!("unknown function {}", callee) })?
+                .clone();
+            if params.len() != args.len() {
+                return Err(TypeError { message: format!("arity mismatch for {}", callee) });
+            }
+            for (arg, pty) in args.iter().zip(params.iter()) {
+                let aty = type_of_expr(arg, vars, fn_sigs)?;
+                if &aty != pty {
+                    return Err(TypeError { message: format!("arg type mismatch for {}", callee) });
+                }
+            }
+            Ok(ret)
+        }
+    }
+}
