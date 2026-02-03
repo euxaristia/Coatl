@@ -1,6 +1,22 @@
 use std::collections::HashMap;
 
-use crate::ast::{BinOp, Block, Expr, Function, Program, Stmt, Type};
+use crate::ast::{BinOp, Block, Expr, Function, Param, Program, Stmt, Type};
+
+fn is_scalar(ty: &Type) -> bool {
+    matches!(ty, Type::I32 | Type::Char | Type::Bool)
+}
+
+fn field_local_name(var: &str, field: &str) -> String {
+    format!("__field__{}__{}", var, field)
+}
+
+fn collect_struct_defs(prog: &Program) -> HashMap<String, Vec<Param>> {
+    let mut defs = HashMap::new();
+    for s in &prog.structs {
+        defs.insert(s.name.clone(), s.fields.clone());
+    }
+    defs
+}
 
 fn collect_strings_from_program(prog: &Program) -> Vec<String> {
     let mut strings = Vec::new();
@@ -62,6 +78,7 @@ fn collect_strings_from_expr(expr: &Expr, strings: &mut Vec<String>) {
 
 pub fn emit_wat(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
+    let struct_defs = collect_struct_defs(prog);
     let mut out = String::new();
     out.push_str("(module\n");
 
@@ -98,7 +115,7 @@ pub fn emit_wat(prog: &Program) -> String {
     }
 
     for f in &prog.functions {
-        out.push_str(&emit_function_wat_with_strings(f, &string_offsets));
+        out.push_str(&emit_function_wat_with_strings(f, &string_offsets, &struct_defs));
     }
     if prog.functions.iter().any(|f| f.name == "main") {
         out.push_str("  (export \"main\" (func $main))\n");
@@ -109,6 +126,7 @@ pub fn emit_wat(prog: &Program) -> String {
 
 pub fn emit_x86_64_asm(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
+    let struct_defs = collect_struct_defs(prog);
     let mut out = String::new();
     out.push_str(".intel_syntax noprefix\n");
 
@@ -129,74 +147,129 @@ pub fn emit_x86_64_asm(prog: &Program) -> String {
 
     out.push_str(".text\n");
     for f in &prog.functions {
-        out.push_str(&emit_function_x86_64_with_strings(f, &strings));
+        out.push_str(&emit_function_x86_64_with_strings(f, &strings, &struct_defs));
     }
     out
 }
 
-fn collect_locals_from_block(block: &Block, locals: &mut HashMap<String, i32>, local_index: &mut i32, local_decls: &mut Vec<String>) {
+fn collect_locals_from_block(
+    block: &Block,
+    locals: &mut HashMap<String, i32>,
+    local_index: &mut i32,
+    local_decls: &mut Vec<String>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    var_types: &mut HashMap<String, Type>,
+) {
     for stmt in &block.statements {
         match stmt {
             Stmt::Let { name, ty, .. } => {
-                if *ty == Type::I32 || *ty == Type::Char || *ty == Type::Bool {
+                var_types.insert(name.clone(), ty.clone());
+                if is_scalar(ty) {
                     local_decls.push(format!("  (local ${} i32)", name));
                     locals.insert(name.clone(), *local_index);
                     *local_index += 1;
+                } else if let Type::Struct(sname) = ty {
+                    let fields = struct_defs
+                        .get(sname)
+                        .unwrap_or_else(|| panic!("unknown struct {}", sname));
+                    for field in fields {
+                        if !is_scalar(&field.ty) {
+                            panic!("non-scalar field {}.{} is not supported in codegen", sname, field.name);
+                        }
+                        let lname = field_local_name(name, &field.name);
+                        local_decls.push(format!("  (local ${} i32)", lname));
+                        locals.insert(lname, *local_index);
+                        *local_index += 1;
+                    }
                 }
             }
             Stmt::If { then_block, else_block, .. } => {
-                collect_locals_from_block(then_block, locals, local_index, local_decls);
+                collect_locals_from_block(then_block, locals, local_index, local_decls, struct_defs, var_types);
                 if let Some(eb) = else_block {
-                    collect_locals_from_block(eb, locals, local_index, local_decls);
+                    collect_locals_from_block(eb, locals, local_index, local_decls, struct_defs, var_types);
                 }
             }
             Stmt::While { body, .. } => {
-                collect_locals_from_block(body, locals, local_index, local_decls);
+                collect_locals_from_block(body, locals, local_index, local_decls, struct_defs, var_types);
             }
             _ => {}
         }
     }
 }
 
-fn collect_locals_x86_64(block: &Block, local_order: &mut Vec<String>) {
+fn collect_locals_x86_64(
+    block: &Block,
+    local_order: &mut Vec<String>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    var_types: &mut HashMap<String, Type>,
+) {
     for stmt in &block.statements {
         match stmt {
             Stmt::Let { name, ty, .. } => {
-                if *ty == Type::I32 || *ty == Type::Char || *ty == Type::Bool {
+                var_types.insert(name.clone(), ty.clone());
+                if is_scalar(ty) {
                     local_order.push(name.clone());
+                } else if let Type::Struct(sname) = ty {
+                    let fields = struct_defs
+                        .get(sname)
+                        .unwrap_or_else(|| panic!("unknown struct {}", sname));
+                    for field in fields {
+                        if !is_scalar(&field.ty) {
+                            panic!("non-scalar field {}.{} is not supported in codegen", sname, field.name);
+                        }
+                        local_order.push(field_local_name(name, &field.name));
+                    }
                 }
             }
             Stmt::If { then_block, else_block, .. } => {
-                collect_locals_x86_64(then_block, local_order);
+                collect_locals_x86_64(then_block, local_order, struct_defs, var_types);
                 if let Some(eb) = else_block {
-                    collect_locals_x86_64(eb, local_order);
+                    collect_locals_x86_64(eb, local_order, struct_defs, var_types);
                 }
             }
             Stmt::While { body, .. } => {
-                collect_locals_x86_64(body, local_order);
+                collect_locals_x86_64(body, local_order, struct_defs, var_types);
             }
             _ => {}
         }
     }
 }
 
-fn emit_function_wat_with_strings(f: &Function, string_offsets: &HashMap<String, i32>) -> String {
+fn emit_function_wat_with_strings(
+    f: &Function,
+    string_offsets: &HashMap<String, i32>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+) -> String {
     let mut out = String::new();
     let mut locals = HashMap::new();
+    let mut var_types: HashMap<String, Type> = HashMap::new();
     for (idx, p) in f.params.iter().enumerate() {
+        if matches!(p.ty, Type::Struct(_)) {
+            panic!("struct params are not supported in codegen");
+        }
+        var_types.insert(p.name.clone(), p.ty.clone());
         locals.insert(p.name.clone(), idx as i32);
     }
 
     let mut local_decls: Vec<String> = Vec::new();
     let mut local_index = f.params.len() as i32;
-    collect_locals_from_block(&f.body, &mut locals, &mut local_index, &mut local_decls);
+    collect_locals_from_block(
+        &f.body,
+        &mut locals,
+        &mut local_index,
+        &mut local_decls,
+        struct_defs,
+        &mut var_types,
+    );
 
     out.push_str(&format!("  (func ${}", f.name));
     for p in &f.params {
         out.push_str(&format!(" (param ${} i32)", p.name));
     }
-    if f.ret == Type::I32 || f.ret == Type::Char || f.ret == Type::Bool {
+    if is_scalar(&f.ret) {
         out.push_str(" (result i32)");
+    } else if matches!(f.ret, Type::Struct(_)) {
+        panic!("struct return values are not supported in codegen");
     }
     out.push_str("\n");
     for d in &local_decls {
@@ -205,9 +278,17 @@ fn emit_function_wat_with_strings(f: &Function, string_offsets: &HashMap<String,
     }
 
     let mut label_counter = 0;
-    emit_block_wat_with_strings(&f.body, &locals, &mut label_counter, string_offsets, &mut out);
+    emit_block_wat_with_strings(
+        &f.body,
+        &locals,
+        &var_types,
+        struct_defs,
+        &mut label_counter,
+        string_offsets,
+        &mut out,
+    );
 
-    if f.ret == Type::I32 || f.ret == Type::Char || f.ret == Type::Bool {
+    if is_scalar(&f.ret) {
         out.push_str("  i32.const 0\n  return\n");
     }
 
@@ -215,16 +296,25 @@ fn emit_function_wat_with_strings(f: &Function, string_offsets: &HashMap<String,
     out
 }
 
-fn emit_function_x86_64_with_strings(f: &Function, strings: &[String]) -> String {
+fn emit_function_x86_64_with_strings(
+    f: &Function,
+    strings: &[String],
+    struct_defs: &HashMap<String, Vec<Param>>,
+) -> String {
     let mut out = String::new();
     let mut locals = HashMap::new();
     let mut local_order = Vec::new();
+    let mut var_types: HashMap<String, Type> = HashMap::new();
 
     for p in &f.params {
+        if matches!(p.ty, Type::Struct(_)) {
+            panic!("struct params are not supported in codegen");
+        }
+        var_types.insert(p.name.clone(), p.ty.clone());
         local_order.push(p.name.clone());
     }
 
-    collect_locals_x86_64(&f.body, &mut local_order);
+    collect_locals_x86_64(&f.body, &mut local_order, struct_defs, &mut var_types);
 
     for (i, name) in local_order.iter().enumerate() {
         let offset = -8 * (i as i32 + 1);
@@ -254,10 +344,21 @@ fn emit_function_x86_64_with_strings(f: &Function, strings: &[String]) -> String
 
     let ret_label = format!(".Lreturn_{}", f.name);
     let mut label_counter = 0;
-    emit_block_x86_64_with_strings(&f.body, &locals, &ret_label, &mut label_counter, strings, &mut out);
+    emit_block_x86_64_with_strings(
+        &f.body,
+        &locals,
+        &var_types,
+        struct_defs,
+        &ret_label,
+        &mut label_counter,
+        strings,
+        &mut out,
+    );
 
-    if f.ret == Type::I32 || f.ret == Type::Char || f.ret == Type::Bool {
+    if is_scalar(&f.ret) {
         out.push_str("  mov rax, 0\n");
+    } else if matches!(f.ret, Type::Struct(_)) {
+        panic!("struct return values are not supported in codegen");
     }
 
     out.push_str(&format!("{}:\n", ret_label));
@@ -265,31 +366,116 @@ fn emit_function_x86_64_with_strings(f: &Function, strings: &[String]) -> String
     out
 }
 
-fn emit_block_wat_with_strings(block: &Block, locals: &HashMap<String, i32>, label_counter: &mut i32, string_offsets: &HashMap<String, i32>, out: &mut String) {
+fn emit_block_wat_with_strings(
+    block: &Block,
+    locals: &HashMap<String, i32>,
+    var_types: &HashMap<String, Type>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    label_counter: &mut i32,
+    string_offsets: &HashMap<String, i32>,
+    out: &mut String,
+) {
     for stmt in &block.statements {
-        emit_stmt_wat_with_strings(stmt, locals, label_counter, string_offsets, out);
+        emit_stmt_wat_with_strings(stmt, locals, var_types, struct_defs, label_counter, string_offsets, out);
     }
 }
 
-fn emit_stmt_wat_with_strings(stmt: &Stmt, locals: &HashMap<String, i32>, label_counter: &mut i32, string_offsets: &HashMap<String, i32>, out: &mut String) {
+fn emit_stmt_wat_with_strings(
+    stmt: &Stmt,
+    locals: &HashMap<String, i32>,
+    var_types: &HashMap<String, Type>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    label_counter: &mut i32,
+    string_offsets: &HashMap<String, i32>,
+    out: &mut String,
+) {
     match stmt {
-        Stmt::Let { name, expr, .. } => {
-            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
-            out.push_str(&format!("  local.set ${}\n", name));
+        Stmt::Let { name, ty, expr } => {
+            if is_scalar(ty) {
+                emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
+                out.push_str(&format!("  local.set ${}\n", name));
+            } else if let Type::Struct(sname) = ty {
+                let fields = struct_defs
+                    .get(sname)
+                    .unwrap_or_else(|| panic!("unknown struct {}", sname));
+                match expr {
+                    Expr::StructInit { name: init_name, fields: init_fields } => {
+                        if init_name != sname {
+                            panic!("struct init type mismatch: {} vs {}", init_name, sname);
+                        }
+                        for field in fields {
+                            let init_expr = init_fields
+                                .iter()
+                                .find(|(fname, _)| fname == &field.name)
+                                .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
+                                .1
+                                .clone();
+                            emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, string_offsets, out);
+                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                        }
+                    }
+                    Expr::Ident(src) => {
+                        for field in fields {
+                            out.push_str(&format!("  local.get ${}\n", field_local_name(src, &field.name)));
+                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                        }
+                    }
+                    _ => {
+                        panic!("unsupported struct initializer for {}", name);
+                    }
+                }
+            } else {
+                panic!("unsupported let type");
+            }
         }
         Stmt::Assign { name, expr } => {
-            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
-            out.push_str(&format!("  local.set ${}\n", name));
+            let ty = var_types.get(name).unwrap_or_else(|| panic!("unknown variable {}", name));
+            if is_scalar(ty) {
+                emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
+                out.push_str(&format!("  local.set ${}\n", name));
+            } else if let Type::Struct(sname) = ty {
+                let fields = struct_defs
+                    .get(sname)
+                    .unwrap_or_else(|| panic!("unknown struct {}", sname));
+                match expr {
+                    Expr::StructInit { name: init_name, fields: init_fields } => {
+                        if init_name != sname {
+                            panic!("struct init type mismatch: {} vs {}", init_name, sname);
+                        }
+                        for field in fields {
+                            let init_expr = init_fields
+                                .iter()
+                                .find(|(fname, _)| fname == &field.name)
+                                .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
+                                .1
+                                .clone();
+                            emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, string_offsets, out);
+                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                        }
+                    }
+                    Expr::Ident(src) => {
+                        for field in fields {
+                            out.push_str(&format!("  local.get ${}\n", field_local_name(src, &field.name)));
+                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                        }
+                    }
+                    _ => {
+                        panic!("unsupported struct assignment to {}", name);
+                    }
+                }
+            } else {
+                panic!("unsupported assignment type");
+            }
         }
         Stmt::If { cond, then_block, else_block } => {
-            emit_expr_wat_with_strings(cond, locals, string_offsets, out);
+            emit_expr_wat_with_strings(cond, locals, var_types, struct_defs, string_offsets, out);
             out.push_str("  (if\n");
             out.push_str("    (then\n");
-            emit_block_wat_with_strings(then_block, locals, label_counter, string_offsets, out);
+            emit_block_wat_with_strings(then_block, locals, var_types, struct_defs, label_counter, string_offsets, out);
             out.push_str("    )\n");
             if let Some(eb) = else_block {
                 out.push_str("    (else\n");
-                emit_block_wat_with_strings(eb, locals, label_counter, string_offsets, out);
+                emit_block_wat_with_strings(eb, locals, var_types, struct_defs, label_counter, string_offsets, out);
                 out.push_str("    )\n");
             }
             out.push_str("  )\n");
@@ -299,56 +485,155 @@ fn emit_stmt_wat_with_strings(stmt: &Stmt, locals: &HashMap<String, i32>, label_
             *label_counter += 1;
             out.push_str(&format!("  (block $exit_{}\n", n));
             out.push_str(&format!("    (loop $loop_{}\n", n));
-            emit_expr_wat_with_strings(cond, locals, string_offsets, out);
+            emit_expr_wat_with_strings(cond, locals, var_types, struct_defs, string_offsets, out);
             out.push_str("      i32.eqz\n");
             out.push_str(&format!("      br_if $exit_{}\n", n));
-            emit_block_wat_with_strings(body, locals, label_counter, string_offsets, out);
+            emit_block_wat_with_strings(body, locals, var_types, struct_defs, label_counter, string_offsets, out);
             out.push_str(&format!("      br $loop_{}\n", n));
             out.push_str("    )\n");
             out.push_str("  )\n");
         }
         Stmt::Return(expr) => {
-            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
+            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
             out.push_str("  return\n");
         }
         Stmt::Expr(expr) => {
-            emit_expr_wat_with_strings(expr, locals, string_offsets, out);
+            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
             out.push_str("  drop\n");
         }
     }
 }
 
-fn emit_block_x86_64_with_strings(block: &Block, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, strings: &[String], out: &mut String) {
+fn emit_block_x86_64_with_strings(
+    block: &Block,
+    locals: &HashMap<String, i32>,
+    var_types: &HashMap<String, Type>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    ret_label: &str,
+    label_counter: &mut i32,
+    strings: &[String],
+    out: &mut String,
+) {
     for stmt in &block.statements {
-        emit_stmt_x86_64_with_strings(stmt, locals, ret_label, label_counter, strings, out);
+        emit_stmt_x86_64_with_strings(stmt, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
     }
 }
 
-fn emit_stmt_x86_64_with_strings(stmt: &Stmt, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, strings: &[String], out: &mut String) {
+fn emit_stmt_x86_64_with_strings(
+    stmt: &Stmt,
+    locals: &HashMap<String, i32>,
+    var_types: &HashMap<String, Type>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    ret_label: &str,
+    label_counter: &mut i32,
+    strings: &[String],
+    out: &mut String,
+) {
     match stmt {
-        Stmt::Let { name, expr, .. } => {
-            emit_expr_x86_64_with_strings(expr, locals, strings, out);
-            if let Some(off) = locals.get(name) {
-                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+        Stmt::Let { name, ty, expr } => {
+            if is_scalar(ty) {
+                emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
+                if let Some(off) = locals.get(name) {
+                    out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+                }
+            } else if let Type::Struct(sname) = ty {
+                let fields = struct_defs
+                    .get(sname)
+                    .unwrap_or_else(|| panic!("unknown struct {}", sname));
+                match expr {
+                    Expr::StructInit { name: init_name, fields: init_fields } => {
+                        if init_name != sname {
+                            panic!("struct init type mismatch: {} vs {}", init_name, sname);
+                        }
+                        for field in fields {
+                            let init_expr = init_fields
+                                .iter()
+                                .find(|(fname, _)| fname == &field.name)
+                                .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
+                                .1
+                                .clone();
+                            emit_expr_x86_64_with_strings(&init_expr, locals, var_types, struct_defs, strings, out);
+                            if let Some(off) = locals.get(&field_local_name(name, &field.name)) {
+                                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+                            }
+                        }
+                    }
+                    Expr::Ident(src) => {
+                        for field in fields {
+                            if let Some(src_off) = locals.get(&field_local_name(src, &field.name)) {
+                                out.push_str(&format!("  mov rax, QWORD PTR [rbp{}]\n", fmt_offset(*src_off)));
+                            }
+                            if let Some(dst_off) = locals.get(&field_local_name(name, &field.name)) {
+                                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*dst_off)));
+                            }
+                        }
+                    }
+                    _ => {
+                        panic!("unsupported struct initializer for {}", name);
+                    }
+                }
+            } else {
+                panic!("unsupported let type");
             }
         }
         Stmt::Assign { name, expr } => {
-            emit_expr_x86_64_with_strings(expr, locals, strings, out);
-            if let Some(off) = locals.get(name) {
-                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+            let ty = var_types.get(name).unwrap_or_else(|| panic!("unknown variable {}", name));
+            if is_scalar(ty) {
+                emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
+                if let Some(off) = locals.get(name) {
+                    out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+                }
+            } else if let Type::Struct(sname) = ty {
+                let fields = struct_defs
+                    .get(sname)
+                    .unwrap_or_else(|| panic!("unknown struct {}", sname));
+                match expr {
+                    Expr::StructInit { name: init_name, fields: init_fields } => {
+                        if init_name != sname {
+                            panic!("struct init type mismatch: {} vs {}", init_name, sname);
+                        }
+                        for field in fields {
+                            let init_expr = init_fields
+                                .iter()
+                                .find(|(fname, _)| fname == &field.name)
+                                .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
+                                .1
+                                .clone();
+                            emit_expr_x86_64_with_strings(&init_expr, locals, var_types, struct_defs, strings, out);
+                            if let Some(off) = locals.get(&field_local_name(name, &field.name)) {
+                                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+                            }
+                        }
+                    }
+                    Expr::Ident(src) => {
+                        for field in fields {
+                            if let Some(src_off) = locals.get(&field_local_name(src, &field.name)) {
+                                out.push_str(&format!("  mov rax, QWORD PTR [rbp{}]\n", fmt_offset(*src_off)));
+                            }
+                            if let Some(dst_off) = locals.get(&field_local_name(name, &field.name)) {
+                                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*dst_off)));
+                            }
+                        }
+                    }
+                    _ => {
+                        panic!("unsupported struct assignment to {}", name);
+                    }
+                }
+            } else {
+                panic!("unsupported assignment type");
             }
         }
         Stmt::If { cond, then_block, else_block } => {
             let n = *label_counter;
             *label_counter += 1;
-            emit_expr_x86_64_with_strings(cond, locals, strings, out);
+            emit_expr_x86_64_with_strings(cond, locals, var_types, struct_defs, strings, out);
             out.push_str("  cmp rax, 0\n");
             out.push_str(&format!("  je .Lelse_{}\n", n));
-            emit_block_x86_64_with_strings(then_block, locals, ret_label, label_counter, strings, out);
+            emit_block_x86_64_with_strings(then_block, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
             out.push_str(&format!("  jmp .Lendif_{}\n", n));
             out.push_str(&format!(".Lelse_{}:\n", n));
             if let Some(eb) = else_block {
-                emit_block_x86_64_with_strings(eb, locals, ret_label, label_counter, strings, out);
+                emit_block_x86_64_with_strings(eb, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
             }
             out.push_str(&format!(".Lendif_{}:\n", n));
         }
@@ -356,24 +641,31 @@ fn emit_stmt_x86_64_with_strings(stmt: &Stmt, locals: &HashMap<String, i32>, ret
             let n = *label_counter;
             *label_counter += 1;
             out.push_str(&format!(".Lloop_{}:\n", n));
-            emit_expr_x86_64_with_strings(cond, locals, strings, out);
+            emit_expr_x86_64_with_strings(cond, locals, var_types, struct_defs, strings, out);
             out.push_str("  cmp rax, 0\n");
             out.push_str(&format!("  je .Lexit_{}\n", n));
-            emit_block_x86_64_with_strings(body, locals, ret_label, label_counter, strings, out);
+            emit_block_x86_64_with_strings(body, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
             out.push_str(&format!("  jmp .Lloop_{}\n", n));
             out.push_str(&format!(".Lexit_{}:\n", n));
         }
         Stmt::Return(expr) => {
-            emit_expr_x86_64_with_strings(expr, locals, strings, out);
+            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
             out.push_str(&format!("  jmp {}\n", ret_label));
         }
         Stmt::Expr(expr) => {
-            emit_expr_x86_64_with_strings(expr, locals, strings, out);
+            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
         }
     }
 }
 
-fn emit_expr_wat_with_strings(expr: &Expr, locals: &HashMap<String, i32>, string_offsets: &HashMap<String, i32>, out: &mut String) {
+fn emit_expr_wat_with_strings(
+    expr: &Expr,
+    locals: &HashMap<String, i32>,
+    var_types: &HashMap<String, Type>,
+    _struct_defs: &HashMap<String, Vec<Param>>,
+    string_offsets: &HashMap<String, i32>,
+    out: &mut String,
+) {
     match expr {
         Expr::Int(v) => {
             out.push_str(&format!("  i32.const {}\n", v));
@@ -398,8 +690,8 @@ fn emit_expr_wat_with_strings(expr: &Expr, locals: &HashMap<String, i32>, string
             }
         }
         Expr::Binary { op, left, right } => {
-            emit_expr_wat_with_strings(left, locals, string_offsets, out);
-            emit_expr_wat_with_strings(right, locals, string_offsets, out);
+            emit_expr_wat_with_strings(left, locals, var_types, _struct_defs, string_offsets, out);
+            emit_expr_wat_with_strings(right, locals, var_types, _struct_defs, string_offsets, out);
             let instr = match op {
                 BinOp::Add => "i32.add",
                 BinOp::Sub => "i32.sub",
@@ -416,20 +708,40 @@ fn emit_expr_wat_with_strings(expr: &Expr, locals: &HashMap<String, i32>, string
         }
         Expr::Call { callee, args } => {
             for arg in args {
-                emit_expr_wat_with_strings(arg, locals, string_offsets, out);
+                emit_expr_wat_with_strings(arg, locals, var_types, _struct_defs, string_offsets, out);
             }
             out.push_str(&format!("  call ${}\n", callee));
         }
-        Expr::FieldAccess { .. } => {
-            panic!("WAT codegen for field access is not implemented");
+        Expr::FieldAccess { expr, field } => {
+            if let Expr::Ident(name) = &**expr {
+                let ty = var_types.get(name).unwrap_or_else(|| panic!("unknown variable {}", name));
+                if !matches!(ty, Type::Struct(_)) {
+                    panic!("field access on non-struct {}", name);
+                }
+                let lname = field_local_name(name, field);
+                if locals.contains_key(&lname) {
+                    out.push_str(&format!("  local.get ${}\n", lname));
+                } else {
+                    panic!("unknown field {} on {}", field, name);
+                }
+            } else {
+                panic!("field access only supported on identifiers");
+            }
         }
         Expr::StructInit { .. } => {
-            panic!("WAT codegen for struct init is not implemented");
+            panic!("WAT codegen for struct init is only supported in let/assign");
         }
     }
 }
 
-fn emit_expr_x86_64_with_strings(expr: &Expr, locals: &HashMap<String, i32>, strings: &[String], out: &mut String) {
+fn emit_expr_x86_64_with_strings(
+    expr: &Expr,
+    locals: &HashMap<String, i32>,
+    var_types: &HashMap<String, Type>,
+    _struct_defs: &HashMap<String, Vec<Param>>,
+    strings: &[String],
+    out: &mut String,
+) {
     match expr {
         Expr::Int(v) => {
             out.push_str(&format!("  mov rax, {}\n", v));
@@ -454,9 +766,9 @@ fn emit_expr_x86_64_with_strings(expr: &Expr, locals: &HashMap<String, i32>, str
             }
         }
         Expr::Binary { op, left, right } => {
-            emit_expr_x86_64_with_strings(left, locals, strings, out);
+            emit_expr_x86_64_with_strings(left, locals, var_types, _struct_defs, strings, out);
             out.push_str("  push rax\n");
-            emit_expr_x86_64_with_strings(right, locals, strings, out);
+            emit_expr_x86_64_with_strings(right, locals, var_types, _struct_defs, strings, out);
             out.push_str("  pop rcx\n");
             match op {
                 BinOp::Add => {
@@ -503,13 +815,13 @@ fn emit_expr_x86_64_with_strings(expr: &Expr, locals: &HashMap<String, i32>, str
 
             if args.len() > arg_regs.len() {
                 for i in (arg_regs.len()..args.len()).rev() {
-                    emit_expr_x86_64_with_strings(&args[i], locals, strings, out);
+                    emit_expr_x86_64_with_strings(&args[i], locals, var_types, _struct_defs, strings, out);
                     out.push_str("  push rax\n");
                 }
             }
 
             for i in (0..reg_count).rev() {
-                emit_expr_x86_64_with_strings(&args[i], locals, strings, out);
+                emit_expr_x86_64_with_strings(&args[i], locals, var_types, _struct_defs, strings, out);
                 out.push_str(&format!("  mov {}, rax\n", arg_regs[i]));
             }
 
@@ -520,11 +832,24 @@ fn emit_expr_x86_64_with_strings(expr: &Expr, locals: &HashMap<String, i32>, str
                 out.push_str(&format!("  add rsp, {}\n", cleanup));
             }
         }
-        Expr::FieldAccess { .. } => {
-            panic!("x86_64 codegen for field access is not implemented");
+        Expr::FieldAccess { expr, field } => {
+            if let Expr::Ident(name) = &**expr {
+                let ty = var_types.get(name).unwrap_or_else(|| panic!("unknown variable {}", name));
+                if !matches!(ty, Type::Struct(_)) {
+                    panic!("field access on non-struct {}", name);
+                }
+                let lname = field_local_name(name, field);
+                if let Some(off) = locals.get(&lname) {
+                    out.push_str(&format!("  mov rax, QWORD PTR [rbp{}]\n", fmt_offset(*off)));
+                } else {
+                    panic!("unknown field {} on {}", field, name);
+                }
+            } else {
+                panic!("field access only supported on identifiers");
+            }
         }
         Expr::StructInit { .. } => {
-            panic!("x86_64 codegen for struct init is not implemented");
+            panic!("x86_64 codegen for struct init is only supported in let/assign");
         }
     }
 }

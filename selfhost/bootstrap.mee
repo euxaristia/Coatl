@@ -1,0 +1,11 @@
+fn main() -> i32 {
+  // Stage0: placeholder Mee "compiler".
+  // We can't do real parsing yet (no structs/arrays/string ops),
+  // so keep this as a compiling stub and grow it as features land.
+  return compile_stub();
+}
+
+fn compile_stub() -> i32 {
+  // Convention: return 0 for success.
+  return 0;
+}
