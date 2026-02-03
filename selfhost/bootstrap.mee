@@ -6,6 +6,53 @@ fn main() -> i32 {
 }
 
 fn compile_stub() -> i32 {
-  // Convention: return 0 for success.
+  // Hardcoded token stream for: fn main() -> i32 { return 0; }
+  // This simulates a lexer without needing strings/arrays yet.
+  let pos: i32 = 0;
+  let count: i32 = 0;
+  let tok: i32 = next_token(pos);
+  while (tok != tok_eof()) {
+    count = count + 1;
+    pos = pos + 1;
+    tok = next_token(pos);
+  }
+  // Success if we saw the expected token count (11 tokens).
+  if (count == 11) {
+    return 0;
+  }
+  return 1;
+}
+
+fn next_token(pos: i32) -> i32 {
+  if (pos == 0) { return tok_fn(); }
+  if (pos == 1) { return tok_ident(); } // main
+  if (pos == 2) { return tok_lparen(); }
+  if (pos == 3) { return tok_rparen(); }
+  if (pos == 4) { return tok_arrow(); }
+  if (pos == 5) { return tok_i32(); }
+  if (pos == 6) { return tok_lbrace(); }
+  if (pos == 7) { return tok_return(); }
+  if (pos == 8) { return tok_int(); } // 0
+  if (pos == 9) { return tok_semi(); }
+  if (pos == 10) { return tok_rbrace(); }
+  return tok_eof();
+}
+
+fn token_value(pos: i32) -> i32 {
+  // Only meaningful for TOK_INT in this stub.
+  if (pos == 8) { return 0; }
   return 0;
 }
+
+fn tok_eof() -> i32 { return 0; }
+fn tok_fn() -> i32 { return 1; }
+fn tok_ident() -> i32 { return 2; }
+fn tok_lparen() -> i32 { return 3; }
+fn tok_rparen() -> i32 { return 4; }
+fn tok_arrow() -> i32 { return 5; }
+fn tok_i32() -> i32 { return 6; }
+fn tok_lbrace() -> i32 { return 7; }
+fn tok_rbrace() -> i32 { return 8; }
+fn tok_return() -> i32 { return 9; }
+fn tok_int() -> i32 { return 10; }
+fn tok_semi() -> i32 { return 11; }
