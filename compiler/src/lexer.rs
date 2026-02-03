@@ -28,6 +28,13 @@ pub enum TokenKind {
     Star,
     Slash,
     Eq,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
+    EqEq,
+    NotEq,
+    Bang,
     Eof,
 }
 
@@ -151,7 +158,42 @@ impl<'a> Lexer<'a> {
             }
             Some('*') => { self.bump(); TokenKind::Star }
             Some('/') => { self.bump(); TokenKind::Slash }
-            Some('=') => { self.bump(); TokenKind::Eq }
+            Some('=') => {
+                self.bump();
+                if self.peek() == Some('=') {
+                    self.bump();
+                    TokenKind::EqEq
+                } else {
+                    TokenKind::Eq
+                }
+            }
+            Some('<') => {
+                self.bump();
+                if self.peek() == Some('=') {
+                    self.bump();
+                    TokenKind::LtEq
+                } else {
+                    TokenKind::Lt
+                }
+            }
+            Some('>') => {
+                self.bump();
+                if self.peek() == Some('=') {
+                    self.bump();
+                    TokenKind::GtEq
+                } else {
+                    TokenKind::Gt
+                }
+            }
+            Some('!') => {
+                self.bump();
+                if self.peek() == Some('=') {
+                    self.bump();
+                    TokenKind::NotEq
+                } else {
+                    TokenKind::Bang
+                }
+            }
             None => TokenKind::Eof,
             Some(_) => {
                 self.bump();

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{Block, Expr, Function, Program, Stmt, Type};
+use crate::ast::{BinOp, Block, Expr, Function, Program, Stmt, Type};
 
 #[derive(Debug)]
 pub struct TypeError {
@@ -44,6 +44,32 @@ fn typecheck_block(
                 }
                 vars.insert(name.clone(), ty.clone());
             }
+            Stmt::Assign { name, expr } => {
+                let var_ty = vars.get(name)
+                    .ok_or_else(|| TypeError { message: format!("unknown variable {}", name) })?
+                    .clone();
+                let ety = type_of_expr(expr, vars, fn_sigs)?;
+                if ety != var_ty {
+                    return Err(TypeError { message: format!("type mismatch in assignment to {}", name) });
+                }
+            }
+            Stmt::If { cond, then_block, else_block } => {
+                let cty = type_of_expr(cond, vars, fn_sigs)?;
+                if cty != Type::Bool {
+                    return Err(TypeError { message: "if condition must be bool".to_string() });
+                }
+                typecheck_block(then_block, vars, fn_sigs, ret_ty)?;
+                if let Some(eb) = else_block {
+                    typecheck_block(eb, vars, fn_sigs, ret_ty)?;
+                }
+            }
+            Stmt::While { cond, body } => {
+                let cty = type_of_expr(cond, vars, fn_sigs)?;
+                if cty != Type::Bool {
+                    return Err(TypeError { message: "while condition must be bool".to_string() });
+                }
+                typecheck_block(body, vars, fn_sigs, ret_ty)?;
+            }
             Stmt::Return(expr) => {
                 let ety = type_of_expr(expr, vars, fn_sigs)?;
                 if &ety != ret_ty {
@@ -67,13 +93,18 @@ fn type_of_expr(
         Expr::Int(_) => Ok(Type::I32),
         Expr::Bool(_) => Ok(Type::Bool),
         Expr::Ident(name) => vars.get(name).cloned().ok_or_else(|| TypeError { message: format!("unknown variable {}", name) }),
-        Expr::Binary { op: _, left, right } => {
+        Expr::Binary { op, left, right } => {
             let l = type_of_expr(left, vars, fn_sigs)?;
             let r = type_of_expr(right, vars, fn_sigs)?;
             if l != Type::I32 || r != Type::I32 {
                 return Err(TypeError { message: "binary ops require i32".to_string() });
             }
-            Ok(Type::I32)
+            match op {
+                BinOp::Lt | BinOp::Gt | BinOp::LtEq | BinOp::GtEq | BinOp::Eq | BinOp::NotEq => {
+                    Ok(Type::Bool)
+                }
+                _ => Ok(Type::I32),
+            }
         }
         Expr::Call { callee, args } => {
             let (params, ret) = fn_sigs.get(callee)

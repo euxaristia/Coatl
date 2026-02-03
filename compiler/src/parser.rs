@@ -120,6 +120,58 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::Semicolon)?;
                 Ok(Stmt::Return(expr))
             }
+            TokenKind::If => {
+                self.bump();
+                self.expect(TokenKind::LParen)?;
+                let cond = self.parse_expr()?;
+                self.expect(TokenKind::RParen)?;
+                let then_block = self.parse_block()?;
+                let else_block = if self.curr.kind == TokenKind::Else {
+                    self.bump();
+                    Some(self.parse_block()?)
+                } else {
+                    None
+                };
+                Ok(Stmt::If { cond, then_block, else_block })
+            }
+            TokenKind::While => {
+                self.bump();
+                self.expect(TokenKind::LParen)?;
+                let cond = self.parse_expr()?;
+                self.expect(TokenKind::RParen)?;
+                let body = self.parse_block()?;
+                Ok(Stmt::While { cond, body })
+            }
+            TokenKind::Ident(name) => {
+                self.bump();
+                if self.curr.kind == TokenKind::Eq {
+                    self.bump();
+                    let expr = self.parse_expr()?;
+                    self.expect(TokenKind::Semicolon)?;
+                    Ok(Stmt::Assign { name, expr })
+                } else if self.curr.kind == TokenKind::LParen {
+                    self.bump();
+                    let mut args = Vec::new();
+                    if self.curr.kind != TokenKind::RParen {
+                        loop {
+                            args.push(self.parse_expr()?);
+                            if self.curr.kind == TokenKind::Comma {
+                                self.bump();
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+                    self.expect(TokenKind::RParen)?;
+                    self.expect(TokenKind::Semicolon)?;
+                    Ok(Stmt::Expr(Expr::Call { callee: name, args }))
+                } else {
+                    let left = Expr::Ident(name);
+                    let expr = self.parse_expr_rest(left)?;
+                    self.expect(TokenKind::Semicolon)?;
+                    Ok(Stmt::Expr(expr))
+                }
+            }
             _ => {
                 let expr = self.parse_expr()?;
                 self.expect(TokenKind::Semicolon)?;
@@ -129,11 +181,64 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, ParseError> {
-        self.parse_additive()
+        self.parse_comparison()
+    }
+
+    fn parse_expr_rest(&mut self, left: Expr) -> Result<Expr, ParseError> {
+        let node = self.parse_additive_rest(left)?;
+        self.parse_comparison_rest(node)
+    }
+
+    fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
+        let node = self.parse_additive()?;
+        self.parse_comparison_rest(node)
+    }
+
+    fn parse_comparison_rest(&mut self, mut node: Expr) -> Result<Expr, ParseError> {
+        loop {
+            match self.curr.kind {
+                TokenKind::Lt => {
+                    self.bump();
+                    let rhs = self.parse_additive()?;
+                    node = Expr::Binary { op: BinOp::Lt, left: Box::new(node), right: Box::new(rhs) };
+                }
+                TokenKind::Gt => {
+                    self.bump();
+                    let rhs = self.parse_additive()?;
+                    node = Expr::Binary { op: BinOp::Gt, left: Box::new(node), right: Box::new(rhs) };
+                }
+                TokenKind::LtEq => {
+                    self.bump();
+                    let rhs = self.parse_additive()?;
+                    node = Expr::Binary { op: BinOp::LtEq, left: Box::new(node), right: Box::new(rhs) };
+                }
+                TokenKind::GtEq => {
+                    self.bump();
+                    let rhs = self.parse_additive()?;
+                    node = Expr::Binary { op: BinOp::GtEq, left: Box::new(node), right: Box::new(rhs) };
+                }
+                TokenKind::EqEq => {
+                    self.bump();
+                    let rhs = self.parse_additive()?;
+                    node = Expr::Binary { op: BinOp::Eq, left: Box::new(node), right: Box::new(rhs) };
+                }
+                TokenKind::NotEq => {
+                    self.bump();
+                    let rhs = self.parse_additive()?;
+                    node = Expr::Binary { op: BinOp::NotEq, left: Box::new(node), right: Box::new(rhs) };
+                }
+                _ => break,
+            }
+        }
+        Ok(node)
     }
 
     fn parse_additive(&mut self) -> Result<Expr, ParseError> {
-        let mut node = self.parse_term()?;
+        let node = self.parse_term()?;
+        self.parse_additive_rest(node)
+    }
+
+    fn parse_additive_rest(&mut self, mut node: Expr) -> Result<Expr, ParseError> {
         loop {
             match self.curr.kind {
                 TokenKind::Plus => {

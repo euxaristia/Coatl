@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{BinOp, Expr, Function, Program, Stmt, Type};
+use crate::ast::{BinOp, Block, Expr, Function, Program, Stmt, Type};
 
 pub fn emit_wat(prog: &Program) -> String {
     let mut out = String::new();
@@ -17,11 +17,58 @@ pub fn emit_wat(prog: &Program) -> String {
 
 pub fn emit_x86_64_asm(prog: &Program) -> String {
     let mut out = String::new();
+    out.push_str(".intel_syntax noprefix\n");
     out.push_str(".text\n");
     for f in &prog.functions {
         out.push_str(&emit_function_x86_64(f));
     }
     out
+}
+
+fn collect_locals_from_block(block: &Block, locals: &mut HashMap<String, i32>, local_index: &mut i32, local_decls: &mut Vec<String>) {
+    for stmt in &block.statements {
+        match stmt {
+            Stmt::Let { name, ty, .. } => {
+                if *ty == Type::I32 || *ty == Type::Bool {
+                    local_decls.push(format!("  (local ${} i32)", name));
+                    locals.insert(name.clone(), *local_index);
+                    *local_index += 1;
+                }
+            }
+            Stmt::If { then_block, else_block, .. } => {
+                collect_locals_from_block(then_block, locals, local_index, local_decls);
+                if let Some(eb) = else_block {
+                    collect_locals_from_block(eb, locals, local_index, local_decls);
+                }
+            }
+            Stmt::While { body, .. } => {
+                collect_locals_from_block(body, locals, local_index, local_decls);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn collect_locals_x86_64(block: &Block, local_order: &mut Vec<String>) {
+    for stmt in &block.statements {
+        match stmt {
+            Stmt::Let { name, ty, .. } => {
+                if *ty == Type::I32 || *ty == Type::Bool {
+                    local_order.push(name.clone());
+                }
+            }
+            Stmt::If { then_block, else_block, .. } => {
+                collect_locals_x86_64(then_block, local_order);
+                if let Some(eb) = else_block {
+                    collect_locals_x86_64(eb, local_order);
+                }
+            }
+            Stmt::While { body, .. } => {
+                collect_locals_x86_64(body, local_order);
+            }
+            _ => {}
+        }
+    }
 }
 
 fn emit_function_wat(f: &Function) -> String {
@@ -33,15 +80,7 @@ fn emit_function_wat(f: &Function) -> String {
 
     let mut local_decls: Vec<String> = Vec::new();
     let mut local_index = f.params.len() as i32;
-    for stmt in &f.body.statements {
-        if let Stmt::Let { name, ty, .. } = stmt {
-            if *ty == Type::I32 || *ty == Type::Bool {
-                local_decls.push(format!("  (local ${} i32)", name));
-                locals.insert(name.clone(), local_index);
-                local_index += 1;
-            }
-        }
-    }
+    collect_locals_from_block(&f.body, &mut locals, &mut local_index, &mut local_decls);
 
     out.push_str(&format!("  (func ${}", f.name));
     for p in &f.params {
@@ -56,9 +95,8 @@ fn emit_function_wat(f: &Function) -> String {
         out.push_str("\n");
     }
 
-    for stmt in &f.body.statements {
-        emit_stmt_wat(stmt, &locals, &mut out);
-    }
+    let mut label_counter = 0;
+    emit_block_wat(&f.body, &locals, &mut label_counter, &mut out);
 
     if f.ret == Type::I32 || f.ret == Type::Bool {
         out.push_str("  i32.const 0\n  return\n");
@@ -77,13 +115,7 @@ fn emit_function_x86_64(f: &Function) -> String {
         local_order.push(p.name.clone());
     }
 
-    for stmt in &f.body.statements {
-        if let Stmt::Let { name, ty, .. } = stmt {
-            if *ty == Type::I32 || *ty == Type::Bool {
-                local_order.push(name.clone());
-            }
-        }
-    }
+    collect_locals_x86_64(&f.body, &mut local_order);
 
     for (i, name) in local_order.iter().enumerate() {
         let offset = -8 * (i as i32 + 1);
@@ -112,9 +144,8 @@ fn emit_function_x86_64(f: &Function) -> String {
     }
 
     let ret_label = format!(".Lreturn_{}", f.name);
-    for stmt in &f.body.statements {
-        emit_stmt_x86_64(stmt, &locals, &ret_label, &mut out);
-    }
+    let mut label_counter = 0;
+    emit_block_x86_64(&f.body, &locals, &ret_label, &mut label_counter, &mut out);
 
     if f.ret == Type::I32 || f.ret == Type::Bool {
         out.push_str("  mov rax, 0\n");
@@ -125,11 +156,47 @@ fn emit_function_x86_64(f: &Function) -> String {
     out
 }
 
-fn emit_stmt_wat(stmt: &Stmt, locals: &HashMap<String, i32>, out: &mut String) {
+fn emit_block_wat(block: &Block, locals: &HashMap<String, i32>, label_counter: &mut i32, out: &mut String) {
+    for stmt in &block.statements {
+        emit_stmt_wat(stmt, locals, label_counter, out);
+    }
+}
+
+fn emit_stmt_wat(stmt: &Stmt, locals: &HashMap<String, i32>, label_counter: &mut i32, out: &mut String) {
     match stmt {
         Stmt::Let { name, expr, .. } => {
             emit_expr_wat(expr, locals, out);
             out.push_str(&format!("  local.set ${}\n", name));
+        }
+        Stmt::Assign { name, expr } => {
+            emit_expr_wat(expr, locals, out);
+            out.push_str(&format!("  local.set ${}\n", name));
+        }
+        Stmt::If { cond, then_block, else_block } => {
+            emit_expr_wat(cond, locals, out);
+            out.push_str("  (if\n");
+            out.push_str("    (then\n");
+            emit_block_wat(then_block, locals, label_counter, out);
+            out.push_str("    )\n");
+            if let Some(eb) = else_block {
+                out.push_str("    (else\n");
+                emit_block_wat(eb, locals, label_counter, out);
+                out.push_str("    )\n");
+            }
+            out.push_str("  )\n");
+        }
+        Stmt::While { cond, body } => {
+            let n = *label_counter;
+            *label_counter += 1;
+            out.push_str(&format!("  (block $exit_{}\n", n));
+            out.push_str(&format!("    (loop $loop_{}\n", n));
+            emit_expr_wat(cond, locals, out);
+            out.push_str("      i32.eqz\n");
+            out.push_str(&format!("      br_if $exit_{}\n", n));
+            emit_block_wat(body, locals, label_counter, out);
+            out.push_str(&format!("      br $loop_{}\n", n));
+            out.push_str("    )\n");
+            out.push_str("  )\n");
         }
         Stmt::Return(expr) => {
             emit_expr_wat(expr, locals, out);
@@ -142,13 +209,50 @@ fn emit_stmt_wat(stmt: &Stmt, locals: &HashMap<String, i32>, out: &mut String) {
     }
 }
 
-fn emit_stmt_x86_64(stmt: &Stmt, locals: &HashMap<String, i32>, ret_label: &str, out: &mut String) {
+fn emit_block_x86_64(block: &Block, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, out: &mut String) {
+    for stmt in &block.statements {
+        emit_stmt_x86_64(stmt, locals, ret_label, label_counter, out);
+    }
+}
+
+fn emit_stmt_x86_64(stmt: &Stmt, locals: &HashMap<String, i32>, ret_label: &str, label_counter: &mut i32, out: &mut String) {
     match stmt {
         Stmt::Let { name, expr, .. } => {
             emit_expr_x86_64(expr, locals, out);
             if let Some(off) = locals.get(name) {
                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
             }
+        }
+        Stmt::Assign { name, expr } => {
+            emit_expr_x86_64(expr, locals, out);
+            if let Some(off) = locals.get(name) {
+                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+            }
+        }
+        Stmt::If { cond, then_block, else_block } => {
+            let n = *label_counter;
+            *label_counter += 1;
+            emit_expr_x86_64(cond, locals, out);
+            out.push_str("  cmp rax, 0\n");
+            out.push_str(&format!("  je .Lelse_{}\n", n));
+            emit_block_x86_64(then_block, locals, ret_label, label_counter, out);
+            out.push_str(&format!("  jmp .Lendif_{}\n", n));
+            out.push_str(&format!(".Lelse_{}:\n", n));
+            if let Some(eb) = else_block {
+                emit_block_x86_64(eb, locals, ret_label, label_counter, out);
+            }
+            out.push_str(&format!(".Lendif_{}:\n", n));
+        }
+        Stmt::While { cond, body } => {
+            let n = *label_counter;
+            *label_counter += 1;
+            out.push_str(&format!(".Lloop_{}:\n", n));
+            emit_expr_x86_64(cond, locals, out);
+            out.push_str("  cmp rax, 0\n");
+            out.push_str(&format!("  je .Lexit_{}\n", n));
+            emit_block_x86_64(body, locals, ret_label, label_counter, out);
+            out.push_str(&format!("  jmp .Lloop_{}\n", n));
+            out.push_str(&format!(".Lexit_{}:\n", n));
         }
         Stmt::Return(expr) => {
             emit_expr_x86_64(expr, locals, out);
@@ -182,6 +286,12 @@ fn emit_expr_wat(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String) {
                 BinOp::Sub => "i32.sub",
                 BinOp::Mul => "i32.mul",
                 BinOp::Div => "i32.div_s",
+                BinOp::Lt => "i32.lt_s",
+                BinOp::Gt => "i32.gt_s",
+                BinOp::LtEq => "i32.le_s",
+                BinOp::GtEq => "i32.ge_s",
+                BinOp::Eq => "i32.eq",
+                BinOp::NotEq => "i32.ne",
             };
             out.push_str(&format!("  {}\n", instr));
         }
@@ -225,6 +335,24 @@ fn emit_expr_x86_64(expr: &Expr, locals: &HashMap<String, i32>, out: &mut String
                 }
                 BinOp::Div => {
                     out.push_str("  mov r8, rax\n  mov rax, rcx\n  cqo\n  idiv r8\n");
+                }
+                BinOp::Lt => {
+                    out.push_str("  cmp rcx, rax\n  setl al\n  movzx rax, al\n");
+                }
+                BinOp::Gt => {
+                    out.push_str("  cmp rcx, rax\n  setg al\n  movzx rax, al\n");
+                }
+                BinOp::LtEq => {
+                    out.push_str("  cmp rcx, rax\n  setle al\n  movzx rax, al\n");
+                }
+                BinOp::GtEq => {
+                    out.push_str("  cmp rcx, rax\n  setge al\n  movzx rax, al\n");
+                }
+                BinOp::Eq => {
+                    out.push_str("  cmp rcx, rax\n  sete al\n  movzx rax, al\n");
+                }
+                BinOp::NotEq => {
+                    out.push_str("  cmp rcx, rax\n  setne al\n  movzx rax, al\n");
                 }
             }
         }

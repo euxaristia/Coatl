@@ -36,6 +36,19 @@ pub enum Stmt {
         ty: Type,
         expr: Expr,
     },
+    Assign {
+        name: String,
+        expr: Expr,
+    },
+    If {
+        cond: Expr,
+        then_block: Block,
+        else_block: Option<Block>,
+    },
+    While {
+        cond: Expr,
+        body: Block,
+    },
     Return(Expr),
     Expr(Expr),
 }
@@ -62,4 +75,10 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
+    Eq,
+    NotEq,
 }
