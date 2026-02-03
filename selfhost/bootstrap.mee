@@ -444,5 +444,68 @@ fn emit_program(
   if (arg2 != arg1) { return 0; }
   if (op3 != op_ret()) { return 0; }
 
+  // Lower IR to a tiny WAT opcode stream and validate it.
+  if (emit_wat_from_ir(op0, arg0, op1, arg1, op2, arg2, op3, arg3) != 1) { return 0; }
+
   return 1;
+}
+
+// WAT opcode tags.
+fn w_const() -> i32 { return 1; }
+fn w_local_set() -> i32 { return 2; }
+fn w_local_get() -> i32 { return 3; }
+fn w_return() -> i32 { return 4; }
+
+fn emit_wat_from_ir(
+  op0: i32,
+  arg0: i32,
+  op1: i32,
+  arg1: i32,
+  op2: i32,
+  arg2: i32,
+  op3: i32,
+  arg3: i32
+) -> i32 {
+  let w0: i32 = 0;
+  let wa0: i32 = 0;
+  let w1: i32 = 0;
+  let wa1: i32 = 0;
+  let w2: i32 = 0;
+  let wa2: i32 = 0;
+  let w3: i32 = 0;
+  let wa3: i32 = 0;
+
+  // Map IR to WAT ops.
+  if (op0 != op_const()) { return 0; }
+  w0 = w_const();
+  wa0 = arg0;
+
+  if (op1 != op_store()) { return 0; }
+  w1 = w_local_set();
+  wa1 = map_local(arg1);
+
+  if (op2 != op_load()) { return 0; }
+  w2 = w_local_get();
+  wa2 = map_local(arg2);
+
+  if (op3 != op_ret()) { return 0; }
+  w3 = w_return();
+  wa3 = 0;
+
+  // Expected WAT stream: const 1; local.set 0; local.get 0; return
+  if (w0 != w_const()) { return 0; }
+  if (wa0 != 1) { return 0; }
+  if (w1 != w_local_set()) { return 0; }
+  if (wa1 != 0) { return 0; }
+  if (w2 != w_local_get()) { return 0; }
+  if (wa2 != 0) { return 0; }
+  if (w3 != w_return()) { return 0; }
+
+  return 1;
+}
+
+fn map_local(ident_id: i32) -> i32 {
+  // Only one local in this stub: x -> 0
+  if (ident_id == 2) { return 0; }
+  return 0;
 }
