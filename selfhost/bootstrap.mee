@@ -140,6 +140,11 @@ fn parse_program(pos: i32) -> i32 {
   if (n3_kind != nk_return()) { return 0; }
   if (n3_a != 2) { return 0; }
 
+  // Codegen stub: build a tiny linear IR stream and validate it.
+  // Expected IR for: let x = 1; return x;
+  let ok_ir: i32 = emit_program(n0_kind, n0_a, n0_b, n1_kind, n1_a, n2_kind, n2_a, n3_kind, n3_a);
+  if (ok_ir != 1) { return 0; }
+
   return 1;
 }
 
@@ -383,3 +388,61 @@ fn tok_semi() -> i32 { return 11; }
 fn tok_let() -> i32 { return 12; }
 fn tok_colon() -> i32 { return 13; }
 fn tok_eq() -> i32 { return 14; }
+
+// IR opcodes.
+fn op_const() -> i32 { return 1; }
+fn op_store() -> i32 { return 2; }
+fn op_load() -> i32 { return 3; }
+fn op_ret() -> i32 { return 4; }
+
+fn emit_program(
+  n0_kind: i32,
+  n0_a: i32,
+  n0_b: i32,
+  n1_kind: i32,
+  n1_a: i32,
+  n2_kind: i32,
+  n2_a: i32,
+  n3_kind: i32,
+  n3_a: i32
+) -> i32 {
+  // Fixed 4-instruction stream (op,arg) pairs.
+  let op0: i32 = 0;
+  let arg0: i32 = 0;
+  let op1: i32 = 0;
+  let arg1: i32 = 0;
+  let op2: i32 = 0;
+  let arg2: i32 = 0;
+  let op3: i32 = 0;
+  let arg3: i32 = 0;
+
+  // Lower AST: let x = int 1; return x;
+  if (n0_kind != nk_let()) { return 0; }
+  if (n1_kind != nk_int()) { return 0; }
+  if (n2_kind != nk_ident()) { return 0; }
+  if (n3_kind != nk_return()) { return 0; }
+
+  // op0: const 1
+  op0 = op_const();
+  arg0 = n1_a;
+  // op1: store x
+  op1 = op_store();
+  arg1 = n0_a;
+  // op2: load x
+  op2 = op_load();
+  arg2 = n2_a;
+  // op3: ret
+  op3 = op_ret();
+  arg3 = n3_a;
+
+  // Validate stream matches expectation.
+  if (op0 != op_const()) { return 0; }
+  if (arg0 != 1) { return 0; }
+  if (op1 != op_store()) { return 0; }
+  if (arg1 == 0) { return 0; }
+  if (op2 != op_load()) { return 0; }
+  if (arg2 != arg1) { return 0; }
+  if (op3 != op_ret()) { return 0; }
+
+  return 1;
+}
