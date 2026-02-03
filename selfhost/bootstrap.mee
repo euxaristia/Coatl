@@ -6,46 +6,12 @@ fn main() -> i32 {
 }
 
 fn compile_stub() -> i32 {
-  // Hardcoded token stream for: fn main() -> i32 { let x: i32 = 1; return x; }
-  // This simulates a lexer without needing strings/arrays yet.
+  // Hardcoded source for: fn main() -> i32 { let x: i32 = 1; return x; }
+  // Lexer uses char_at(pos) to simulate input without strings/arrays.
   let pos: i32 = 0;
   let ok: i32 = parse_program(pos);
   if (ok == 1) { return 0; }
   return 1;
-}
-
-fn next_token(pos: i32) -> i32 {
-  if (pos == 0) { return tok_fn(); }
-  if (pos == 1) { return tok_ident(); } // main
-  if (pos == 2) { return tok_lparen(); }
-  if (pos == 3) { return tok_rparen(); }
-  if (pos == 4) { return tok_arrow(); }
-  if (pos == 5) { return tok_i32(); }
-  if (pos == 6) { return tok_lbrace(); }
-  if (pos == 7) { return tok_let(); }
-  if (pos == 8) { return tok_ident(); } // x
-  if (pos == 9) { return tok_colon(); }
-  if (pos == 10) { return tok_i32(); }
-  if (pos == 11) { return tok_eq(); }
-  if (pos == 12) { return tok_int(); } // 1
-  if (pos == 13) { return tok_semi(); }
-  if (pos == 14) { return tok_return(); }
-  if (pos == 15) { return tok_ident(); } // x
-  if (pos == 16) { return tok_semi(); }
-  if (pos == 17) { return tok_rbrace(); }
-  return tok_eof();
-}
-
-fn token_value(pos: i32) -> i32 {
-  // Only meaningful for TOK_INT in this stub.
-  if (pos == 12) { return 1; }
-  return 0;
-}
-
-fn token_ident_id(pos: i32) -> i32 {
-  if (pos == 8) { return 1; }
-  if (pos == 15) { return 1; }
-  return 0;
 }
 
 // Minimal AST encoded as scalar locals (no arrays yet).
@@ -56,37 +22,93 @@ fn nk_ident() -> i32 { return 3; }
 fn nk_let() -> i32 { return 4; }
 
 fn parse_program(pos: i32) -> i32 {
-  // Expect: fn main() -> i32 { let x: i32 = 1; return x; }
   let p: i32 = pos;
-  if (next_token(p) != tok_fn()) { return 0; }
-  if (next_token(p + 1) != tok_ident()) { return 0; }
-  if (next_token(p + 2) != tok_lparen()) { return 0; }
-  if (next_token(p + 3) != tok_rparen()) { return 0; }
-  if (next_token(p + 4) != tok_arrow()) { return 0; }
-  if (next_token(p + 5) != tok_i32()) { return 0; }
-  if (next_token(p + 6) != tok_lbrace()) { return 0; }
-  // Parse let stmt.
-  if (next_token(p + 7) != tok_let()) { return 0; }
-  if (next_token(p + 8) != tok_ident()) { return 0; }
-  if (next_token(p + 9) != tok_colon()) { return 0; }
-  if (next_token(p + 10) != tok_i32()) { return 0; }
-  if (next_token(p + 11) != tok_eq()) { return 0; }
-  if (next_token(p + 12) != tok_int()) { return 0; }
-  if (next_token(p + 13) != tok_semi()) { return 0; }
-  // Parse return stmt.
-  if (next_token(p + 14) != tok_return()) { return 0; }
-  if (next_token(p + 15) != tok_ident()) { return 0; }
-  if (next_token(p + 16) != tok_semi()) { return 0; }
-  if (next_token(p + 17) != tok_rbrace()) { return 0; }
+  // Expect: fn main() -> i32 { let x: i32 = 1; return x; }
+  let cur: i32 = p;
+  let tok: i32 = lex(cur);
+  let kind: i32 = lex_kind(tok);
+  let next: i32 = lex_next(tok);
+  if (kind != tok_fn()) { return 0; }
+
+  let tok2: i32 = lex(next);
+  let kind2: i32 = lex_kind(tok2);
+  let next2: i32 = lex_next(tok2);
+  if (kind2 != tok_ident()) { return 0; }
+  let main_id: i32 = ident_id(next, next2);
+  if (main_id == 0) { return 0; }
+
+  let tok3: i32 = lex(next2);
+  if (lex_kind(tok3) != tok_lparen()) { return 0; }
+  let next3: i32 = lex_next(tok3);
+
+  let tok4: i32 = lex(next3);
+  if (lex_kind(tok4) != tok_rparen()) { return 0; }
+  let next4: i32 = lex_next(tok4);
+
+  let tok5: i32 = lex(next4);
+  if (lex_kind(tok5) != tok_arrow()) { return 0; }
+  let next5: i32 = lex_next(tok5);
+
+  let tok6: i32 = lex(next5);
+  if (lex_kind(tok6) != tok_i32()) { return 0; }
+  let next6: i32 = lex_next(tok6);
+
+  let tok7: i32 = lex(next6);
+  if (lex_kind(tok7) != tok_lbrace()) { return 0; }
+  let next7: i32 = lex_next(tok7);
+
+  let tok8: i32 = lex(next7);
+  if (lex_kind(tok8) != tok_let()) { return 0; }
+  let next8: i32 = lex_next(tok8);
+
+  let tok9: i32 = lex(next8);
+  if (lex_kind(tok9) != tok_ident()) { return 0; }
+  let next9: i32 = lex_next(tok9);
+  let let_ident: i32 = ident_id(next8, next9);
+  if (let_ident == 0) { return 0; }
+
+  let tok10: i32 = lex(next9);
+  if (lex_kind(tok10) != tok_colon()) { return 0; }
+  let next10: i32 = lex_next(tok10);
+
+  let tok11: i32 = lex(next10);
+  if (lex_kind(tok11) != tok_i32()) { return 0; }
+  let next11: i32 = lex_next(tok11);
+
+  let tok12: i32 = lex(next11);
+  if (lex_kind(tok12) != tok_eq()) { return 0; }
+  let next12: i32 = lex_next(tok12);
+
+  let tok13: i32 = lex(next12);
+  if (lex_kind(tok13) != tok_int()) { return 0; }
+  let next13: i32 = lex_next(tok13);
+  let expr_value: i32 = int_value(next12, next13);
+
+  let tok14: i32 = lex(next13);
+  if (lex_kind(tok14) != tok_semi()) { return 0; }
+  let next14: i32 = lex_next(tok14);
+
+  let tok15: i32 = lex(next14);
+  if (lex_kind(tok15) != tok_return()) { return 0; }
+  let next15: i32 = lex_next(tok15);
+
+  let tok16: i32 = lex(next15);
+  if (lex_kind(tok16) != tok_ident()) { return 0; }
+  let next16: i32 = lex_next(tok16);
+  let ret_ident: i32 = ident_id(next15, next16);
+
+  let tok17: i32 = lex(next16);
+  if (lex_kind(tok17) != tok_semi()) { return 0; }
+  let next17: i32 = lex_next(tok17);
+
+  let tok18: i32 = lex(next17);
+  if (lex_kind(tok18) != tok_rbrace()) { return 0; }
 
   // Build a tiny AST: let x = (int 1); return x
   let expr_kind: i32 = nk_int();
-  let expr_value: i32 = token_value(p + 12);
   let let_kind: i32 = nk_let();
-  let let_ident: i32 = token_ident_id(p + 8);
   let ret_kind: i32 = nk_return();
   let ret_expr_kind: i32 = nk_ident();
-  let ret_ident: i32 = token_ident_id(p + 15);
 
   // Validate the AST shape for now.
   if (let_kind != nk_let()) { return 0; }
@@ -98,6 +120,231 @@ fn parse_program(pos: i32) -> i32 {
   if (ret_ident != let_ident) { return 0; }
 
   return 1;
+}
+
+// Lexer: returns packed (kind * 10000 + next_pos).
+fn lex(pos: i32) -> i32 {
+  let p: i32 = skip_ws(pos);
+  let c: i32 = char_at(p);
+  if (c == 0) { return pack_tok(tok_eof(), p); }
+
+  if (is_ident_start(c) == 1) {
+    let end: i32 = scan_ident(p);
+    let kind: i32 = ident_kind(p, end);
+    return pack_tok(kind, end);
+  }
+  if (is_digit(c) == 1) {
+    let end: i32 = scan_int(p);
+    return pack_tok(tok_int(), end);
+  }
+
+  if (c == 40) { return pack_tok(tok_lparen(), p + 1); } // (
+  if (c == 41) { return pack_tok(tok_rparen(), p + 1); } // )
+  if (c == 123) { return pack_tok(tok_lbrace(), p + 1); } // {
+  if (c == 125) { return pack_tok(tok_rbrace(), p + 1); } // }
+  if (c == 58) { return pack_tok(tok_colon(), p + 1); } // :
+  if (c == 59) { return pack_tok(tok_semi(), p + 1); } // ;
+  if (c == 61) { return pack_tok(tok_eq(), p + 1); } // =
+  if (c == 45) { // -
+    if (char_at(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); }
+  }
+  return pack_tok(tok_eof(), p + 1);
+}
+
+fn pack_tok(kind: i32, next_pos: i32) -> i32 {
+  return kind * 10000 + next_pos;
+}
+
+fn lex_kind(tok: i32) -> i32 {
+  return tok / 10000;
+}
+
+fn lex_next(tok: i32) -> i32 {
+  let kind: i32 = tok / 10000;
+  return tok - kind * 10000;
+}
+
+fn skip_ws(pos: i32) -> i32 {
+  let p: i32 = pos;
+  let c: i32 = char_at(p);
+  if (is_space(c) == 1) {
+    return skip_ws(p + 1);
+  }
+  return p;
+}
+
+fn scan_ident(pos: i32) -> i32 {
+  let p: i32 = pos;
+  let c: i32 = char_at(p);
+  if (is_ident_cont(c) == 1) {
+    return scan_ident(p + 1);
+  }
+  return p;
+}
+
+fn scan_int(pos: i32) -> i32 {
+  let p: i32 = pos;
+  let c: i32 = char_at(p);
+  if (is_digit(c) == 1) {
+    return scan_int(p + 1);
+  }
+  return p;
+}
+
+fn ident_kind(start: i32, end: i32) -> i32 {
+  let len: i32 = end - start;
+  if (len == 2) {
+    if (char_at(start) == 102) {
+      if (char_at(start + 1) == 110) { return tok_fn(); }
+    }
+  }
+  if (len == 3) {
+    if (char_at(start) == 108) {
+      if (char_at(start + 1) == 101) {
+        if (char_at(start + 2) == 116) { return tok_let(); }
+      }
+    }
+  }
+  if (len == 6) {
+    if (char_at(start) == 114) {
+      if (char_at(start + 1) == 101) {
+        if (char_at(start + 2) == 116) {
+          if (char_at(start + 3) == 117) {
+            if (char_at(start + 4) == 114) {
+              if (char_at(start + 5) == 110) { return tok_return(); }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (len == 3) {
+    if (char_at(start) == 105) {
+      if (char_at(start + 1) == 51) {
+        if (char_at(start + 2) == 50) { return tok_i32(); }
+      }
+    }
+  }
+  return tok_ident();
+}
+
+fn ident_id(start: i32, end: i32) -> i32 {
+  let len: i32 = end - start;
+  if (len == 4) {
+    if (char_at(start) == 109) {
+      if (char_at(start + 1) == 97) {
+        if (char_at(start + 2) == 105) {
+          if (char_at(start + 3) == 110) { return 1; }
+        }
+      }
+    }
+  }
+  if (len == 1) {
+    if (char_at(start) == 120) { return 2; }
+  }
+  return 0;
+}
+
+fn int_value(start: i32, end: i32) -> i32 {
+  if (start >= end) { return 0; }
+  let v: i32 = int_value(start + 1, end);
+  let d: i32 = char_at(start) - 48;
+  let pow: i32 = pow10(end - start - 1);
+  return d * pow + v;
+}
+
+fn pow10(n: i32) -> i32 {
+  if (n <= 0) { return 1; }
+  return 10 * pow10(n - 1);
+}
+
+fn is_space(c: i32) -> i32 {
+  if (c == 32) { return 1; }
+  if (c == 10) { return 1; }
+  if (c == 13) { return 1; }
+  if (c == 9) { return 1; }
+  return 0;
+}
+
+fn is_alpha(c: i32) -> i32 {
+  if (c >= 65) {
+    if (c <= 90) { return 1; }
+  }
+  if (c >= 97) {
+    if (c <= 122) { return 1; }
+  }
+  return 0;
+}
+
+fn is_digit(c: i32) -> i32 {
+  if (c >= 48) {
+    if (c <= 57) { return 1; }
+  }
+  return 0;
+}
+
+fn is_ident_start(c: i32) -> i32 {
+  if (is_alpha(c) == 1) { return 1; }
+  if (c == 95) { return 1; }
+  return 0;
+}
+
+fn is_ident_cont(c: i32) -> i32 {
+  if (is_alpha(c) == 1) { return 1; }
+  if (is_digit(c) == 1) { return 1; }
+  if (c == 95) { return 1; }
+  return 0;
+}
+
+// Hardcoded source string: "fn main() -> i32 { let x: i32 = 1; return x; }"
+fn char_at(pos: i32) -> i32 {
+  if (pos == 0) { return 102; } // f
+  if (pos == 1) { return 110; } // n
+  if (pos == 2) { return 32; } // space
+  if (pos == 3) { return 109; } // m
+  if (pos == 4) { return 97; } // a
+  if (pos == 5) { return 105; } // i
+  if (pos == 6) { return 110; } // n
+  if (pos == 7) { return 40; } // (
+  if (pos == 8) { return 41; } // )
+  if (pos == 9) { return 32; } // space
+  if (pos == 10) { return 45; } // -
+  if (pos == 11) { return 62; } // >
+  if (pos == 12) { return 32; } // space
+  if (pos == 13) { return 105; } // i
+  if (pos == 14) { return 51; } // 3
+  if (pos == 15) { return 50; } // 2
+  if (pos == 16) { return 32; } // space
+  if (pos == 17) { return 123; } // {
+  if (pos == 18) { return 32; } // space
+  if (pos == 19) { return 108; } // l
+  if (pos == 20) { return 101; } // e
+  if (pos == 21) { return 116; } // t
+  if (pos == 22) { return 32; } // space
+  if (pos == 23) { return 120; } // x
+  if (pos == 24) { return 58; } // :
+  if (pos == 25) { return 32; } // space
+  if (pos == 26) { return 105; } // i
+  if (pos == 27) { return 51; } // 3
+  if (pos == 28) { return 50; } // 2
+  if (pos == 29) { return 32; } // space
+  if (pos == 30) { return 61; } // =
+  if (pos == 31) { return 32; } // space
+  if (pos == 32) { return 49; } // 1
+  if (pos == 33) { return 59; } // ;
+  if (pos == 34) { return 32; } // space
+  if (pos == 35) { return 114; } // r
+  if (pos == 36) { return 101; } // e
+  if (pos == 37) { return 116; } // t
+  if (pos == 38) { return 117; } // u
+  if (pos == 39) { return 114; } // r
+  if (pos == 40) { return 110; } // n
+  if (pos == 41) { return 32; } // space
+  if (pos == 42) { return 120; } // x
+  if (pos == 43) { return 59; } // ;
+  if (pos == 44) { return 32; } // space
+  if (pos == 45) { return 125; } // }
+  return 0;
 }
 
 fn tok_eof() -> i32 { return 0; }
