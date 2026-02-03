@@ -6,7 +6,7 @@ fn main() -> i32 {
 }
 
 fn compile_stub() -> i32 {
-  // Hardcoded source for: fn main() -> i32 { let x: i32 = 1; return x; }
+  // Hardcoded source for: fn main() -> i32 { let x: i32 = 1; let y: i32 = 2; return x + y; }
   // Lexer uses char_at(pos) to simulate input without strings/arrays.
   let pos: i32 = 0;
   let ok: i32 = parse_program(pos);
@@ -20,6 +20,7 @@ fn nk_int() -> i32 { return 1; }
 fn nk_return() -> i32 { return 2; }
 fn nk_ident() -> i32 { return 3; }
 fn nk_let() -> i32 { return 4; }
+fn nk_add() -> i32 { return 5; }
 
 fn parse_program(pos: i32) -> i32 {
   let p: i32 = pos;
@@ -89,22 +90,62 @@ fn parse_program(pos: i32) -> i32 {
   let next14: i32 = lex_next(tok14);
 
   let tok15: i32 = lex(next14);
-  if (lex_kind(tok15) != tok_return()) { return 0; }
+  if (lex_kind(tok15) != tok_let()) { return 0; }
   let next15: i32 = lex_next(tok15);
 
   let tok16: i32 = lex(next15);
   if (lex_kind(tok16) != tok_ident()) { return 0; }
   let next16: i32 = lex_next(tok16);
-  let ret_ident: i32 = ident_id(next15, next16);
+  let let_ident2: i32 = ident_id(next15, next16);
+  if (let_ident2 == 0) { return 0; }
 
   let tok17: i32 = lex(next16);
-  if (lex_kind(tok17) != tok_semi()) { return 0; }
+  if (lex_kind(tok17) != tok_colon()) { return 0; }
   let next17: i32 = lex_next(tok17);
 
   let tok18: i32 = lex(next17);
-  if (lex_kind(tok18) != tok_rbrace()) { return 0; }
+  if (lex_kind(tok18) != tok_i32()) { return 0; }
+  let next18: i32 = lex_next(tok18);
 
-  // Build a tiny AST stream (4 nodes max).
+  let tok19: i32 = lex(next18);
+  if (lex_kind(tok19) != tok_eq()) { return 0; }
+  let next19: i32 = lex_next(tok19);
+
+  let tok20: i32 = lex(next19);
+  if (lex_kind(tok20) != tok_int()) { return 0; }
+  let next20: i32 = lex_next(tok20);
+  let expr_value2: i32 = int_value(next19, next20);
+
+  let tok21: i32 = lex(next20);
+  if (lex_kind(tok21) != tok_semi()) { return 0; }
+  let next21: i32 = lex_next(tok21);
+
+  let tok22: i32 = lex(next21);
+  if (lex_kind(tok22) != tok_return()) { return 0; }
+  let next22: i32 = lex_next(tok22);
+
+  let tok23: i32 = lex(next22);
+  if (lex_kind(tok23) != tok_ident()) { return 0; }
+  let next23: i32 = lex_next(tok23);
+  let ret_ident: i32 = ident_id(next22, next23);
+
+  let tok24: i32 = lex(next23);
+  if (lex_kind(tok24) != tok_plus()) { return 0; }
+  let next24: i32 = lex_next(tok24);
+
+  let tok25: i32 = lex(next24);
+  if (lex_kind(tok25) != tok_ident()) { return 0; }
+  let next25: i32 = lex_next(tok25);
+  let ret_ident2: i32 = ident_id(next24, next25);
+
+  let tok26: i32 = lex(next25);
+  if (lex_kind(tok26) != tok_semi()) { return 0; }
+  let next26: i32 = lex_next(tok26);
+
+  let tok27: i32 = lex(next26);
+  if (lex_kind(tok27) != tok_rbrace()) { return 0; }
+
+  // Build a tiny AST stream.
   // Node 0: let x = (int 1)
   let n0_kind: i32 = nk_let();
   let n0_a: i32 = let_ident; // ident id
@@ -117,17 +158,41 @@ fn parse_program(pos: i32) -> i32 {
   let n1_b: i32 = 0;
   let n1_c: i32 = 0;
 
-  // Node 2: ident x
-  let n2_kind: i32 = nk_ident();
-  let n2_a: i32 = ret_ident;
-  let n2_b: i32 = 0;
+  // Node 2: let y = (int 2)
+  let n2_kind: i32 = nk_let();
+  let n2_a: i32 = let_ident2;
+  let n2_b: i32 = 3; // expr node index
   let n2_c: i32 = 0;
 
-  // Node 3: return (ident x)
-  let n3_kind: i32 = nk_return();
-  let n3_a: i32 = 2; // expr node index
+  // Node 3: int 2
+  let n3_kind: i32 = nk_int();
+  let n3_a: i32 = expr_value2;
   let n3_b: i32 = 0;
   let n3_c: i32 = 0;
+
+  // Node 4: ident x
+  let n4_kind: i32 = nk_ident();
+  let n4_a: i32 = ret_ident;
+  let n4_b: i32 = 0;
+  let n4_c: i32 = 0;
+
+  // Node 5: ident y
+  let n5_kind: i32 = nk_ident();
+  let n5_a: i32 = ret_ident2;
+  let n5_b: i32 = 0;
+  let n5_c: i32 = 0;
+
+  // Node 6: add (ident x, ident y)
+  let n6_kind: i32 = nk_add();
+  let n6_a: i32 = 4;
+  let n6_b: i32 = 5;
+  let n6_c: i32 = 0;
+
+  // Node 7: return (add)
+  let n7_kind: i32 = nk_return();
+  let n7_a: i32 = 6;
+  let n7_b: i32 = 0;
+  let n7_c: i32 = 0;
 
   // Validate the AST stream.
   if (n0_kind != nk_let()) { return 0; }
@@ -135,14 +200,33 @@ fn parse_program(pos: i32) -> i32 {
   if (n0_b != 1) { return 0; }
   if (n1_kind != nk_int()) { return 0; }
   if (n1_a != 1) { return 0; }
-  if (n2_kind != nk_ident()) { return 0; }
-  if (n2_a != n0_a) { return 0; }
-  if (n3_kind != nk_return()) { return 0; }
+  if (n2_kind != nk_let()) { return 0; }
+  if (n2_a == 0) { return 0; }
+  if (n2_b != 3) { return 0; }
+  if (n3_kind != nk_int()) { return 0; }
   if (n3_a != 2) { return 0; }
+  if (n4_kind != nk_ident()) { return 0; }
+  if (n4_a != n0_a) { return 0; }
+  if (n5_kind != nk_ident()) { return 0; }
+  if (n5_a != n2_a) { return 0; }
+  if (n6_kind != nk_add()) { return 0; }
+  if (n6_a != 4) { return 0; }
+  if (n6_b != 5) { return 0; }
+  if (n7_kind != nk_return()) { return 0; }
+  if (n7_a != 6) { return 0; }
 
   // Codegen stub: build a tiny linear IR stream and validate it.
-  // Expected IR for: let x = 1; return x;
-  let ok_ir: i32 = emit_program(n0_kind, n0_a, n0_b, n1_kind, n1_a, n2_kind, n2_a, n3_kind, n3_a);
+  // Expected IR for: let x = 1; let y = 2; return x + y;
+  let ok_ir: i32 = emit_program(
+    n0_kind, n0_a, n0_b,
+    n1_kind, n1_a,
+    n2_kind, n2_a, n2_b,
+    n3_kind, n3_a,
+    n4_kind, n4_a,
+    n5_kind, n5_a,
+    n6_kind, n6_a, n6_b,
+    n7_kind, n7_a
+  );
   if (ok_ir != 1) { return 0; }
 
   return 1;
@@ -171,6 +255,7 @@ fn lex(pos: i32) -> i32 {
   if (c == 58) { return pack_tok(tok_colon(), p + 1); } // :
   if (c == 59) { return pack_tok(tok_semi(), p + 1); } // ;
   if (c == 61) { return pack_tok(tok_eq(), p + 1); } // =
+  if (c == 43) { return pack_tok(tok_plus(), p + 1); } // +
   if (c == 45) { // -
     if (char_at(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); }
   }
@@ -268,6 +353,9 @@ fn ident_id(start: i32, end: i32) -> i32 {
   if (len == 1) {
     if (char_at(start) == 120) { return 2; }
   }
+  if (len == 1) {
+    if (char_at(start) == 121) { return 3; }
+  }
   return 0;
 }
 
@@ -322,7 +410,7 @@ fn is_ident_cont(c: i32) -> i32 {
   return 0;
 }
 
-// Hardcoded source string: "fn main() -> i32 { let x: i32 = 1; return x; }"
+// Hardcoded source string: "fn main() -> i32 { let x: i32 = 1; let y: i32 = 2; return x + y; }"
 fn char_at(pos: i32) -> i32 {
   if (pos == 0) { return 102; } // f
   if (pos == 1) { return 110; } // n
@@ -359,17 +447,37 @@ fn char_at(pos: i32) -> i32 {
   if (pos == 32) { return 49; } // 1
   if (pos == 33) { return 59; } // ;
   if (pos == 34) { return 32; } // space
-  if (pos == 35) { return 114; } // r
+  if (pos == 35) { return 108; } // l
   if (pos == 36) { return 101; } // e
   if (pos == 37) { return 116; } // t
-  if (pos == 38) { return 117; } // u
-  if (pos == 39) { return 114; } // r
-  if (pos == 40) { return 110; } // n
+  if (pos == 38) { return 32; } // space
+  if (pos == 39) { return 121; } // y
+  if (pos == 40) { return 58; } // :
   if (pos == 41) { return 32; } // space
-  if (pos == 42) { return 120; } // x
-  if (pos == 43) { return 59; } // ;
-  if (pos == 44) { return 32; } // space
-  if (pos == 45) { return 125; } // }
+  if (pos == 42) { return 105; } // i
+  if (pos == 43) { return 51; } // 3
+  if (pos == 44) { return 50; } // 2
+  if (pos == 45) { return 32; } // space
+  if (pos == 46) { return 61; } // =
+  if (pos == 47) { return 32; } // space
+  if (pos == 48) { return 50; } // 2
+  if (pos == 49) { return 59; } // ;
+  if (pos == 50) { return 32; } // space
+  if (pos == 51) { return 114; } // r
+  if (pos == 52) { return 101; } // e
+  if (pos == 53) { return 116; } // t
+  if (pos == 54) { return 117; } // u
+  if (pos == 55) { return 114; } // r
+  if (pos == 56) { return 110; } // n
+  if (pos == 57) { return 32; } // space
+  if (pos == 58) { return 120; } // x
+  if (pos == 59) { return 32; } // space
+  if (pos == 60) { return 43; } // +
+  if (pos == 61) { return 32; } // space
+  if (pos == 62) { return 121; } // y
+  if (pos == 63) { return 59; } // ;
+  if (pos == 64) { return 32; } // space
+  if (pos == 65) { return 125; } // }
   return 0;
 }
 
@@ -388,12 +496,14 @@ fn tok_semi() -> i32 { return 11; }
 fn tok_let() -> i32 { return 12; }
 fn tok_colon() -> i32 { return 13; }
 fn tok_eq() -> i32 { return 14; }
+fn tok_plus() -> i32 { return 15; }
 
 // IR opcodes.
 fn op_const() -> i32 { return 1; }
 fn op_store() -> i32 { return 2; }
 fn op_load() -> i32 { return 3; }
 fn op_ret() -> i32 { return 4; }
+fn op_add() -> i32 { return 5; }
 
 fn emit_program(
   n0_kind: i32,
@@ -403,10 +513,20 @@ fn emit_program(
   n1_a: i32,
   n2_kind: i32,
   n2_a: i32,
+  n2_b: i32,
   n3_kind: i32,
-  n3_a: i32
+  n3_a: i32,
+  n4_kind: i32,
+  n4_a: i32,
+  n5_kind: i32,
+  n5_a: i32,
+  n6_kind: i32,
+  n6_a: i32,
+  n6_b: i32,
+  n7_kind: i32,
+  n7_a: i32
 ) -> i32 {
-  // Fixed 4-instruction stream (op,arg) pairs.
+  // Fixed 8-instruction stream (op,arg) pairs.
   let op0: i32 = 0;
   let arg0: i32 = 0;
   let op1: i32 = 0;
@@ -415,12 +535,24 @@ fn emit_program(
   let arg2: i32 = 0;
   let op3: i32 = 0;
   let arg3: i32 = 0;
+  let op4: i32 = 0;
+  let arg4: i32 = 0;
+  let op5: i32 = 0;
+  let arg5: i32 = 0;
+  let op6: i32 = 0;
+  let arg6: i32 = 0;
+  let op7: i32 = 0;
+  let arg7: i32 = 0;
 
-  // Lower AST: let x = int 1; return x;
+  // Lower AST: let x = int 1; let y = int 2; return x + y;
   if (n0_kind != nk_let()) { return 0; }
   if (n1_kind != nk_int()) { return 0; }
-  if (n2_kind != nk_ident()) { return 0; }
-  if (n3_kind != nk_return()) { return 0; }
+  if (n2_kind != nk_let()) { return 0; }
+  if (n3_kind != nk_int()) { return 0; }
+  if (n4_kind != nk_ident()) { return 0; }
+  if (n5_kind != nk_ident()) { return 0; }
+  if (n6_kind != nk_add()) { return 0; }
+  if (n7_kind != nk_return()) { return 0; }
 
   // op0: const 1
   op0 = op_const();
@@ -428,24 +560,52 @@ fn emit_program(
   // op1: store x
   op1 = op_store();
   arg1 = n0_a;
-  // op2: load x
-  op2 = op_load();
-  arg2 = n2_a;
-  // op3: ret
-  op3 = op_ret();
-  arg3 = n3_a;
+  // op2: const 2
+  op2 = op_const();
+  arg2 = n3_a;
+  // op3: store y
+  op3 = op_store();
+  arg3 = n2_a;
+  // op4: load x
+  op4 = op_load();
+  arg4 = n4_a;
+  // op5: load y
+  op5 = op_load();
+  arg5 = n5_a;
+  // op6: add
+  op6 = op_add();
+  arg6 = 0;
+  // op7: ret
+  op7 = op_ret();
+  arg7 = n7_a;
 
   // Validate stream matches expectation.
   if (op0 != op_const()) { return 0; }
   if (arg0 != 1) { return 0; }
   if (op1 != op_store()) { return 0; }
   if (arg1 == 0) { return 0; }
-  if (op2 != op_load()) { return 0; }
-  if (arg2 != arg1) { return 0; }
-  if (op3 != op_ret()) { return 0; }
+  if (op2 != op_const()) { return 0; }
+  if (arg2 != 2) { return 0; }
+  if (op3 != op_store()) { return 0; }
+  if (arg3 == 0) { return 0; }
+  if (op4 != op_load()) { return 0; }
+  if (arg4 != arg1) { return 0; }
+  if (op5 != op_load()) { return 0; }
+  if (arg5 != arg3) { return 0; }
+  if (op6 != op_add()) { return 0; }
+  if (op7 != op_ret()) { return 0; }
 
   // Lower IR to a tiny WAT opcode stream and validate it.
-  if (emit_wat_from_ir(op0, arg0, op1, arg1, op2, arg2, op3, arg3) != 1) { return 0; }
+  if (emit_wat_from_ir(
+    op0, arg0,
+    op1, arg1,
+    op2, arg2,
+    op3, arg3,
+    op4, arg4,
+    op5, arg5,
+    op6, arg6,
+    op7, arg7
+  ) != 1) { return 0; }
 
   return 1;
 }
@@ -455,6 +615,7 @@ fn w_const() -> i32 { return 1; }
 fn w_local_set() -> i32 { return 2; }
 fn w_local_get() -> i32 { return 3; }
 fn w_return() -> i32 { return 4; }
+fn w_add() -> i32 { return 5; }
 
 fn emit_wat_from_ir(
   op0: i32,
@@ -464,7 +625,15 @@ fn emit_wat_from_ir(
   op2: i32,
   arg2: i32,
   op3: i32,
-  arg3: i32
+  arg3: i32,
+  op4: i32,
+  arg4: i32,
+  op5: i32,
+  arg5: i32,
+  op6: i32,
+  arg6: i32,
+  op7: i32,
+  arg7: i32
 ) -> i32 {
   let w0: i32 = 0;
   let wa0: i32 = 0;
@@ -474,6 +643,14 @@ fn emit_wat_from_ir(
   let wa2: i32 = 0;
   let w3: i32 = 0;
   let wa3: i32 = 0;
+  let w4: i32 = 0;
+  let wa4: i32 = 0;
+  let w5: i32 = 0;
+  let wa5: i32 = 0;
+  let w6: i32 = 0;
+  let wa6: i32 = 0;
+  let w7: i32 = 0;
+  let wa7: i32 = 0;
 
   // Map IR to WAT ops.
   if (op0 != op_const()) { return 0; }
@@ -484,28 +661,53 @@ fn emit_wat_from_ir(
   w1 = w_local_set();
   wa1 = map_local(arg1);
 
-  if (op2 != op_load()) { return 0; }
-  w2 = w_local_get();
-  wa2 = map_local(arg2);
+  if (op2 != op_const()) { return 0; }
+  w2 = w_const();
+  wa2 = arg2;
 
-  if (op3 != op_ret()) { return 0; }
-  w3 = w_return();
-  wa3 = 0;
+  if (op3 != op_store()) { return 0; }
+  w3 = w_local_set();
+  wa3 = map_local(arg3);
 
-  // Expected WAT stream: const 1; local.set 0; local.get 0; return
+  if (op4 != op_load()) { return 0; }
+  w4 = w_local_get();
+  wa4 = map_local(arg4);
+
+  if (op5 != op_load()) { return 0; }
+  w5 = w_local_get();
+  wa5 = map_local(arg5);
+
+  if (op6 != op_add()) { return 0; }
+  w6 = w_add();
+  wa6 = 0;
+
+  if (op7 != op_ret()) { return 0; }
+  w7 = w_return();
+  wa7 = 0;
+
+  // Expected WAT stream:
+  // const 1; local.set 0; const 2; local.set 1; local.get 0; local.get 1; add; return
   if (w0 != w_const()) { return 0; }
   if (wa0 != 1) { return 0; }
   if (w1 != w_local_set()) { return 0; }
   if (wa1 != 0) { return 0; }
-  if (w2 != w_local_get()) { return 0; }
-  if (wa2 != 0) { return 0; }
-  if (w3 != w_return()) { return 0; }
+  if (w2 != w_const()) { return 0; }
+  if (wa2 != 2) { return 0; }
+  if (w3 != w_local_set()) { return 0; }
+  if (wa3 != 1) { return 0; }
+  if (w4 != w_local_get()) { return 0; }
+  if (wa4 != 0) { return 0; }
+  if (w5 != w_local_get()) { return 0; }
+  if (wa5 != 1) { return 0; }
+  if (w6 != w_add()) { return 0; }
+  if (w7 != w_return()) { return 0; }
 
   return 1;
 }
 
 fn map_local(ident_id: i32) -> i32 {
-  // Only one local in this stub: x -> 0
+  // Two locals in this stub: x -> 0, y -> 1
   if (ident_id == 2) { return 0; }
+  if (ident_id == 3) { return 1; }
   return 0;
 }
