@@ -6,20 +6,11 @@ fn main() -> i32 {
 }
 
 fn compile_stub() -> i32 {
-  // Hardcoded token stream for: fn main() -> i32 { return 0; }
+  // Hardcoded token stream for: fn main() -> i32 { let x: i32 = 1; return x; }
   // This simulates a lexer without needing strings/arrays yet.
   let pos: i32 = 0;
-  let count: i32 = 0;
-  let tok: i32 = next_token(pos);
-  while (tok != tok_eof()) {
-    count = count + 1;
-    pos = pos + 1;
-    tok = next_token(pos);
-  }
-  // Success if we saw the expected token count (11 tokens).
-  if (count == 11) {
-    return 0;
-  }
+  let ok: i32 = parse_program(pos);
+  if (ok == 1) { return 0; }
   return 1;
 }
 
@@ -31,17 +22,82 @@ fn next_token(pos: i32) -> i32 {
   if (pos == 4) { return tok_arrow(); }
   if (pos == 5) { return tok_i32(); }
   if (pos == 6) { return tok_lbrace(); }
-  if (pos == 7) { return tok_return(); }
-  if (pos == 8) { return tok_int(); } // 0
-  if (pos == 9) { return tok_semi(); }
-  if (pos == 10) { return tok_rbrace(); }
+  if (pos == 7) { return tok_let(); }
+  if (pos == 8) { return tok_ident(); } // x
+  if (pos == 9) { return tok_colon(); }
+  if (pos == 10) { return tok_i32(); }
+  if (pos == 11) { return tok_eq(); }
+  if (pos == 12) { return tok_int(); } // 1
+  if (pos == 13) { return tok_semi(); }
+  if (pos == 14) { return tok_return(); }
+  if (pos == 15) { return tok_ident(); } // x
+  if (pos == 16) { return tok_semi(); }
+  if (pos == 17) { return tok_rbrace(); }
   return tok_eof();
 }
 
 fn token_value(pos: i32) -> i32 {
   // Only meaningful for TOK_INT in this stub.
-  if (pos == 8) { return 0; }
+  if (pos == 12) { return 1; }
   return 0;
+}
+
+fn token_ident_id(pos: i32) -> i32 {
+  if (pos == 8) { return 1; }
+  if (pos == 15) { return 1; }
+  return 0;
+}
+
+// Minimal AST encoded as scalar locals (no arrays yet).
+// Node kinds.
+fn nk_int() -> i32 { return 1; }
+fn nk_return() -> i32 { return 2; }
+fn nk_ident() -> i32 { return 3; }
+fn nk_let() -> i32 { return 4; }
+
+fn parse_program(pos: i32) -> i32 {
+  // Expect: fn main() -> i32 { let x: i32 = 1; return x; }
+  let p: i32 = pos;
+  if (next_token(p) != tok_fn()) { return 0; }
+  if (next_token(p + 1) != tok_ident()) { return 0; }
+  if (next_token(p + 2) != tok_lparen()) { return 0; }
+  if (next_token(p + 3) != tok_rparen()) { return 0; }
+  if (next_token(p + 4) != tok_arrow()) { return 0; }
+  if (next_token(p + 5) != tok_i32()) { return 0; }
+  if (next_token(p + 6) != tok_lbrace()) { return 0; }
+  // Parse let stmt.
+  if (next_token(p + 7) != tok_let()) { return 0; }
+  if (next_token(p + 8) != tok_ident()) { return 0; }
+  if (next_token(p + 9) != tok_colon()) { return 0; }
+  if (next_token(p + 10) != tok_i32()) { return 0; }
+  if (next_token(p + 11) != tok_eq()) { return 0; }
+  if (next_token(p + 12) != tok_int()) { return 0; }
+  if (next_token(p + 13) != tok_semi()) { return 0; }
+  // Parse return stmt.
+  if (next_token(p + 14) != tok_return()) { return 0; }
+  if (next_token(p + 15) != tok_ident()) { return 0; }
+  if (next_token(p + 16) != tok_semi()) { return 0; }
+  if (next_token(p + 17) != tok_rbrace()) { return 0; }
+
+  // Build a tiny AST: let x = (int 1); return x
+  let expr_kind: i32 = nk_int();
+  let expr_value: i32 = token_value(p + 12);
+  let let_kind: i32 = nk_let();
+  let let_ident: i32 = token_ident_id(p + 8);
+  let ret_kind: i32 = nk_return();
+  let ret_expr_kind: i32 = nk_ident();
+  let ret_ident: i32 = token_ident_id(p + 15);
+
+  // Validate the AST shape for now.
+  if (let_kind != nk_let()) { return 0; }
+  if (expr_kind != nk_int()) { return 0; }
+  if (expr_value != 1) { return 0; }
+  if (let_ident == 0) { return 0; }
+  if (ret_kind != nk_return()) { return 0; }
+  if (ret_expr_kind != nk_ident()) { return 0; }
+  if (ret_ident != let_ident) { return 0; }
+
+  return 1;
 }
 
 fn tok_eof() -> i32 { return 0; }
@@ -56,3 +112,6 @@ fn tok_rbrace() -> i32 { return 8; }
 fn tok_return() -> i32 { return 9; }
 fn tok_int() -> i32 { return 10; }
 fn tok_semi() -> i32 { return 11; }
+fn tok_let() -> i32 { return 12; }
+fn tok_colon() -> i32 { return 13; }
+fn tok_eq() -> i32 { return 14; }
