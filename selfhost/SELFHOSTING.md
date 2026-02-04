@@ -13,6 +13,13 @@ This repo doesn't yet have a Mee-written compiler. This directory will host a ti
 **Stage 4 complete** ✓ (multi-function programs with parameters)
 **Stage 5 nearly complete** (WAT text output, needs file I/O)
 
+## Self-Hosting Status (Verified 2026-02-04)
+
+- `bootstrap.wat` → `bootstrap2.wat`
+- `bootstrap2.wat` → `bootstrap3.wat`
+- `bootstrap2_clean.wat` == `bootstrap3_clean.wat`
+- `bootstrap2_clean.wat` and `bootstrap3_clean.wat` both run `main` and return `0`
+
 The bootstrap compiler (4800+ lines of Mee) implements a nearly complete compiler:
 - **Lexer**: tokenizes Mee source from memory buffer (supports comments)
 - **Parser**: recursive descent with operator precedence, builds AST in memory
@@ -145,7 +152,7 @@ Compiler stub with hardcoded input, validates full pipeline.
 - [x] Generate WAT for all functions (`gen_wat_module_all`, `gen_wat_all_fns`)
 - [x] Export main function
 - [x] Test: multi-function WAT generation
-- [ ] Add `out_flush` to write buffer via `__fd_write`
+- [x] Add `out_flush` to write buffer via `__fd_write`
 - [ ] Add file output wrapper (`compile_program_to_file`)
 - [ ] Test: compile sample program and verify written WAT file
 
