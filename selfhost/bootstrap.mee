@@ -162,88 +162,47 @@ fn parse_program(pos: i32) -> i32 {
   let tok27: i32 = lex(next26);
   if (lex_kind(tok27) != tok_rbrace()) { return 0; }
 
-  // Build a tiny AST stream.
-  // Node 0: let x = (int 1)
-  let n0_kind: i32 = nk_let();
-  let n0_a: i32 = let_ident; // ident id
-  let n0_b: i32 = 1; // expr node index
-  let n0_c: i32 = 0;
-
+  // Build AST using memory-based storage (Stage 1).
+  // Node 0: let x = (expr at node 1)
+  ast_set(0, nk_let(), let_ident, 1, 0);
   // Node 1: int 1
-  let n1_kind: i32 = nk_int();
-  let n1_a: i32 = expr_value;
-  let n1_b: i32 = 0;
-  let n1_c: i32 = 0;
-
-  // Node 2: let y = (int 2)
-  let n2_kind: i32 = nk_let();
-  let n2_a: i32 = let_ident2;
-  let n2_b: i32 = 3; // expr node index
-  let n2_c: i32 = 0;
-
+  ast_set(1, nk_int(), expr_value, 0, 0);
+  // Node 2: let y = (expr at node 3)
+  ast_set(2, nk_let(), let_ident2, 3, 0);
   // Node 3: int 2
-  let n3_kind: i32 = nk_int();
-  let n3_a: i32 = expr_value2;
-  let n3_b: i32 = 0;
-  let n3_c: i32 = 0;
-
+  ast_set(3, nk_int(), expr_value2, 0, 0);
   // Node 4: ident x
-  let n4_kind: i32 = nk_ident();
-  let n4_a: i32 = ret_ident;
-  let n4_b: i32 = 0;
-  let n4_c: i32 = 0;
-
+  ast_set(4, nk_ident(), ret_ident, 0, 0);
   // Node 5: ident y
-  let n5_kind: i32 = nk_ident();
-  let n5_a: i32 = ret_ident2;
-  let n5_b: i32 = 0;
-  let n5_c: i32 = 0;
+  ast_set(5, nk_ident(), ret_ident2, 0, 0);
+  // Node 6: add (node 4, node 5)
+  ast_set(6, nk_add(), 4, 5, 0);
+  // Node 7: return (node 6)
+  ast_set(7, nk_return(), 6, 0, 0);
 
-  // Node 6: add (ident x, ident y)
-  let n6_kind: i32 = nk_add();
-  let n6_a: i32 = 4;
-  let n6_b: i32 = 5;
-  let n6_c: i32 = 0;
+  // Validate the AST stream from memory.
+  if (ast_kind(0) != nk_let()) { return 0; }
+  if (ast_a(0) == 0) { return 0; }
+  if (ast_b(0) != 1) { return 0; }
+  if (ast_kind(1) != nk_int()) { return 0; }
+  if (ast_a(1) != 1) { return 0; }
+  if (ast_kind(2) != nk_let()) { return 0; }
+  if (ast_a(2) == 0) { return 0; }
+  if (ast_b(2) != 3) { return 0; }
+  if (ast_kind(3) != nk_int()) { return 0; }
+  if (ast_a(3) != 2) { return 0; }
+  if (ast_kind(4) != nk_ident()) { return 0; }
+  if (ast_a(4) != ast_a(0)) { return 0; }
+  if (ast_kind(5) != nk_ident()) { return 0; }
+  if (ast_a(5) != ast_a(2)) { return 0; }
+  if (ast_kind(6) != nk_add()) { return 0; }
+  if (ast_a(6) != 4) { return 0; }
+  if (ast_b(6) != 5) { return 0; }
+  if (ast_kind(7) != nk_return()) { return 0; }
+  if (ast_a(7) != 6) { return 0; }
 
-  // Node 7: return (add)
-  let n7_kind: i32 = nk_return();
-  let n7_a: i32 = 6;
-  let n7_b: i32 = 0;
-  let n7_c: i32 = 0;
-
-  // Validate the AST stream.
-  if (n0_kind != nk_let()) { return 0; }
-  if (n0_a == 0) { return 0; }
-  if (n0_b != 1) { return 0; }
-  if (n1_kind != nk_int()) { return 0; }
-  if (n1_a != 1) { return 0; }
-  if (n2_kind != nk_let()) { return 0; }
-  if (n2_a == 0) { return 0; }
-  if (n2_b != 3) { return 0; }
-  if (n3_kind != nk_int()) { return 0; }
-  if (n3_a != 2) { return 0; }
-  if (n4_kind != nk_ident()) { return 0; }
-  if (n4_a != n0_a) { return 0; }
-  if (n5_kind != nk_ident()) { return 0; }
-  if (n5_a != n2_a) { return 0; }
-  if (n6_kind != nk_add()) { return 0; }
-  if (n6_a != 4) { return 0; }
-  if (n6_b != 5) { return 0; }
-  if (n7_kind != nk_return()) { return 0; }
-  if (n7_a != 6) { return 0; }
-
-  // Codegen stub: build a tiny linear IR stream and validate it.
-  // Expected IR for: let x = 1; let y = 2; return x + y;
-  let ok_ir: i32 = emit_program(
-    n0_kind, n0_a, n0_b,
-    n1_kind, n1_a,
-    n2_kind, n2_a, n2_b,
-    n3_kind, n3_a,
-    n4_kind, n4_a,
-    n5_kind, n5_a,
-    n6_kind, n6_a, n6_b,
-    n7_kind, n7_a
-  );
+  // Codegen: emit IR from memory-based AST.
+  let ok_ir: i32 = emit_program_from_mem();
   if (ok_ir != 1) { return 0; }
 
   return 1;
@@ -522,107 +481,55 @@ fn op_load() -> i32 { return 3; }
 fn op_ret() -> i32 { return 4; }
 fn op_add() -> i32 { return 5; }
 
-fn emit_program(
-  n0_kind: i32,
-  n0_a: i32,
-  n0_b: i32,
-  n1_kind: i32,
-  n1_a: i32,
-  n2_kind: i32,
-  n2_a: i32,
-  n2_b: i32,
-  n3_kind: i32,
-  n3_a: i32,
-  n4_kind: i32,
-  n4_a: i32,
-  n5_kind: i32,
-  n5_a: i32,
-  n6_kind: i32,
-  n6_a: i32,
-  n6_b: i32,
-  n7_kind: i32,
-  n7_a: i32
-) -> i32 {
-  // Fixed 8-instruction stream (op,arg) pairs.
-  let op0: i32 = 0;
-  let arg0: i32 = 0;
-  let op1: i32 = 0;
-  let arg1: i32 = 0;
-  let op2: i32 = 0;
-  let arg2: i32 = 0;
-  let op3: i32 = 0;
-  let arg3: i32 = 0;
-  let op4: i32 = 0;
-  let arg4: i32 = 0;
-  let op5: i32 = 0;
-  let arg5: i32 = 0;
-  let op6: i32 = 0;
-  let arg6: i32 = 0;
-  let op7: i32 = 0;
-  let arg7: i32 = 0;
+// Emit IR from memory-based AST (Stage 1).
+fn emit_program_from_mem() -> i32 {
+  // Validate AST node kinds.
+  if (ast_kind(0) != nk_let()) { return 0; }
+  if (ast_kind(1) != nk_int()) { return 0; }
+  if (ast_kind(2) != nk_let()) { return 0; }
+  if (ast_kind(3) != nk_int()) { return 0; }
+  if (ast_kind(4) != nk_ident()) { return 0; }
+  if (ast_kind(5) != nk_ident()) { return 0; }
+  if (ast_kind(6) != nk_add()) { return 0; }
+  if (ast_kind(7) != nk_return()) { return 0; }
 
-  // Lower AST: let x = int 1; let y = int 2; return x + y;
-  if (n0_kind != nk_let()) { return 0; }
-  if (n1_kind != nk_int()) { return 0; }
-  if (n2_kind != nk_let()) { return 0; }
-  if (n3_kind != nk_int()) { return 0; }
-  if (n4_kind != nk_ident()) { return 0; }
-  if (n5_kind != nk_ident()) { return 0; }
-  if (n6_kind != nk_add()) { return 0; }
-  if (n7_kind != nk_return()) { return 0; }
-
+  // Lower AST to IR, storing in memory.
+  // IR for: let x = 1; let y = 2; return x + y;
   // op0: const 1
-  op0 = op_const();
-  arg0 = n1_a;
+  ir_set(0, op_const(), ast_a(1));
   // op1: store x
-  op1 = op_store();
-  arg1 = n0_a;
+  ir_set(1, op_store(), ast_a(0));
   // op2: const 2
-  op2 = op_const();
-  arg2 = n3_a;
+  ir_set(2, op_const(), ast_a(3));
   // op3: store y
-  op3 = op_store();
-  arg3 = n2_a;
+  ir_set(3, op_store(), ast_a(2));
   // op4: load x
-  op4 = op_load();
-  arg4 = n4_a;
+  ir_set(4, op_load(), ast_a(4));
   // op5: load y
-  op5 = op_load();
-  arg5 = n5_a;
+  ir_set(5, op_load(), ast_a(5));
   // op6: add
-  op6 = op_add();
-  arg6 = 0;
+  ir_set(6, op_add(), 0);
   // op7: ret
-  op7 = op_ret();
-  arg7 = n7_a;
+  ir_set(7, op_ret(), ast_a(7));
 
-  // Validate stream matches expectation.
-  if (op0 != op_const()) { return 0; }
-  if (arg0 != 1) { return 0; }
-  if (op1 != op_store()) { return 0; }
-  if (arg1 == 0) { return 0; }
-  if (op2 != op_const()) { return 0; }
-  if (arg2 != 2) { return 0; }
-  if (op3 != op_store()) { return 0; }
-  if (arg3 == 0) { return 0; }
-  if (op4 != op_load()) { return 0; }
-  if (arg4 != arg1) { return 0; }
-  if (op5 != op_load()) { return 0; }
-  if (arg5 != arg3) { return 0; }
-  if (op6 != op_add()) { return 0; }
-  if (op7 != op_ret()) { return 0; }
+  // Validate IR stream from memory.
+  if (ir_opcode(0) != op_const()) { return 0; }
+  if (ir_arg(0) != 1) { return 0; }
+  if (ir_opcode(1) != op_store()) { return 0; }
+  if (ir_arg(1) == 0) { return 0; }
+  if (ir_opcode(2) != op_const()) { return 0; }
+  if (ir_arg(2) != 2) { return 0; }
+  if (ir_opcode(3) != op_store()) { return 0; }
+  if (ir_arg(3) == 0) { return 0; }
+  if (ir_opcode(4) != op_load()) { return 0; }
+  if (ir_arg(4) != ir_arg(1)) { return 0; }
+  if (ir_opcode(5) != op_load()) { return 0; }
+  if (ir_arg(5) != ir_arg(3)) { return 0; }
+  if (ir_opcode(6) != op_add()) { return 0; }
+  if (ir_opcode(7) != op_ret()) { return 0; }
 
-  // Lower IR to a tiny WAT opcode stream and validate it.
-  if (emit_wat_from_ir(
-    op0, arg0,
-    op1, arg1,
-    op2, arg2,
-    op3, arg3,
-    op4, arg4,
-    op5, arg5,
-    op6, arg6,
-    op7, arg7
-  ) != 1) { return 0; }
+  // Lower IR to WAT opcodes.
+  if (emit_wat_from_ir_mem() != 1) { return 0; }
 
   return 1;
 }
@@ -634,90 +541,66 @@ fn w_local_get() -> i32 { return 3; }
 fn w_return() -> i32 { return 4; }
 fn w_add() -> i32 { return 5; }
 
-fn emit_wat_from_ir(
-  op0: i32,
-  arg0: i32,
-  op1: i32,
-  arg1: i32,
-  op2: i32,
-  arg2: i32,
-  op3: i32,
-  arg3: i32,
-  op4: i32,
-  arg4: i32,
-  op5: i32,
-  arg5: i32,
-  op6: i32,
-  arg6: i32,
-  op7: i32,
-  arg7: i32
-) -> i32 {
-  let w0: i32 = 0;
-  let wa0: i32 = 0;
-  let w1: i32 = 0;
-  let wa1: i32 = 0;
-  let w2: i32 = 0;
-  let wa2: i32 = 0;
-  let w3: i32 = 0;
-  let wa3: i32 = 0;
-  let w4: i32 = 0;
-  let wa4: i32 = 0;
-  let w5: i32 = 0;
-  let wa5: i32 = 0;
-  let w6: i32 = 0;
-  let wa6: i32 = 0;
-  let w7: i32 = 0;
-  let wa7: i32 = 0;
+// Emit WAT opcodes from memory-based IR (Stage 1).
+// WAT stream stored at wat_base() (offset 0x2000).
+fn wat_base() -> i32 { return 8192; }
+fn wat_op_size() -> i32 { return 8; }
 
-  // Map IR to WAT ops.
-  if (op0 != op_const()) { return 0; }
-  w0 = w_const();
-  wa0 = arg0;
+fn wat_addr(idx: i32, field: i32) -> i32 {
+  return wat_base() + idx * wat_op_size() + field;
+}
 
-  if (op1 != op_store()) { return 0; }
-  w1 = w_local_set();
-  wa1 = map_local(arg1);
+fn wat_set(idx: i32, opcode: i32, arg: i32) -> i32 {
+  __mem_store(wat_addr(idx, 0), opcode);
+  __mem_store(wat_addr(idx, 4), arg);
+  return 0;
+}
 
-  if (op2 != op_const()) { return 0; }
-  w2 = w_const();
-  wa2 = arg2;
+fn wat_opcode(idx: i32) -> i32 { return __mem_load(wat_addr(idx, 0)); }
+fn wat_arg(idx: i32) -> i32 { return __mem_load(wat_addr(idx, 4)); }
 
-  if (op3 != op_store()) { return 0; }
-  w3 = w_local_set();
-  wa3 = map_local(arg3);
+fn emit_wat_from_ir_mem() -> i32 {
+  // Map IR to WAT ops, storing in memory.
+  if (ir_opcode(0) != op_const()) { return 0; }
+  wat_set(0, w_const(), ir_arg(0));
 
-  if (op4 != op_load()) { return 0; }
-  w4 = w_local_get();
-  wa4 = map_local(arg4);
+  if (ir_opcode(1) != op_store()) { return 0; }
+  wat_set(1, w_local_set(), map_local(ir_arg(1)));
 
-  if (op5 != op_load()) { return 0; }
-  w5 = w_local_get();
-  wa5 = map_local(arg5);
+  if (ir_opcode(2) != op_const()) { return 0; }
+  wat_set(2, w_const(), ir_arg(2));
 
-  if (op6 != op_add()) { return 0; }
-  w6 = w_add();
-  wa6 = 0;
+  if (ir_opcode(3) != op_store()) { return 0; }
+  wat_set(3, w_local_set(), map_local(ir_arg(3)));
 
-  if (op7 != op_ret()) { return 0; }
-  w7 = w_return();
-  wa7 = 0;
+  if (ir_opcode(4) != op_load()) { return 0; }
+  wat_set(4, w_local_get(), map_local(ir_arg(4)));
 
-  // Expected WAT stream:
-  // const 1; local.set 0; const 2; local.set 1; local.get 0; local.get 1; add; return
-  if (w0 != w_const()) { return 0; }
-  if (wa0 != 1) { return 0; }
-  if (w1 != w_local_set()) { return 0; }
-  if (wa1 != 0) { return 0; }
-  if (w2 != w_const()) { return 0; }
-  if (wa2 != 2) { return 0; }
-  if (w3 != w_local_set()) { return 0; }
-  if (wa3 != 1) { return 0; }
-  if (w4 != w_local_get()) { return 0; }
-  if (wa4 != 0) { return 0; }
-  if (w5 != w_local_get()) { return 0; }
-  if (wa5 != 1) { return 0; }
-  if (w6 != w_add()) { return 0; }
-  if (w7 != w_return()) { return 0; }
+  if (ir_opcode(5) != op_load()) { return 0; }
+  wat_set(5, w_local_get(), map_local(ir_arg(5)));
+
+  if (ir_opcode(6) != op_add()) { return 0; }
+  wat_set(6, w_add(), 0);
+
+  if (ir_opcode(7) != op_ret()) { return 0; }
+  wat_set(7, w_return(), 0);
+
+  // Validate WAT stream from memory.
+  // Expected: const 1; local.set 0; const 2; local.set 1; local.get 0; local.get 1; add; return
+  if (wat_opcode(0) != w_const()) { return 0; }
+  if (wat_arg(0) != 1) { return 0; }
+  if (wat_opcode(1) != w_local_set()) { return 0; }
+  if (wat_arg(1) != 0) { return 0; }
+  if (wat_opcode(2) != w_const()) { return 0; }
+  if (wat_arg(2) != 2) { return 0; }
+  if (wat_opcode(3) != w_local_set()) { return 0; }
+  if (wat_arg(3) != 1) { return 0; }
+  if (wat_opcode(4) != w_local_get()) { return 0; }
+  if (wat_arg(4) != 0) { return 0; }
+  if (wat_opcode(5) != w_local_get()) { return 0; }
+  if (wat_arg(5) != 1) { return 0; }
+  if (wat_opcode(6) != w_add()) { return 0; }
+  if (wat_opcode(7) != w_return()) { return 0; }
 
   return 1;
 }
