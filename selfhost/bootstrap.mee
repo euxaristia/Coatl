@@ -1598,6 +1598,7 @@ fn emit_ir_call(node: i32) -> i32 {
   // Emit call instruction
   let fn_idx: i32 = lookup_fn(fn_id);
   if (fn_idx < 0) { return 0 - 3301; }
+  if (arg_count != fn_params(fn_idx)) { return 0 - 3308; }
   let idx: i32 = alloc_ir();
   ir_set(idx, op_call(), fn_idx);
   return args_ok + 1;
