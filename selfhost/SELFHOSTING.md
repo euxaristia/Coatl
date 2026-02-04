@@ -4,19 +4,31 @@ This repo doesn't yet have a Mee-written compiler. This directory will host a ti
 
 ## Current Status
 
-**Stage 0 complete**: The bootstrap compiler validates a full pipeline over hardcoded input:
-- Lexer: tokenizes `fn main() -> i32 { let x: i32 = 1; let y: i32 = 2; return x + y; }`
-- Parser: validates token stream matches expected grammar
-- AST: builds nodes (let, int, ident, add, return) as scalar locals
-- IR: lowers AST to linear opcode stream (const, store, load, add, ret)
-- WAT: maps IR to WebAssembly ops (i32.const, local.set, local.get, i32.add, return)
+**Stage 0 complete** ✓
+**Stage 1 complete** ✓ (memory-based storage)
+**Stage 1.5 complete** ✓ (general parser with precedence)
+**Stage 1.6 complete** ✓ (general codegen with end-to-end validation)
+**Stage 1.7 complete** ✓ (full pipeline: parse → AST → IR → WAT)
+**Stage 3 complete** ✓ (dynamic input from memory buffer)
+**Stage 4 complete** ✓ (multi-function programs with parameters)
+**Stage 5 nearly complete** (WAT text output, needs file I/O)
 
-The entire pipeline is validated at each stage before proceeding.
+The bootstrap compiler (4800+ lines of Mee) implements a nearly complete compiler:
+- **Lexer**: tokenizes Mee source from memory buffer (supports comments)
+- **Parser**: recursive descent with operator precedence, builds AST in memory
+- **AST**: 21 node kinds (let, return, if, while, call, assign, binary ops, etc.)
+- **IR**: 20 opcodes (const, load, store, add, call, br_if, etc.)
+- **WAT**: 22 opcodes lowered from IR
+- **Multi-function**: parses multiple functions with parameters and arguments
+- **WAT output**: generates complete WAT module text in memory
+- **18 test phases**: all passing
+
+Memory intrinsics (`__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`) enable dynamic storage.
 
 ## Constraints (current Mee compiler)
-- No arrays (codegen missing) - blocks dynamic AST/IR storage
+- ~~No memory ops~~ ✓ **DONE**: `__mem_load`/`__mem_store` intrinsics added
+- No array syntax `[T; N]` - use memory intrinsics as workaround
 - No struct field access codegen (parsing/typecheck exist, codegen panics)
-- No memory ops (load/store to linear memory) - blocks arrays/strings
 - No I/O - blocks reading source files
 
 ## Stages
@@ -24,19 +36,56 @@ The entire pipeline is validated at each stage before proceeding.
 ### Stage 0 ✓ (complete)
 Compiler stub with hardcoded input, validates full pipeline.
 
-### Stage 1: Linear Memory + Arrays (next)
-**Goal**: Enable fixed-size arrays via WASM linear memory.
-**Rust compiler work**:
-- [ ] Add `i32.load` / `i32.store` emission in WAT backend
-- [ ] Add array type `[T; N]` to AST and parser
-- [ ] Codegen: arrays as memory offsets from a base pointer
-- [ ] Add index expression `arr[i]` lowering
+### Stage 1 ✓ (complete)
+**Goal**: Enable dynamic storage via WASM linear memory.
 
-**Bootstrap work**:
-- [ ] Replace scalar AST locals (`n0_kind`, `n1_kind`, ...) with memory array
-- [ ] Replace scalar IR locals (`op0`, `op1`, ...) with memory array
-- [ ] Add `ast_set(idx, kind, a, b, c)` and `ast_get_*(idx)` helpers
-- [ ] Parse variable-length statements (not just 2 lets + 1 return)
+**Rust compiler work** ✓:
+- [x] Add `i32.load` / `i32.store` emission in WAT backend (`__mem_load`/`__mem_store`)
+- [x] Add `i32.load8_u` / `i32.store8` emission (`__mem_load8`/`__mem_store8`)
+- [x] Type checker recognizes memory intrinsics
+- [x] x86_64 backend supports memory intrinsics
+
+**Bootstrap work** ✓:
+- [x] Replace scalar AST locals with memory array (`ast_set`, `ast_kind`, `ast_a`, etc.)
+- [x] Replace scalar IR locals with memory array (`ir_set`, `ir_opcode`, `ir_arg`)
+- [x] Add WAT opcode storage in memory (`wat_set`, `wat_opcode`, `wat_arg`)
+- [x] Add token kinds for all operators (-, *, /, <, >, ==)
+- [x] Add token kinds for control flow (if, else, while)
+- [x] Add node kinds, IR opcodes, WAT opcodes for extended operations
+
+### Stage 1.5: General Parser ✓ (complete)
+**Goal**: Parse variable-length programs, not just fixed pattern.
+
+**Bootstrap work** ✓:
+- [x] Parser state management infrastructure (position, AST counter, symbol table)
+- [x] Refactor parser to use loops for statement lists (recursive `parse_stmts_until_rbrace`)
+- [x] Parse expression with precedence (*, / before +, -)
+- [x] Parse `if` statements with optional `else`
+- [x] Parse `while` loops
+- [x] Test expression precedence (`1 + 2 * 3` → `add(1, mul(2, 3))`)
+- [x] Test input support via memory buffer
+
+### Stage 1.6: General Codegen ✓ (complete)
+**Goal**: Emit IR/WAT from dynamically parsed AST.
+
+**Bootstrap work** ✓:
+- [x] Walk AST recursively to emit IR (`emit_ir_expr`, `emit_ir_stmt`)
+- [x] Handle expressions: int, ident, add, sub, mul, div, comparisons
+- [x] Handle statements: let, return, if, while
+- [x] Basic tests for codegen (expression + let statement)
+- [x] End-to-end test: parse "1 + 2 * 3" → AST → IR → validate
+
+### Stage 1.7: Complete Pipeline Integration ✓ (complete)
+**Goal**: Replace hardcoded compile_stub with general parser + codegen.
+
+**Bootstrap work** ✓:
+- [x] Parse function header (`parse_fn_header`)
+- [x] Parse function body using general parser (`parse_fn_body_general`)
+- [x] Emit IR using general codegen
+- [x] Emit WAT from IR using general lowering (`emit_wat_from_ir_general`)
+- [x] End-to-end test with full verification of AST, IR, and WAT
+- [x] `compile_fn_general()` - complete pipeline function
+- [x] Control flow codegen tests (if, while)
 
 ### Stage 2: Struct Field Access
 **Goal**: Enable struct values with field read/write.
@@ -49,43 +98,66 @@ Compiler stub with hardcoded input, validates full pipeline.
 - [ ] Replace parallel arrays with `struct Node { kind: i32, a: i32, b: i32, c: i32 }`
 - [ ] Use structs for Token, IR instruction representation
 
-### Stage 3: Dynamic Input
+### Stage 3: Dynamic Input ✓ (complete)
 **Goal**: Read source from memory instead of hardcoded `char_at()`.
 **Rust compiler work**:
 - [ ] Add WASI imports for `fd_read` / `fd_write` (or simple syscall FFI)
-- [ ] String operations: length, index, compare
 
-**Bootstrap work**:
-- [ ] Replace `char_at(pos)` with memory read from input buffer
-- [ ] Load source string into linear memory at startup
-- [ ] Parse arbitrary single-function programs
+**Bootstrap work** ✓:
+- [x] Dynamic character reader (`char_at_dyn`) reads from memory buffer
+- [x] Dynamic lexer (`lex_dyn`, `skip_ws_dyn`, etc.)
+- [x] Dynamic parser (`parse_expr_dyn`, `parse_stmt_dyn`, etc.)
+- [x] Dynamic compile pipeline (`compile_fn_dyn`)
+- [x] Test: compile `fn main() { let a = 5; let b = 3; return a * b; }` from memory
+- [x] Test: compile program with `if` statement from memory
 
-### Stage 4: Multi-Function Programs
+### Stage 4: Multi-Function Programs ✓ (complete)
 **Goal**: Compile programs with multiple functions.
-**Bootstrap work**:
-- [ ] Track function table: name → local index
-- [ ] Emit WAT `(func ...)` blocks for each function
-- [ ] Handle function calls and parameter passing
-- [ ] Symbol table for resolving identifiers across functions
+**Bootstrap work** ✓:
+- [x] Function table (`fn_set`, `fn_ident`, `register_fn`, `lookup_fn`)
+- [x] Function AST storage (`set_fn_ast`, `get_fn_ast`)
+- [x] Parse function definitions (`parse_fn_def_dyn`)
+- [x] Parse multiple functions (`parse_program_dyn`)
+- [x] Function calls in expressions (`nk_call`, `parse_call_dyn`)
+- [x] IR emission for calls (`emit_ir_call`, `op_call`)
+- [x] WAT emission for calls (`emit_wat_call`, `w_call`)
+- [x] Function parameters (`parse_params_dyn`, `parse_param_list_dyn`)
+- [x] Function arguments (`parse_args_dyn`, `emit_ir_args`)
+- [x] Assignment statements (`nk_assign`, `parse_assign_or_expr_dyn`, `emit_ir_assign`)
+- [x] Tests: multi-function, parameters, assignments
+- [x] Line comments (`// ...`)
 
-### Stage 5: File I/O + Output
-**Goal**: Read source file, write WAT output file.
+### Stage 5: WAT Text Output (current)
+**Goal**: Generate WAT text output.
 **Rust compiler work**:
-- [ ] WASI `path_open`, `fd_read`, `fd_write`
-- [ ] Basic heap allocation (bump allocator) for dynamic buffers
+- [ ] WASI `path_open`, `fd_read`, `fd_write` (for file output)
+- [ ] Add intrinsic(s) for output: `__fd_write` (buffer, len) or `__write_all`
+- [ ] Wire intrinsic(s) through type checker and WAT/x86_64 backends
 
 **Bootstrap work**:
-- [ ] Read source file path from args
-- [ ] Emit WAT text to output file
-- [ ] String building for WAT output
+- [x] Output buffer infrastructure (`out_init`, `out_byte`, `out_char`)
+- [x] String output helpers (`out_str_const`, `out_str_return`, etc.)
+- [x] Number output (`out_num`, `out_num_pos`)
+- [x] WAT instruction generation (`gen_wat_instr`)
+- [x] WAT function generation (`gen_wat_fn`, `gen_wat_params`, `gen_wat_locals`)
+- [x] WAT module generation (`gen_wat_module`)
+- [x] Test: generate and verify WAT text output
+- [x] Generate WAT for all functions (`gen_wat_module_all`, `gen_wat_all_fns`)
+- [x] Export main function
+- [x] Test: multi-function WAT generation
+- [ ] Add `out_flush` to write buffer via `__fd_write`
+- [ ] Add file output wrapper (`compile_program_to_file`)
+- [ ] Test: compile sample program and verify written WAT file
 
 ### Stage 6: Self-Compile
 **Goal**: Bootstrap compiler can compile itself.
 **Bootstrap work**:
-- [ ] Implement all constructs used by bootstrap.mee
-- [ ] Type checker (at least for i32)
-- [ ] Error reporting (line numbers)
-- [ ] Verify: `mee build bootstrap.mee` produces identical output
+- [ ] Implement all constructs used by `bootstrap.mee`
+- [ ] Minimal type checker (i32 only, no inference)
+- [ ] Error reporting with line/column spans
+- [ ] Deterministic output (stable ordering, stable formatting)
+- [ ] Verification: `mee build bootstrap.mee` produces identical WAT
+- [ ] Round-trip check: bootstrap compiles itself and runs test suite
 
 ## Milestones
 
@@ -100,33 +172,90 @@ Compiler stub with hardcoded input, validates full pipeline.
 
 ## Immediate Next Steps
 
-1. **Rust compiler**: Implement `i32.load` / `i32.store` in WAT codegen
-2. **Rust compiler**: Add array type `[i32; N]` with index expression
-3. **Bootstrap**: Convert AST from scalars to memory array
-4. **Bootstrap**: Add more binary operators (-, *, /, comparisons)
-5. **Bootstrap**: Parse `if` and `while` statements
+1. ~~**Bootstrap**: Full pipeline: parse → AST → IR → WAT~~ ✓
+2. ~~**Bootstrap**: Dynamic input from memory buffer~~ ✓
+3. ~~**Bootstrap**: Multi-function programs with function calls~~ ✓
+4. ~~**Bootstrap**: Function parameters and arguments~~ ✓
+5. ~~**Bootstrap**: Assignment statements~~ ✓
+6. ~~**Bootstrap**: Line comments~~ ✓
+7. **Rust compiler**: Add WASI imports + output intrinsic(s) (Stage 5)
+8. **Bootstrap**: `out_flush` + write WAT to file (Stage 5)
+9. **Bootstrap**: Minimal type checker + error reporting (Stage 6)
+10. **Bootstrap**: Self-compile verification loop (Stage 6)
+
+## Stage 5 Detailed Tasks (File I/O + WAT Output)
+
+- Define ABI for output intrinsic(s): `__fd_write(fd, ptr, len) -> written` or `__write_all(ptr, len)`
+- Add WASI imports in Rust compiler (`fd_write`, `path_open`, `fd_close`)
+- Provide Mee-level wrappers for open/write/close (or a single "write to stdout" path first)
+- Wire intrinsic(s) through type checker (argument + return types)
+- WAT backend: emit `call` to import with proper stack values
+- x86_64 backend: stub or syscall-backed implementation (explicitly document if unsupported)
+- Bootstrap: add `out_flush` to emit buffer via intrinsic
+- Bootstrap: add `compile_program_to_file(path)` or `compile_program_to_stdout()`
+- Test: compile a simple program and compare generated WAT to in-memory expected output
+- Test: multi-function program writes full module with proper `export "main"`
+
+## Stage 6 Detailed Tasks (Self-Compile)
+
+- Inventory constructs used in `bootstrap.mee` and confirm parser/codegen coverage
+- Add minimal type checker for i32:
+- Track symbol table with types for locals, params, and function returns
+- Validate binary ops are i32-only, comparisons return i32 (0/1)
+- Validate call arity and return type is i32
+- Add error reporting with line/column spans:
+- Track current line/column in lexer
+- Store spans in AST nodes or in parallel arrays
+- Emit error messages with source snippet and caret
+- Deterministic output:
+- Stable function ordering in module output
+- Stable local ordering in WAT generation
+- Fixed formatting for numbers and whitespace
+- Verification loop:
+- Build `bootstrap.mee` with Rust compiler -> `bootstrap.wat`
+- Run `bootstrap.wat` to compile `bootstrap.mee` -> `bootstrap2.wat`
+- Compare `bootstrap.wat` vs `bootstrap2.wat` (byte-for-byte)
+- Run test suite with self-compiled compiler
+
+## Acceptance Criteria
+
+- Stage 5: `mee build input.mee` writes a valid WAT file that runs under `wasmtime`
+- Stage 5: output is identical between in-memory WAT and file WAT
+- Stage 6: self-compile produces identical WAT output across two generations
+- Stage 6: all existing tests pass using the self-compiled compiler
 
 ## Design Notes
 
-### Memory Layout (Stage 1+)
+### Memory Layout (implemented)
 ```
-0x0000 - 0x0FFF: AST node array (256 nodes × 16 bytes)
-0x1000 - 0x1FFF: IR instruction array (256 ops × 8 bytes)
-0x2000 - 0x2FFF: Source input buffer (4KB)
-0x3000 - 0x3FFF: Output buffer (4KB)
-0x4000+        : Heap (bump allocator)
+0x0000 - 0x0FFF: AST node array (256 nodes × 16 bytes)  [ast_base() = 0]
+0x1000 - 0x1FFF: IR instruction array (256 ops × 8 bytes) [ir_base() = 4096]
+0x2000 - 0x2FFF: WAT opcode array (256 ops × 8 bytes) [wat_base() = 8192]
+0x3000 - 0x3FFF: Source input buffer (4KB) [future]
+0x4000+        : Heap (bump allocator) [future]
 ```
 
 ### AST Node Format (16 bytes)
 ```
-offset 0: kind (i32)
-offset 4: arg_a (i32)
-offset 8: arg_b (i32)
-offset 12: arg_c (i32)
+offset 0: kind (i32)   - node type (nk_int, nk_let, nk_add, etc.)
+offset 4: arg_a (i32)  - first argument (value, ident_id, child node, etc.)
+offset 8: arg_b (i32)  - second argument
+offset 12: arg_c (i32) - third argument (reserved)
 ```
 
 ### IR Instruction Format (8 bytes)
 ```
-offset 0: opcode (i32)
-offset 4: argument (i32)
+offset 0: opcode (i32)   - operation (op_const, op_load, op_add, etc.)
+offset 4: argument (i32) - operand (constant value, local index, etc.)
 ```
+
+### WAT Opcode Format (8 bytes)
+```
+offset 0: opcode (i32)   - WAT instruction (w_const, w_local_get, w_add, etc.)
+offset 4: argument (i32) - operand
+```
+
+### Token Packing
+Tokens are packed as: `kind * 10000 + next_position`
+- `lex_kind(tok)`: extract kind via `tok / 10000`
+- `lex_next(tok)`: extract next position via `tok - kind * 10000`
