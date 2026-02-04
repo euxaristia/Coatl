@@ -279,6 +279,7 @@ fn nk_mem_store() -> i32 { return 23; }
 fn nk_mem_load8() -> i32 { return 24; }
 fn nk_mem_store8() -> i32 { return 25; }
 fn nk_stmt() -> i32 { return 26; }
+fn nk_bool() -> i32 { return 27; }
 
 // Intrinsic call IDs (avoid collision with ident_id_dyn)
 fn intrin_mem_load_id() -> i32 { return 1000001; }
@@ -627,6 +628,14 @@ fn ident_kind(start: i32, end: i32) -> i32 {
         }
       }
     }
+    // "true"
+    if (char_at(start) == 116) {
+      if (char_at(start + 1) == 114) {
+        if (char_at(start + 2) == 117) {
+          if (char_at(start + 3) == 101) { return tok_true(); }
+        }
+      }
+    }
   }
   if (len == 5) {
     // "while"
@@ -635,6 +644,16 @@ fn ident_kind(start: i32, end: i32) -> i32 {
         if (char_at(start + 2) == 105) {
           if (char_at(start + 3) == 108) {
             if (char_at(start + 4) == 101) { return tok_while(); }
+          }
+        }
+      }
+    }
+    // "false"
+    if (char_at(start) == 102) {
+      if (char_at(start + 1) == 97) {
+        if (char_at(start + 2) == 108) {
+          if (char_at(start + 3) == 115) {
+            if (char_at(start + 4) == 101) { return tok_false(); }
           }
         }
       }
@@ -819,6 +838,8 @@ fn tok_le() -> i32 { return 26; }
 fn tok_ge() -> i32 { return 27; }
 fn tok_bang() -> i32 { return 28; }
 fn tok_comma() -> i32 { return 29; }
+fn tok_true() -> i32 { return 30; }
+fn tok_false() -> i32 { return 31; }
 
 // IR opcodes.
 fn op_const() -> i32 { return 1; }
@@ -1474,6 +1495,9 @@ fn emit_ir_expr(node: i32) -> i32 {
   if (kind == nk_int()) {
     return emit_ir_int(node);
   }
+  if (kind == nk_bool()) {
+    return emit_ir_bool(node);
+  }
   if (kind == nk_ident()) {
     return emit_ir_ident(node);
   }
@@ -1512,6 +1536,12 @@ fn emit_ir_expr(node: i32) -> i32 {
   }
 
   return 0 - 3000 - kind;
+}
+
+fn emit_ir_bool(node: i32) -> i32 {
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_const(), ast_a(node));
+  return 1;
 }
 
 fn emit_ir_call(node: i32) -> i32 {
@@ -1692,6 +1722,7 @@ fn typecheck_call(node: i32) -> i32 {
 fn typecheck_expr(node: i32) -> i32 {
   let kind: i32 = ast_kind(node);
   if (kind == nk_int()) { return type_i32(); }
+  if (kind == nk_bool()) { return type_bool(); }
   if (kind == nk_ident()) { return type_i32(); }
   if (kind == nk_call()) { return typecheck_call(node); }
 
@@ -1762,7 +1793,7 @@ fn typecheck_stmt(node: i32) -> i32 {
     return 1;
   }
   // expression statement
-  if (kind == nk_call() || kind == nk_int() || kind == nk_ident()
+  if (kind == nk_call() || kind == nk_int() || kind == nk_bool() || kind == nk_ident()
       || kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()
       || kind == nk_lt() || kind == nk_gt() || kind == nk_eq() || kind == nk_ne()
       || kind == nk_le() || kind == nk_ge()) {
@@ -1829,6 +1860,7 @@ fn emit_ir_stmt(node: i32) -> i32 {
     return emit_ir_call_stmt(node);
   }
   if (kind == nk_int()) { return emit_ir_expr_stmt(node); }
+  if (kind == nk_bool()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_ident()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_add()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_sub()) { return emit_ir_expr_stmt(node); }
@@ -2301,6 +2333,14 @@ fn ident_kind_dyn(start: i32, end: i32) -> i32 {
         }
       }
     }
+    // "true"
+    if (char_at_dyn(start) == 116) {
+      if (char_at_dyn(start + 1) == 114) {
+        if (char_at_dyn(start + 2) == 117) {
+          if (char_at_dyn(start + 3) == 101) { return tok_true(); }
+        }
+      }
+    }
   }
   if (len == 5) {
     if (char_at_dyn(start) == 119) {
@@ -2308,6 +2348,16 @@ fn ident_kind_dyn(start: i32, end: i32) -> i32 {
         if (char_at_dyn(start + 2) == 105) {
           if (char_at_dyn(start + 3) == 108) {
             if (char_at_dyn(start + 4) == 101) { return tok_while(); }
+          }
+        }
+      }
+    }
+    // "false"
+    if (char_at_dyn(start) == 102) {
+      if (char_at_dyn(start + 1) == 97) {
+        if (char_at_dyn(start + 2) == 108) {
+          if (char_at_dyn(start + 3) == 115) {
+            if (char_at_dyn(start + 4) == 101) { return tok_false(); }
           }
         }
       }
@@ -2555,6 +2605,8 @@ fn parse_primary_dyn() -> i32 {
   let tok: i32 = peek_tok_dyn();
   let kind: i32 = lex_kind(tok);
 
+  if (kind == tok_true()) { return parse_bool_dyn(1); }
+  if (kind == tok_false()) { return parse_bool_dyn(0); }
   if (kind == tok_int()) {
     return parse_int_dyn();
   }
@@ -2568,6 +2620,13 @@ fn parse_primary_dyn() -> i32 {
     return inner;
   }
   return 0 - 800 - kind;
+}
+
+fn parse_bool_dyn(val: i32) -> i32 {
+  next_tok_dyn();
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_bool(), val, 0, 0);
+  return node;
 }
 
 // Parse identifier or function call
@@ -6292,6 +6351,12 @@ fn parse_primary() -> i32 {
   let tok: i32 = peek_tok();
   let kind: i32 = lex_kind(tok);
 
+  if (kind == tok_true()) {
+    return parse_bool_literal(1);
+  }
+  if (kind == tok_false()) {
+    return parse_bool_literal(0);
+  }
   if (kind == tok_int()) {
     return parse_int_literal();
   }
@@ -6308,6 +6373,13 @@ fn parse_primary() -> i32 {
   }
 
   return 0 - 1;
+}
+
+fn parse_bool_literal(val: i32) -> i32 {
+  next_tok();
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_bool(), val, 0, 0);
+  return node;
 }
 
 fn parse_int_literal() -> i32 {
