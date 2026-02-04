@@ -1,0 +1,12 @@
+// Test byte memory operations (for future string handling)
+fn main() -> i32 {
+  // Store bytes at addresses 0-3
+  __mem_store8(0, 72);  // 'H'
+  __mem_store8(1, 101); // 'e'
+  __mem_store8(2, 108); // 'l'
+  __mem_store8(3, 108); // 'l'
+
+  // Load them back and sum ASCII values
+  let sum: i32 = __mem_load8(0) + __mem_load8(1) + __mem_load8(2) + __mem_load8(3);
+  return sum;
+}

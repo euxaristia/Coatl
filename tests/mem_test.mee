@@ -1,0 +1,11 @@
+// Test memory intrinsics: __mem_store and __mem_load
+fn main() -> i32 {
+  // Store 42 at address 0
+  __mem_store(0, 42);
+  // Store 100 at address 4
+  __mem_store(4, 100);
+  // Load both values and add them
+  let a: i32 = __mem_load(0);
+  let b: i32 = __mem_load(4);
+  return a + b;
+}

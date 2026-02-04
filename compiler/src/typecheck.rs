@@ -126,6 +126,31 @@ fn type_of_expr(
             }
         }
         Expr::Call { callee, args } => {
+            // Handle memory intrinsics
+            if callee == "__mem_load" || callee == "__mem_load8" {
+                if args.len() != 1 {
+                    return Err(TypeError { message: format!("{} expects 1 argument", callee) });
+                }
+                let aty = type_of_expr(&args[0], vars, fn_sigs, struct_defs)?;
+                if aty != Type::I32 {
+                    return Err(TypeError { message: format!("{} address must be i32", callee) });
+                }
+                return Ok(Type::I32);
+            }
+            if callee == "__mem_store" || callee == "__mem_store8" {
+                if args.len() != 2 {
+                    return Err(TypeError { message: format!("{} expects 2 arguments", callee) });
+                }
+                let addr_ty = type_of_expr(&args[0], vars, fn_sigs, struct_defs)?;
+                let val_ty = type_of_expr(&args[1], vars, fn_sigs, struct_defs)?;
+                if addr_ty != Type::I32 {
+                    return Err(TypeError { message: format!("{} address must be i32", callee) });
+                }
+                if val_ty != Type::I32 {
+                    return Err(TypeError { message: format!("{} value must be i32", callee) });
+                }
+                return Ok(Type::I32);
+            }
             let (params, ret) = fn_sigs.get(callee)
                 .ok_or_else(|| TypeError { message: format!("unknown function {}", callee) })?
                 .clone();

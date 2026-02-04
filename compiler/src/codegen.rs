@@ -76,18 +76,73 @@ fn collect_strings_from_expr(expr: &Expr, strings: &mut Vec<String>) {
     }
 }
 
+fn uses_memory(prog: &Program) -> bool {
+    for f in &prog.functions {
+        if block_uses_memory(&f.body) {
+            return true;
+        }
+    }
+    false
+}
+
+fn block_uses_memory(block: &Block) -> bool {
+    for stmt in &block.statements {
+        if stmt_uses_memory(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+fn stmt_uses_memory(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { expr, .. } => expr_uses_memory(expr),
+        Stmt::Assign { expr, .. } => expr_uses_memory(expr),
+        Stmt::If { cond, then_block, else_block } => {
+            expr_uses_memory(cond)
+                || block_uses_memory(then_block)
+                || else_block.as_ref().map_or(false, block_uses_memory)
+        }
+        Stmt::While { cond, body } => expr_uses_memory(cond) || block_uses_memory(body),
+        Stmt::Return(expr) => expr_uses_memory(expr),
+        Stmt::Expr(expr) => expr_uses_memory(expr),
+    }
+}
+
+fn expr_uses_memory(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { callee, args } => {
+            if callee == "__mem_load" || callee == "__mem_store"
+                || callee == "__mem_load8" || callee == "__mem_store8"
+            {
+                return true;
+            }
+            args.iter().any(expr_uses_memory)
+        }
+        Expr::Binary { left, right, .. } => expr_uses_memory(left) || expr_uses_memory(right),
+        Expr::FieldAccess { expr, .. } => expr_uses_memory(expr),
+        Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_memory(e)),
+        _ => false,
+    }
+}
+
 pub fn emit_wat(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
     let struct_defs = collect_struct_defs(prog);
+    let needs_memory = !strings.is_empty() || uses_memory(prog);
     let mut out = String::new();
     out.push_str("(module\n");
 
-    // Emit memory and string data if we have strings
-    if !strings.is_empty() {
+    // Emit memory if we have strings or use memory intrinsics
+    if needs_memory {
         out.push_str("  (memory 1)\n");
+        out.push_str("  (export \"memory\" (memory 0))\n");
+    }
+
+    // Emit string data
+    if !strings.is_empty() {
         let mut offset = 0;
         for s in strings.iter() {
-            // Emit string data
             out.push_str(&format!("  (data (i32.const {}) \"", offset));
             for c in s.chars() {
                 match c {
@@ -707,6 +762,43 @@ fn emit_expr_wat_with_strings(
             out.push_str(&format!("  {}\n", instr));
         }
         Expr::Call { callee, args } => {
+            // Handle memory intrinsics
+            if callee == "__mem_load" {
+                if args.len() != 1 {
+                    panic!("__mem_load expects 1 argument (address)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  i32.load\n");
+                return;
+            }
+            if callee == "__mem_load8" {
+                if args.len() != 1 {
+                    panic!("__mem_load8 expects 1 argument (address)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  i32.load8_u\n");
+                return;
+            }
+            if callee == "__mem_store" {
+                if args.len() != 2 {
+                    panic!("__mem_store expects 2 arguments (address, value)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  i32.store\n");
+                out.push_str("  i32.const 0\n"); // Return 0 (store is side-effect only)
+                return;
+            }
+            if callee == "__mem_store8" {
+                if args.len() != 2 {
+                    panic!("__mem_store8 expects 2 arguments (address, value)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  i32.store8\n");
+                out.push_str("  i32.const 0\n");
+                return;
+            }
             for arg in args {
                 emit_expr_wat_with_strings(arg, locals, var_types, _struct_defs, string_offsets, out);
             }
@@ -804,6 +896,51 @@ fn emit_expr_x86_64_with_strings(
             }
         }
         Expr::Call { callee, args } => {
+            // Handle memory intrinsics
+            if callee == "__mem_load" {
+                if args.len() != 1 {
+                    panic!("__mem_load expects 1 argument (address)");
+                }
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                // rax has address, load 32-bit value and sign-extend to 64-bit
+                out.push_str("  movsxd rax, DWORD PTR [rax]\n");
+                return;
+            }
+            if callee == "__mem_load8" {
+                if args.len() != 1 {
+                    panic!("__mem_load8 expects 1 argument (address)");
+                }
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                // rax has address, load byte and zero-extend
+                out.push_str("  movzx rax, BYTE PTR [rax]\n");
+                return;
+            }
+            if callee == "__mem_store" {
+                if args.len() != 2 {
+                    panic!("__mem_store expects 2 arguments (address, value)");
+                }
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                out.push_str("  push rax\n");
+                emit_expr_x86_64_with_strings(&args[1], locals, var_types, _struct_defs, strings, out);
+                out.push_str("  pop rcx\n");
+                // rcx has address, rax has value
+                out.push_str("  mov DWORD PTR [rcx], eax\n");
+                out.push_str("  xor rax, rax\n"); // Return 0
+                return;
+            }
+            if callee == "__mem_store8" {
+                if args.len() != 2 {
+                    panic!("__mem_store8 expects 2 arguments (address, value)");
+                }
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                out.push_str("  push rax\n");
+                emit_expr_x86_64_with_strings(&args[1], locals, var_types, _struct_defs, strings, out);
+                out.push_str("  pop rcx\n");
+                // rcx has address, rax has value
+                out.push_str("  mov BYTE PTR [rcx], al\n");
+                out.push_str("  xor rax, rax\n"); // Return 0
+                return;
+            }
             let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
             let reg_count = if args.len() < arg_regs.len() { args.len() } else { arg_regs.len() };
             let stack_count = args.len().saturating_sub(arg_regs.len());

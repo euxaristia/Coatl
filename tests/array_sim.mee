@@ -1,0 +1,36 @@
+// Simulate arrays using memory intrinsics
+// This pattern will be used in bootstrap Stage 1
+
+// Helper: compute array element address (base + index * 4)
+fn arr_addr(base: i32, idx: i32) -> i32 {
+  return base + idx * 4;
+}
+
+// Helper: store i32 at array[idx]
+fn arr_set(base: i32, idx: i32, val: i32) -> i32 {
+  __mem_store(arr_addr(base, idx), val);
+  return 0;
+}
+
+// Helper: load i32 from array[idx]
+fn arr_get(base: i32, idx: i32) -> i32 {
+  return __mem_load(arr_addr(base, idx));
+}
+
+fn main() -> i32 {
+  // Allocate array at address 0 (4 elements = 16 bytes)
+  let arr_base: i32 = 0;
+
+  // Store values: [10, 20, 30, 40]
+  arr_set(arr_base, 0, 10);
+  arr_set(arr_base, 1, 20);
+  arr_set(arr_base, 2, 30);
+  arr_set(arr_base, 3, 40);
+
+  // Sum all elements
+  let sum: i32 = 0;
+  sum = arr_get(arr_base, 0) + arr_get(arr_base, 1);
+  sum = sum + arr_get(arr_base, 2) + arr_get(arr_base, 3);
+
+  return sum;
+}

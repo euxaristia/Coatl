@@ -1,8 +1,18 @@
 fn main() -> i32 {
   // Stage0: placeholder Mee "compiler".
-  // We can't do real parsing yet (no structs/arrays/string ops),
-  // so keep this as a compiling stub and grow it as features land.
-  return compile_stub();
+  // Validates full pipeline with hardcoded input.
+  let stage0_ok: i32 = compile_stub();
+  if (stage0_ok != 0) { return 1; }
+
+  // Stage1: test memory-based AST/IR storage.
+  let ast_ok: i32 = test_mem_ast();
+  if (ast_ok != 1) { return 2; }
+
+  let ir_ok: i32 = test_mem_ir();
+  if (ir_ok != 1) { return 3; }
+
+  // All stages passed
+  return 0;
 }
 
 fn compile_stub() -> i32 {
@@ -35,7 +45,8 @@ fn parse_program(pos: i32) -> i32 {
   let kind2: i32 = lex_kind(tok2);
   let next2: i32 = lex_next(tok2);
   if (kind2 != tok_ident()) { return 0; }
-  let main_id: i32 = ident_id(next, next2);
+  let main_start: i32 = skip_ws(next);
+  let main_id: i32 = ident_id(main_start, next2);
   if (main_id == 0) { return 0; }
 
   let tok3: i32 = lex(next2);
@@ -65,7 +76,8 @@ fn parse_program(pos: i32) -> i32 {
   let tok9: i32 = lex(next8);
   if (lex_kind(tok9) != tok_ident()) { return 0; }
   let next9: i32 = lex_next(tok9);
-  let let_ident: i32 = ident_id(next8, next9);
+  let ident_start: i32 = skip_ws(next8);
+  let let_ident: i32 = ident_id(ident_start, next9);
   if (let_ident == 0) { return 0; }
 
   let tok10: i32 = lex(next9);
@@ -83,7 +95,8 @@ fn parse_program(pos: i32) -> i32 {
   let tok13: i32 = lex(next12);
   if (lex_kind(tok13) != tok_int()) { return 0; }
   let next13: i32 = lex_next(tok13);
-  let expr_value: i32 = int_value(next12, next13);
+  let int_start: i32 = skip_ws(next12);
+  let expr_value: i32 = int_value(int_start, next13);
 
   let tok14: i32 = lex(next13);
   if (lex_kind(tok14) != tok_semi()) { return 0; }
@@ -96,7 +109,8 @@ fn parse_program(pos: i32) -> i32 {
   let tok16: i32 = lex(next15);
   if (lex_kind(tok16) != tok_ident()) { return 0; }
   let next16: i32 = lex_next(tok16);
-  let let_ident2: i32 = ident_id(next15, next16);
+  let ident_start2: i32 = skip_ws(next15);
+  let let_ident2: i32 = ident_id(ident_start2, next16);
   if (let_ident2 == 0) { return 0; }
 
   let tok17: i32 = lex(next16);
@@ -114,7 +128,8 @@ fn parse_program(pos: i32) -> i32 {
   let tok20: i32 = lex(next19);
   if (lex_kind(tok20) != tok_int()) { return 0; }
   let next20: i32 = lex_next(tok20);
-  let expr_value2: i32 = int_value(next19, next20);
+  let int_start2: i32 = skip_ws(next19);
+  let expr_value2: i32 = int_value(int_start2, next20);
 
   let tok21: i32 = lex(next20);
   if (lex_kind(tok21) != tok_semi()) { return 0; }
@@ -127,7 +142,8 @@ fn parse_program(pos: i32) -> i32 {
   let tok23: i32 = lex(next22);
   if (lex_kind(tok23) != tok_ident()) { return 0; }
   let next23: i32 = lex_next(tok23);
-  let ret_ident: i32 = ident_id(next22, next23);
+  let ret_start: i32 = skip_ws(next22);
+  let ret_ident: i32 = ident_id(ret_start, next23);
 
   let tok24: i32 = lex(next23);
   if (lex_kind(tok24) != tok_plus()) { return 0; }
@@ -136,7 +152,8 @@ fn parse_program(pos: i32) -> i32 {
   let tok25: i32 = lex(next24);
   if (lex_kind(tok25) != tok_ident()) { return 0; }
   let next25: i32 = lex_next(tok25);
-  let ret_ident2: i32 = ident_id(next24, next25);
+  let ret_start2: i32 = skip_ws(next24);
+  let ret_ident2: i32 = ident_id(ret_start2, next25);
 
   let tok26: i32 = lex(next25);
   if (lex_kind(tok26) != tok_semi()) { return 0; }
@@ -239,13 +256,13 @@ fn lex(pos: i32) -> i32 {
   if (c == 0) { return pack_tok(tok_eof(), p); }
 
   if (is_ident_start(c) == 1) {
-    let end: i32 = scan_ident(p);
-    let kind: i32 = ident_kind(p, end);
-    return pack_tok(kind, end);
+    let ident_end: i32 = scan_ident(p);
+    let ident_k: i32 = ident_kind(p, ident_end);
+    return pack_tok(ident_k, ident_end);
   }
   if (is_digit(c) == 1) {
-    let end: i32 = scan_int(p);
-    return pack_tok(tok_int(), end);
+    let int_end: i32 = scan_int(p);
+    return pack_tok(tok_int(), int_end);
   }
 
   if (c == 40) { return pack_tok(tok_lparen(), p + 1); } // (
@@ -710,4 +727,122 @@ fn map_local(ident_id: i32) -> i32 {
   if (ident_id == 2) { return 0; }
   if (ident_id == 3) { return 1; }
   return 0;
+}
+
+// ============================================================================
+// Stage 1 Infrastructure: Memory-based AST storage
+// ============================================================================
+// Memory layout (from SELFHOSTING.md):
+//   0x0000 - 0x0FFF: AST nodes (256 nodes × 16 bytes)
+//   0x1000 - 0x1FFF: IR instructions (256 ops × 8 bytes)
+//   0x2000 - 0x2FFF: Source input buffer (4KB)
+//   0x3000 - 0x3FFF: Output buffer (4KB)
+//
+// AST Node format (16 bytes):
+//   offset 0: kind (i32)
+//   offset 4: arg_a (i32)
+//   offset 8: arg_b (i32)
+//   offset 12: arg_c (i32)
+
+fn ast_base() -> i32 { return 0; }
+fn ast_node_size() -> i32 { return 16; }
+fn ast_max_nodes() -> i32 { return 256; }
+
+// Compute address of AST node field
+fn ast_addr(node_idx: i32, field_offset: i32) -> i32 {
+  return ast_base() + node_idx * ast_node_size() + field_offset;
+}
+
+// Store AST node
+fn ast_set(idx: i32, kind: i32, a: i32, b: i32, c: i32) -> i32 {
+  __mem_store(ast_addr(idx, 0), kind);
+  __mem_store(ast_addr(idx, 4), a);
+  __mem_store(ast_addr(idx, 8), b);
+  __mem_store(ast_addr(idx, 12), c);
+  return 0;
+}
+
+// Load AST node fields
+fn ast_kind(idx: i32) -> i32 { return __mem_load(ast_addr(idx, 0)); }
+fn ast_a(idx: i32) -> i32 { return __mem_load(ast_addr(idx, 4)); }
+fn ast_b(idx: i32) -> i32 { return __mem_load(ast_addr(idx, 8)); }
+fn ast_c(idx: i32) -> i32 { return __mem_load(ast_addr(idx, 12)); }
+
+// ============================================================================
+// Stage 1 Infrastructure: Memory-based IR storage
+// ============================================================================
+// IR Instruction format (8 bytes):
+//   offset 0: opcode (i32)
+//   offset 4: argument (i32)
+
+fn ir_base() -> i32 { return 4096; }
+fn ir_op_size() -> i32 { return 8; }
+fn ir_max_ops() -> i32 { return 256; }
+
+fn ir_addr(op_idx: i32, field_offset: i32) -> i32 {
+  return ir_base() + op_idx * ir_op_size() + field_offset;
+}
+
+fn ir_set(idx: i32, opcode: i32, arg: i32) -> i32 {
+  __mem_store(ir_addr(idx, 0), opcode);
+  __mem_store(ir_addr(idx, 4), arg);
+  return 0;
+}
+
+fn ir_opcode(idx: i32) -> i32 { return __mem_load(ir_addr(idx, 0)); }
+fn ir_arg(idx: i32) -> i32 { return __mem_load(ir_addr(idx, 4)); }
+
+// ============================================================================
+// Stage 1 Test: Verify memory-based AST/IR works
+// ============================================================================
+fn test_mem_ast() -> i32 {
+  // Build the same AST as Stage 0, but using memory arrays
+  // Node 0: let x = (expr at node 1)
+  ast_set(0, nk_let(), 2, 1, 0);
+  // Node 1: int 1
+  ast_set(1, nk_int(), 1, 0, 0);
+  // Node 2: let y = (expr at node 3)
+  ast_set(2, nk_let(), 3, 3, 0);
+  // Node 3: int 2
+  ast_set(3, nk_int(), 2, 0, 0);
+  // Node 4: ident x
+  ast_set(4, nk_ident(), 2, 0, 0);
+  // Node 5: ident y
+  ast_set(5, nk_ident(), 3, 0, 0);
+  // Node 6: add (node 4, node 5)
+  ast_set(6, nk_add(), 4, 5, 0);
+  // Node 7: return (node 6)
+  ast_set(7, nk_return(), 6, 0, 0);
+
+  // Verify
+  if (ast_kind(0) != nk_let()) { return 0; }
+  if (ast_a(0) != 2) { return 0; }
+  if (ast_kind(1) != nk_int()) { return 0; }
+  if (ast_a(1) != 1) { return 0; }
+  if (ast_kind(6) != nk_add()) { return 0; }
+  if (ast_a(6) != 4) { return 0; }
+  if (ast_b(6) != 5) { return 0; }
+  if (ast_kind(7) != nk_return()) { return 0; }
+
+  return 1;
+}
+
+fn test_mem_ir() -> i32 {
+  // Build IR: const 1; store x; const 2; store y; load x; load y; add; ret
+  ir_set(0, op_const(), 1);
+  ir_set(1, op_store(), 2);
+  ir_set(2, op_const(), 2);
+  ir_set(3, op_store(), 3);
+  ir_set(4, op_load(), 2);
+  ir_set(5, op_load(), 3);
+  ir_set(6, op_add(), 0);
+  ir_set(7, op_ret(), 0);
+
+  // Verify
+  if (ir_opcode(0) != op_const()) { return 0; }
+  if (ir_arg(0) != 1) { return 0; }
+  if (ir_opcode(6) != op_add()) { return 0; }
+  if (ir_opcode(7) != op_ret()) { return 0; }
+
+  return 1;
 }
