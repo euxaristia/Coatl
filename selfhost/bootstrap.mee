@@ -1,4 +1,15 @@
 fn main() -> i32 {
+  // Compiler mode: when stdin compile is enabled, skip self-tests and
+  // compile stdin directly to stdout.
+  if (compile_stdin_enabled() == 1) {
+    if (compile_stdin_to_stdout() != 1) {
+      if (debug_enabled() == 1) { debug_dump_error(); }
+      return 22;
+    }
+    clear_src_buffer();
+    return 0;
+  }
+
   // Toggle to emit WAT text to stdout (1 = enabled, 0 = disabled)
   let emit_stdout: i32 = emit_wat_stdout_enabled();
   // Stage0a: validate token/opcode constants (self-host sanity check)
@@ -103,15 +114,6 @@ fn main() -> i32 {
     init_src_buffer();
     load_simple_return();
     if (compile_program_to_stdout() != 1) { return 21; }
-    clear_src_buffer();
-  }
-
-  // Compile from stdin to stdout if enabled
-  if (compile_stdin_enabled() == 1) {
-    if (compile_stdin_to_stdout() != 1) {
-      if (debug_enabled() == 1) { debug_dump_error(); }
-      return 22;
-    }
     clear_src_buffer();
   }
 
