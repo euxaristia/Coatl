@@ -283,6 +283,7 @@ fn nk_bool() -> i32 { return 27; }
 fn nk_and() -> i32 { return 28; }
 fn nk_or() -> i32 { return 29; }
 fn nk_string() -> i32 { return 30; }
+fn nk_not() -> i32 { return 31; }
 
 // Intrinsic call IDs (avoid collision with ident_id_dyn)
 fn intrin_mem_load_id() -> i32 { return 1000001; }
@@ -1569,6 +1570,9 @@ fn emit_ir_expr(node: i32) -> i32 {
   if (kind == nk_or()) {
     return emit_ir_or(node);
   }
+  if (kind == nk_not()) {
+    return emit_ir_not(node);
+  }
 
   return 0 - 3000 - kind;
 }
@@ -1621,6 +1625,17 @@ fn emit_ir_or(node: i32) -> i32 {
   let ne3: i32 = alloc_ir();
   ir_set(ne3, op_ne(), 0);
   return r1 + r2 + 7;
+}
+
+fn emit_ir_not(node: i32) -> i32 {
+  let inner: i32 = ast_a(node);
+  let r: i32 = emit_ir_expr(inner);
+  if (r < 0) { return r; }
+  let z: i32 = alloc_ir();
+  ir_set(z, op_const(), 0);
+  let eq: i32 = alloc_ir();
+  ir_set(eq, op_eq(), 0);
+  return r + 2;
 }
 
 fn emit_ir_bool(node: i32) -> i32 {
@@ -1850,6 +1865,13 @@ fn typecheck_expr(node: i32) -> i32 {
     if (!type_is_truthy(l3) || !type_is_truthy(r3)) { return 0 - 7225 - kind; }
     return type_bool();
   }
+  if (kind == nk_not()) {
+    let inner: i32 = ast_a(node);
+    let t: i32 = typecheck_expr(inner);
+    if (t < 0) { return t; }
+    if (!type_is_truthy(t)) { return 0 - 7226; }
+    return type_bool();
+  }
 
   return 0 - 7100 - kind;
 }
@@ -1908,6 +1930,12 @@ fn assign_string_offsets_expr(node: i32) -> i32 {
       n = n - 1;
     }
     return 1;
+  }
+  if (kind == nk_not()) {
+    return assign_string_offsets_expr(ast_a(node));
+  }
+  if (kind == nk_not()) {
+    return gen_wat_data_expr(ast_a(node));
   }
   if (kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()
       || kind == nk_lt() || kind == nk_gt() || kind == nk_eq() || kind == nk_ne()
@@ -2024,7 +2052,7 @@ fn typecheck_stmt(node: i32) -> i32 {
       || kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()
       || kind == nk_lt() || kind == nk_gt() || kind == nk_eq() || kind == nk_ne()
       || kind == nk_le() || kind == nk_ge()
-      || kind == nk_and() || kind == nk_or()) {
+      || kind == nk_and() || kind == nk_or() || kind == nk_not()) {
     let t: i32 = typecheck_expr(node);
     if (t < 0) { return t; }
     return 1;
@@ -2103,6 +2131,7 @@ fn emit_ir_stmt(node: i32) -> i32 {
   if (kind == nk_ge()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_and()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_or()) { return emit_ir_expr_stmt(node); }
+  if (kind == nk_not()) { return emit_ir_expr_stmt(node); }
 
   return 0 - 1000 - kind;
 }
@@ -2965,7 +2994,7 @@ fn parse_int_dyn() -> i32 {
 }
 
 fn parse_mul_dyn() -> i32 {
-  let left: i32 = parse_primary_dyn();
+  let left: i32 = parse_unary_dyn();
   if (left < 0) { return left; }
   return parse_mul_rest_dyn(left);
 }
@@ -2980,11 +3009,24 @@ fn parse_mul_rest_dyn(left: i32) -> i32 {
 
 fn parse_mul_op_dyn(left: i32, nk: i32) -> i32 {
   next_tok_dyn();
-  let right: i32 = parse_primary_dyn();
+  let right: i32 = parse_unary_dyn();
   if (right < 0) { return right; }
   let node: i32 = alloc_ast();
   ast_set(node, nk, left, right, 0);
   return parse_mul_rest_dyn(node);
+}
+
+fn parse_unary_dyn() -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_bang()) {
+    next_tok_dyn();
+    let inner: i32 = parse_unary_dyn();
+    if (inner < 0) { return inner; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_not(), inner, 0, 0);
+    return node;
+  }
+  return parse_primary_dyn();
 }
 
 fn parse_add_dyn() -> i32 {
@@ -6901,7 +6943,7 @@ fn parse_ident_expr() -> i32 {
 
 // Parse multiplicative: primary (* | /) primary ...
 fn parse_mul() -> i32 {
-  let left: i32 = parse_primary();
+  let left: i32 = parse_unary();
   if (left < 0) { return left; }
   return parse_mul_rest(left);
 }
@@ -6923,11 +6965,24 @@ fn parse_mul_rest(left: i32) -> i32 {
 
 fn parse_mul_op(left: i32, nk: i32) -> i32 {
   next_tok();
-  let right: i32 = parse_primary();
+  let right: i32 = parse_unary();
   if (right < 0) { return right; }
   let node: i32 = alloc_ast();
   ast_set(node, nk, left, right, 0);
   return parse_mul_rest(node);
+}
+
+fn parse_unary() -> i32 {
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == tok_bang()) {
+    next_tok();
+    let inner: i32 = parse_unary();
+    if (inner < 0) { return inner; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_not(), inner, 0, 0);
+    return node;
+  }
+  return parse_primary();
 }
 
 // Parse additive: mul (+ | -) mul ...

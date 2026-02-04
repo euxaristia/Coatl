@@ -219,6 +219,7 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 - [x] Error reporting with line/column spans (parse errors)
 - [x] Boolean literals + logical `&&`/`||` (non-short-circuit)
 - [x] String literals (WAT data segments, i32 pointer values)
+- [x] Unary `!` operator
 - [ ] Deterministic output (stable ordering, stable formatting)
 - [ ] Verification: `mee build bootstrap.mee` produces identical WAT
 - [ ] Round-trip check: bootstrap compiles itself and runs test suite
