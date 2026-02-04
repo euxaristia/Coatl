@@ -94,9 +94,27 @@ fn uses_fd_write(prog: &Program) -> bool {
     false
 }
 
+fn uses_fd_read(prog: &Program) -> bool {
+    for f in &prog.functions {
+        if block_uses_fd_read(&f.body) {
+            return true;
+        }
+    }
+    false
+}
+
 fn block_uses_fd_write(block: &Block) -> bool {
     for stmt in &block.statements {
         if stmt_uses_fd_write(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+fn block_uses_fd_read(block: &Block) -> bool {
+    for stmt in &block.statements {
+        if stmt_uses_fd_read(stmt) {
             return true;
         }
     }
@@ -118,6 +136,21 @@ fn stmt_uses_fd_write(stmt: &Stmt) -> bool {
     }
 }
 
+fn stmt_uses_fd_read(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { expr, .. } => expr_uses_fd_read(expr),
+        Stmt::Assign { expr, .. } => expr_uses_fd_read(expr),
+        Stmt::If { cond, then_block, else_block } => {
+            expr_uses_fd_read(cond)
+                || block_uses_fd_read(then_block)
+                || else_block.as_ref().map_or(false, block_uses_fd_read)
+        }
+        Stmt::While { cond, body } => expr_uses_fd_read(cond) || block_uses_fd_read(body),
+        Stmt::Return(expr) => expr_uses_fd_read(expr),
+        Stmt::Expr(expr) => expr_uses_fd_read(expr),
+    }
+}
+
 fn expr_uses_fd_write(expr: &Expr) -> bool {
     match expr {
         Expr::Call { callee, args } => {
@@ -129,6 +162,21 @@ fn expr_uses_fd_write(expr: &Expr) -> bool {
         Expr::Binary { left, right, .. } => expr_uses_fd_write(left) || expr_uses_fd_write(right),
         Expr::FieldAccess { expr, .. } => expr_uses_fd_write(expr),
         Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_write(e)),
+        _ => false,
+    }
+}
+
+fn expr_uses_fd_read(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { callee, args } => {
+            if callee == "__fd_read" {
+                return true;
+            }
+            args.iter().any(expr_uses_fd_read)
+        }
+        Expr::Binary { left, right, .. } => expr_uses_fd_read(left) || expr_uses_fd_read(right),
+        Expr::FieldAccess { expr, .. } => expr_uses_fd_read(expr),
+        Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_read(e)),
         _ => false,
     }
 }
@@ -178,17 +226,22 @@ pub fn emit_wat(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
     let struct_defs = collect_struct_defs(prog);
     let needs_fd_write = uses_fd_write(prog);
-    let needs_memory = !strings.is_empty() || uses_memory(prog) || needs_fd_write;
+    let needs_fd_read = uses_fd_read(prog);
+    let needs_wasi = needs_fd_write || needs_fd_read;
+    let needs_memory = !strings.is_empty() || uses_memory(prog) || needs_wasi;
     let mut out = String::new();
     out.push_str("(module\n");
 
     if needs_fd_write {
         out.push_str("  (import \"wasi_snapshot_preview1\" \"fd_write\" (func $__fd_write (param i32 i32 i32 i32) (result i32)))\n");
     }
+    if needs_fd_read {
+        out.push_str("  (import \"wasi_snapshot_preview1\" \"fd_read\" (func $__fd_read (param i32 i32 i32 i32) (result i32)))\n");
+    }
 
     // Emit memory if we have strings or use memory intrinsics
     if needs_memory {
-        out.push_str("  (memory 1)\n");
+        out.push_str("  (memory 128)\n");
         out.push_str("  (export \"memory\" (memory 0))\n");
     }
 
@@ -273,7 +326,7 @@ fn collect_locals_from_block(
             Stmt::Let { name, ty, .. } => {
                 var_types.insert(name.clone(), ty.clone());
                 if is_scalar(ty) {
-                    local_decls.push(format!("  (local ${} i32)", name));
+                    local_decls.push("  (local i32)".to_string());
                     locals.insert(name.clone(), *local_index);
                     *local_index += 1;
                 } else if let Type::Struct(sname) = ty {
@@ -285,7 +338,7 @@ fn collect_locals_from_block(
                             panic!("non-scalar field {}.{} is not supported in codegen", sname, field.name);
                         }
                         let lname = field_local_name(name, &field.name);
-                        local_decls.push(format!("  (local ${} i32)", lname));
+                        local_decls.push("  (local i32)".to_string());
                         locals.insert(lname, *local_index);
                         *local_index += 1;
                     }
@@ -372,7 +425,7 @@ fn emit_function_wat_with_strings(
 
     out.push_str(&format!("  (func ${}", f.name));
     for p in &f.params {
-        out.push_str(&format!(" (param ${} i32)", p.name));
+        out.push_str(" (param i32)");
     }
     if is_scalar(&f.ret) {
         out.push_str(" (result i32)");
@@ -501,7 +554,8 @@ fn emit_stmt_wat_with_strings(
         Stmt::Let { name, ty, expr } => {
             if is_scalar(ty) {
                 emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
-                out.push_str(&format!("  local.set ${}\n", name));
+                let idx = locals.get(name).unwrap_or_else(|| panic!("unknown local {}", name));
+                out.push_str(&format!("  local.set {}\n", idx));
             } else if let Type::Struct(sname) = ty {
                 let fields = struct_defs
                     .get(sname)
@@ -519,13 +573,19 @@ fn emit_stmt_wat_with_strings(
                                 .1
                                 .clone();
                             emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, string_offsets, out);
-                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                            let lname = field_local_name(name, &field.name);
+                            let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                            out.push_str(&format!("  local.set {}\n", idx));
                         }
                     }
                     Expr::Ident(src) => {
                         for field in fields {
-                            out.push_str(&format!("  local.get ${}\n", field_local_name(src, &field.name)));
-                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                            let src_name = field_local_name(src, &field.name);
+                            let dst_name = field_local_name(name, &field.name);
+                            let src_idx = locals.get(&src_name).unwrap_or_else(|| panic!("unknown local {}", src_name));
+                            let dst_idx = locals.get(&dst_name).unwrap_or_else(|| panic!("unknown local {}", dst_name));
+                            out.push_str(&format!("  local.get {}\n", src_idx));
+                            out.push_str(&format!("  local.set {}\n", dst_idx));
                         }
                     }
                     _ => {
@@ -540,7 +600,8 @@ fn emit_stmt_wat_with_strings(
             let ty = var_types.get(name).unwrap_or_else(|| panic!("unknown variable {}", name));
             if is_scalar(ty) {
                 emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
-                out.push_str(&format!("  local.set ${}\n", name));
+                let idx = locals.get(name).unwrap_or_else(|| panic!("unknown local {}", name));
+                out.push_str(&format!("  local.set {}\n", idx));
             } else if let Type::Struct(sname) = ty {
                 let fields = struct_defs
                     .get(sname)
@@ -558,13 +619,19 @@ fn emit_stmt_wat_with_strings(
                                 .1
                                 .clone();
                             emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, string_offsets, out);
-                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                            let lname = field_local_name(name, &field.name);
+                            let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                            out.push_str(&format!("  local.set {}\n", idx));
                         }
                     }
                     Expr::Ident(src) => {
                         for field in fields {
-                            out.push_str(&format!("  local.get ${}\n", field_local_name(src, &field.name)));
-                            out.push_str(&format!("  local.set ${}\n", field_local_name(name, &field.name)));
+                            let src_name = field_local_name(src, &field.name);
+                            let dst_name = field_local_name(name, &field.name);
+                            let src_idx = locals.get(&src_name).unwrap_or_else(|| panic!("unknown local {}", src_name));
+                            let dst_idx = locals.get(&dst_name).unwrap_or_else(|| panic!("unknown local {}", dst_name));
+                            out.push_str(&format!("  local.get {}\n", src_idx));
+                            out.push_str(&format!("  local.set {}\n", dst_idx));
                         }
                     }
                     _ => {
@@ -793,8 +860,8 @@ fn emit_expr_wat_with_strings(
              }
         }
         Expr::Ident(name) => {
-            if locals.contains_key(name) {
-                out.push_str(&format!("  local.get ${}\n", name));
+            if let Some(idx) = locals.get(name) {
+                out.push_str(&format!("  local.get {}\n", idx));
             }
         }
         Expr::Binary { op, left, right } => {
@@ -863,6 +930,17 @@ fn emit_expr_wat_with_strings(
                 out.push_str("  call $__fd_write\n");
                 return;
             }
+            if callee == "__fd_read" {
+                if args.len() != 4 {
+                    panic!("__fd_read expects 4 arguments (fd, iov_ptr, iov_cnt, nread_ptr)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[2], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[3], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  call $__fd_read\n");
+                return;
+            }
             for arg in args {
                 emit_expr_wat_with_strings(arg, locals, var_types, _struct_defs, string_offsets, out);
             }
@@ -876,7 +954,8 @@ fn emit_expr_wat_with_strings(
                 }
                 let lname = field_local_name(name, field);
                 if locals.contains_key(&lname) {
-                    out.push_str(&format!("  local.get ${}\n", lname));
+                    let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                    out.push_str(&format!("  local.get {}\n", idx));
                 } else {
                     panic!("unknown field {} on {}", field, name);
                 }
@@ -1007,6 +1086,9 @@ fn emit_expr_x86_64_with_strings(
             }
             if callee == "__fd_write" {
                 panic!("__fd_write is not supported in the x86_64 backend yet");
+            }
+            if callee == "__fd_read" {
+                panic!("__fd_read is not supported in the x86_64 backend yet");
             }
             let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
             let reg_count = if args.len() < arg_regs.len() { args.len() } else { arg_regs.len() };

@@ -164,6 +164,19 @@ fn type_of_expr(
                 }
                 return Ok(Type::I32);
             }
+            if callee == "__fd_read" {
+                if args.len() != 4 {
+                    return Err(TypeError { message: "__fd_read expects 4 arguments".to_string() });
+                }
+                let fd_ty = type_of_expr(&args[0], vars, fn_sigs, struct_defs)?;
+                let iov_ptr_ty = type_of_expr(&args[1], vars, fn_sigs, struct_defs)?;
+                let iov_cnt_ty = type_of_expr(&args[2], vars, fn_sigs, struct_defs)?;
+                let nread_ptr_ty = type_of_expr(&args[3], vars, fn_sigs, struct_defs)?;
+                if fd_ty != Type::I32 || iov_ptr_ty != Type::I32 || iov_cnt_ty != Type::I32 || nread_ptr_ty != Type::I32 {
+                    return Err(TypeError { message: "__fd_read args must be i32".to_string() });
+                }
+                return Ok(Type::I32);
+            }
             let (params, ret) = fn_sigs.get(callee)
                 .ok_or_else(|| TypeError { message: format!("unknown function {}", callee) })?
                 .clone();

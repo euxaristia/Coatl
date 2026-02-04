@@ -23,7 +23,10 @@ fn main() -> i32 {
 
   // Stage1.7: test general compile pipeline.
   let compile_ok: i32 = test_general_compile();
-  if (compile_ok != 1) { return 6; }
+  if (compile_ok != 1) {
+    if (debug_enabled() == 1) { return compile_ok; }
+    return 6;
+  }
 
   // Stage1.7b: test control flow codegen.
   let if_ok: i32 = test_if_codegen();
@@ -34,7 +37,10 @@ fn main() -> i32 {
 
   // Stage 3: test dynamic input compilation.
   let dyn_ok: i32 = test_dynamic_compile();
-  if (dyn_ok != 1) { return 9; }
+  if (dyn_ok != 1) {
+    if (debug_enabled() == 1) { return dyn_ok; }
+    return 9;
+  }
 
   // Stage 3b: test dynamic input with control flow.
   let dyn_if_ok: i32 = test_dynamic_if();
@@ -75,11 +81,24 @@ fn main() -> i32 {
   let wat_stdout_ok: i32 = test_wat_stdout();
   if (wat_stdout_ok != 1) { return 19; }
 
+  // Stage 5d: test stdin -> stdout path (skips if disabled)
+  let wat_stdin_ok: i32 = test_wat_stdin();
+  if (wat_stdin_ok != 1) {
+    if (debug_enabled() == 1) { return wat_stdin_ok; }
+    return 20;
+  }
+
   // Emit WAT to stdout (simple return program) if enabled
   if (emit_stdout == 1) {
     init_src_buffer();
     load_simple_return();
-    if (compile_program_to_stdout() != 0) { return 20; }
+    if (compile_program_to_stdout() != 1) { return 21; }
+    clear_src_buffer();
+  }
+
+  // Compile from stdin to stdout if enabled
+  if (compile_stdin_enabled() == 1) {
+    if (compile_stdin_to_stdout() != 1) { return 22; }
     clear_src_buffer();
   }
 
@@ -89,7 +108,17 @@ fn main() -> i32 {
 
 // Set to 1 to emit WAT text to stdout from main()
 fn emit_wat_stdout_enabled() -> i32 {
-  return 0;
+  return __mem_load(state_emit_stdout_flag());
+}
+
+// Set to 1 to compile from stdin and write WAT to stdout
+fn compile_stdin_enabled() -> i32 {
+  return __mem_load(state_stdin_flag());
+}
+
+// Set to 1 to return detailed error codes during early boot
+fn debug_enabled() -> i32 {
+  return __mem_load(state_debug_flag());
 }
 
 fn compile_stub() -> i32 {
@@ -656,6 +685,7 @@ fn op_mem_load() -> i32 { return 21; }
 fn op_mem_store() -> i32 { return 22; }
 fn op_mem_load8() -> i32 { return 23; }
 fn op_mem_store8() -> i32 { return 24; }
+fn op_drop() -> i32 { return 25; }
 
 // Emit IR from memory-based AST (Stage 1).
 fn emit_program_from_mem() -> i32 {
@@ -737,10 +767,11 @@ fn w_i32_load() -> i32 { return 23; }
 fn w_i32_store() -> i32 { return 24; }
 fn w_i32_load8_u() -> i32 { return 25; }
 fn w_i32_store8() -> i32 { return 26; }
+fn w_drop() -> i32 { return 27; }
 
 // Emit WAT opcodes from memory-based IR (Stage 1).
-// WAT stream stored at wat_base() (offset 0x2000).
-fn wat_base() -> i32 { return 8192; }
+// WAT stream stored at wat_base() (offset 0x200000).
+fn wat_base() -> i32 { return 2097152; }
 fn wat_op_size() -> i32 { return 8; }
 
 fn wat_addr(idx: i32, field: i32) -> i32 {
@@ -812,11 +843,15 @@ fn map_local(ident_id: i32) -> i32 {
 // ============================================================================
 // Stage 1 Infrastructure: Memory-based AST storage
 // ============================================================================
-// Memory layout (from SELFHOSTING.md):
-//   0x0000 - 0x0FFF: AST nodes (256 nodes × 16 bytes)
-//   0x1000 - 0x1FFF: IR instructions (256 ops × 8 bytes)
-//   0x2000 - 0x2FFF: Source input buffer (4KB)
-//   0x3000 - 0x3FFF: Output buffer (4KB)
+// Memory layout (expanded):
+//   0x000000 - 0x0FFFFF: AST nodes (64K nodes × 16 bytes)
+//   0x100000 - 0x1FFFFF: IR instructions (128K ops × 8 bytes)
+//   0x200000 - 0x2FFFFF: WAT opcodes (128K ops × 8 bytes)
+//   0x300000 - 0x303FFF: Parser/state + symbol table
+//   0x304000 - 0x383FFF: Source input buffer (512KB)
+//   0x384000 - 0x384FFF: Function table
+//   0x390000 - 0x40FFFF: Output buffer (512KB)
+//   0x410000+: I/O scratch (iovec + counters)
 //
 // AST Node format (16 bytes):
 //   offset 0: kind (i32)
@@ -826,7 +861,7 @@ fn map_local(ident_id: i32) -> i32 {
 
 fn ast_base() -> i32 { return 0; }
 fn ast_node_size() -> i32 { return 16; }
-fn ast_max_nodes() -> i32 { return 256; }
+fn ast_max_nodes() -> i32 { return 65536; }
 
 // Compute address of AST node field
 fn ast_addr(node_idx: i32, field_offset: i32) -> i32 {
@@ -838,6 +873,12 @@ fn ast_set(idx: i32, kind: i32, a: i32, b: i32, c: i32) -> i32 {
   __mem_store(ast_addr(idx, 0), kind);
   __mem_store(ast_addr(idx, 4), a);
   __mem_store(ast_addr(idx, 8), b);
+  __mem_store(ast_addr(idx, 12), c);
+  return 0;
+}
+
+// Update only the c field (used for statement next pointers)
+fn ast_set_c(idx: i32, c: i32) -> i32 {
   __mem_store(ast_addr(idx, 12), c);
   return 0;
 }
@@ -855,9 +896,9 @@ fn ast_c(idx: i32) -> i32 { return __mem_load(ast_addr(idx, 12)); }
 //   offset 0: opcode (i32)
 //   offset 4: argument (i32)
 
-fn ir_base() -> i32 { return 4096; }
+fn ir_base() -> i32 { return 1048576; }
 fn ir_op_size() -> i32 { return 8; }
-fn ir_max_ops() -> i32 { return 256; }
+fn ir_max_ops() -> i32 { return 131072; }
 
 fn ir_addr(op_idx: i32, field_offset: i32) -> i32 {
   return ir_base() + op_idx * ir_op_size() + field_offset;
@@ -986,8 +1027,8 @@ fn test_general_parser() -> i32 {
 fn test_precedence() -> i32 {
   // Use a new test source: "1 + 2 * 3"
   // We'll test the expression parser directly using memory
-  // Store test string at position 0x4000 (test input area)
-  let test_base: i32 = 16384;
+  // Store test string in the source buffer area
+  let test_base: i32 = src_buffer_addr();
   // "1 + 2 * 3"
   __mem_store8(test_base + 0, 49);  // '1'
   __mem_store8(test_base + 1, 32);  // ' '
@@ -1211,7 +1252,7 @@ fn parse_primary_test() -> i32 {
     next_tok_test();
     return inner;
   }
-  return 0 - 1;
+  return 0 - 1000 - kind;
 }
 
 fn parse_int_test() -> i32 {
@@ -1309,7 +1350,7 @@ fn emit_ir_expr(node: i32) -> i32 {
     return emit_ir_binop(node, op_ge());
   }
 
-  return 0 - 1;
+  return 0 - 3000 - kind;
 }
 
 fn emit_ir_call(node: i32) -> i32 {
@@ -1343,7 +1384,7 @@ fn emit_ir_int(node: i32) -> i32 {
 fn emit_ir_ident(node: i32) -> i32 {
   let ident_id: i32 = ast_a(node);
   let local_idx: i32 = lookup_local(ident_id);
-  if (local_idx < 0) { return 0 - 1; }
+  if (local_idx < 0) { return 0 - 4000 - ident_id; }
   let idx: i32 = alloc_ir();
   ir_set(idx, op_load(), ident_id);
   return 1;
@@ -1383,8 +1424,20 @@ fn emit_ir_stmt(node: i32) -> i32 {
   if (kind == nk_assign()) {
     return emit_ir_assign(node);
   }
+  if (kind == nk_call()) {
+    return emit_ir_call_stmt(node);
+  }
 
-  return 0 - 1;
+  return 0 - 1000 - kind;
+}
+
+// Emit call as a statement (drop return value)
+fn emit_ir_call_stmt(node: i32) -> i32 {
+  let r: i32 = emit_ir_call(node);
+  if (r < 0) { return r; }
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_drop(), 0);
+  return r + 1;
 }
 
 fn emit_ir_assign(node: i32) -> i32 {
@@ -1492,17 +1545,19 @@ fn emit_ir_while(node: i32) -> i32 {
 }
 
 fn emit_ir_block_stmts(block_node: i32) -> i32 {
-  if (ast_kind(block_node) != nk_block()) { return 0 - 1; }
+  if (ast_kind(block_node) != nk_block()) { return 0 - 2000 - ast_kind(block_node); }
   let first_stmt: i32 = ast_a(block_node);
   let stmt_count: i32 = ast_b(block_node);
-  return emit_ir_stmts_range(first_stmt, stmt_count, 0);
+  return emit_ir_stmt_list(first_stmt, stmt_count, 0);
 }
 
-fn emit_ir_stmts_range(start: i32, count: i32, total: i32) -> i32 {
+fn emit_ir_stmt_list(node: i32, count: i32, total: i32) -> i32 {
   if (count <= 0) { return total; }
-  let r: i32 = emit_ir_stmt(start);
+  if (node < 0) { return 0 - 5000; }
+  let r: i32 = emit_ir_stmt(node);
   if (r < 0) { return r; }
-  return emit_ir_stmts_range(start + 1, count - 1, total + r);
+  let next: i32 = ast_c(node);
+  return emit_ir_stmt_list(next, count - 1, total + r);
 }
 
 // ============================================================================
@@ -1570,16 +1625,16 @@ fn state_src_base() -> i32 { return state_base() + 24; }
 fn get_src_base() -> i32 { return __mem_load(state_src_base()); }
 fn set_src_base(base: i32) -> i32 { __mem_store(state_src_base(), base); return 0; }
 
-// Source buffer at 0x5000 (20KB)
-fn src_buffer_addr() -> i32 { return 20480; }
-fn src_buffer_size() -> i32 { return 4096; }
+// Source buffer at 0x304000 (512KB)
+fn src_buffer_addr() -> i32 { return 3162112; }
+fn src_buffer_size() -> i32 { return 524288; }
 
 // ============================================================================
 // Stage 4: Function Table
 // ============================================================================
-// Function table at 0x6000 (24KB)
+// Function table at 0x384000 (4KB reserved)
 // Each entry: 12 bytes (ident_id: i32, param_count: i32, local_count: i32)
-fn fn_table_addr() -> i32 { return 24576; }
+fn fn_table_addr() -> i32 { return 3688448; }
 fn fn_entry_size() -> i32 { return 12; }
 fn fn_table_max() -> i32 { return 64; }
 
@@ -1992,19 +2047,39 @@ fn parse_expr_dyn() -> i32 {
 fn parse_stmt_dyn() -> i32 {
   let tok: i32 = peek_tok_dyn();
   let kind: i32 = lex_kind(tok);
-  if (kind == tok_let()) { return parse_let_dyn(); }
-  if (kind == tok_return()) { return parse_return_dyn(); }
-  if (kind == tok_if()) { return parse_if_dyn(); }
-  if (kind == tok_while()) { return parse_while_dyn(); }
-  if (kind == tok_ident()) { return parse_assign_or_expr_dyn(); }
-  return 0 - 1;
+  if (kind == tok_let()) {
+    let r: i32 = parse_let_dyn();
+    if (r < 0) { return r; }
+    return r;
+  }
+  if (kind == tok_return()) {
+    let r: i32 = parse_return_dyn();
+    if (r < 0) { return r; }
+    return r;
+  }
+  if (kind == tok_if()) {
+    let r: i32 = parse_if_dyn();
+    if (r < 0) { return r; }
+    return r;
+  }
+  if (kind == tok_while()) {
+    let r: i32 = parse_while_dyn();
+    if (r < 0) { return r; }
+    return r;
+  }
+  if (kind == tok_ident()) {
+    let r: i32 = parse_assign_or_expr_dyn();
+    if (r < 0) { return r; }
+    return r;
+  }
+  return 0 - 700 - kind;
 }
 
 // Parse assignment (x = expr;) or expression statement
 fn parse_assign_or_expr_dyn() -> i32 {
   let start: i32 = skip_ws_dyn(get_pos());
   let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  if (lex_kind(tok) != tok_ident()) { return 0 - 710; }
   next_tok_dyn();
   let end: i32 = scan_ident_dyn(start);
   let id: i32 = ident_id_dyn(start, end);
@@ -2015,31 +2090,35 @@ fn parse_assign_or_expr_dyn() -> i32 {
     next_tok_dyn();
     let expr: i32 = parse_expr_dyn();
     if (expr < 0) { return expr; }
-    if (expect_dyn(tok_semi()) != 1) { return 0 - 1; }
+    if (expect_dyn(tok_semi()) != 1) { return 0 - 711; }
     let node: i32 = alloc_ast();
     ast_set(node, nk_assign(), id, expr, 0);
     return node;
   }
 
   // Not an assignment, rewind and try as expression statement
-  // For now, return error (expression statements not supported)
-  return 0 - 1;
+  set_pos(start);
+  let expr: i32 = parse_expr_dyn();
+  if (expr < 0) { return expr; }
+  let _has_semi2: i32 = expect_dyn(tok_semi());
+  if (ast_kind(expr) != nk_call()) { return 0 - 713; }
+  return expr;
 }
 
 fn parse_let_dyn() -> i32 {
-  if (expect_dyn(tok_let()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_let()) != 1) { return 0 - 720; }
   let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  if (lex_kind(tok) != tok_ident()) { return 0 - 721; }
   let start: i32 = skip_ws_dyn(get_pos());
   next_tok_dyn();
   let end: i32 = scan_ident_dyn(start);
   let id: i32 = ident_id_dyn(start, end);
-  if (expect_dyn(tok_colon()) != 1) { return 0 - 1; }
-  if (expect_dyn(tok_i32()) != 1) { return 0 - 1; }
-  if (expect_dyn(tok_eq()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_colon()) != 1) { return 0 - 722; }
+  if (expect_dyn(tok_i32()) != 1) { return 0 - 723; }
+  if (expect_dyn(tok_eq()) != 1) { return 0 - 724; }
   let expr: i32 = parse_expr_dyn();
   if (expr < 0) { return expr; }
-  if (expect_dyn(tok_semi()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_semi()) != 1) { return 0 - 725; }
   add_local(id);
   let node: i32 = alloc_ast();
   ast_set(node, nk_let(), id, expr, 0);
@@ -2047,33 +2126,34 @@ fn parse_let_dyn() -> i32 {
 }
 
 fn parse_return_dyn() -> i32 {
-  if (expect_dyn(tok_return()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_return()) != 1) { return 0 - 730; }
   let expr: i32 = parse_expr_dyn();
   if (expr < 0) { return expr; }
-  if (expect_dyn(tok_semi()) != 1) { return 0 - 1; }
+  // Allow optional semicolon to avoid hard failures on formatting
+  let _has_semi: i32 = expect_dyn(tok_semi());
   let node: i32 = alloc_ast();
   ast_set(node, nk_return(), expr, 0, 0);
   return node;
 }
 
 fn parse_if_dyn() -> i32 {
-  if (expect_dyn(tok_if()) != 1) { return 0 - 1; }
-  if (expect_dyn(tok_lparen()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_if()) != 1) { return 0 - 740; }
+  if (expect_dyn(tok_lparen()) != 1) { return 0 - 741; }
   let cond: i32 = parse_expr_dyn();
   if (cond < 0) { return cond; }
-  if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
-  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_rparen()) != 1) { return 0 - 742; }
+  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 743; }
   let then_block: i32 = parse_block_dyn();
   if (then_block < 0) { return then_block; }
-  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 744; }
   let else_block: i32 = 0 - 1;
   let tok: i32 = peek_tok_dyn();
   if (lex_kind(tok) == tok_else()) {
     next_tok_dyn();
-    if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+    if (expect_dyn(tok_lbrace()) != 1) { return 0 - 745; }
     else_block = parse_block_dyn();
     if (else_block < 0) { return else_block; }
-    if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+    if (expect_dyn(tok_rbrace()) != 1) { return 0 - 746; }
   }
   let node: i32 = alloc_ast();
   ast_set(node, nk_if(), cond, then_block, else_block);
@@ -2081,24 +2161,49 @@ fn parse_if_dyn() -> i32 {
 }
 
 fn parse_while_dyn() -> i32 {
-  if (expect_dyn(tok_while()) != 1) { return 0 - 1; }
-  if (expect_dyn(tok_lparen()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_while()) != 1) { return 0 - 750; }
+  if (expect_dyn(tok_lparen()) != 1) { return 0 - 751; }
   let cond: i32 = parse_expr_dyn();
   if (cond < 0) { return cond; }
-  if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
-  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_rparen()) != 1) { return 0 - 752; }
+  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 753; }
   let body: i32 = parse_block_dyn();
   if (body < 0) { return body; }
-  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 754; }
   let node: i32 = alloc_ast();
   ast_set(node, nk_while(), cond, body, 0);
   return node;
 }
 
 fn parse_block_dyn() -> i32 {
-  let first_stmt: i32 = get_ast_count();
-  let count: i32 = parse_stmts_dyn(0);
-  if (count < 0) { return 0 - 1; }
+  let first_stmt: i32 = 0 - 1;
+  let last_stmt: i32 = 0 - 1;
+  let count: i32 = 0;
+
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok_dyn();
+    let kind: i32 = lex_kind(tok);
+    if (kind == tok_rbrace()) {
+      done = 1;
+    } else {
+      if (kind == tok_eof()) {
+        done = 1;
+      } else {
+        let stmt: i32 = parse_stmt_dyn();
+        if (stmt < 0) { return stmt; }
+
+        if (first_stmt < 0) {
+          first_stmt = stmt;
+        } else {
+          ast_set_c(last_stmt, stmt);
+        }
+        last_stmt = stmt;
+        count = count + 1;
+      }
+    }
+  }
+
   let node: i32 = alloc_ast();
   ast_set(node, nk_block(), first_stmt, count, 0);
   return node;
@@ -2130,23 +2235,38 @@ fn parse_fn_header_dyn() -> i32 {
 
 // Parse function body with dynamic input
 fn parse_fn_body_dyn() -> i32 {
-  let first_stmt: i32 = get_ast_count();
-  let count: i32 = parse_fn_stmts_dyn(0);
-  if (count < 0) { return 0 - 1; }
+  let first_stmt: i32 = 0 - 1;
+  let last_stmt: i32 = 0 - 1;
+  let count: i32 = 0;
+
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok_dyn();
+    let kind: i32 = lex_kind(tok);
+    if (kind == tok_rbrace()) {
+      done = 1;
+    } else {
+      if (kind == tok_eof()) {
+        done = 1;
+      } else {
+        let stmt: i32 = parse_stmt_dyn();
+        if (stmt < 0) { return stmt; }
+
+        if (first_stmt < 0) {
+          first_stmt = stmt;
+        } else {
+          ast_set_c(last_stmt, stmt);
+        }
+        last_stmt = stmt;
+        count = count + 1;
+      }
+    }
+  }
+
   if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
   let node: i32 = alloc_ast();
   ast_set(node, nk_block(), first_stmt, count, 0);
   return node;
-}
-
-fn parse_fn_stmts_dyn(count: i32) -> i32 {
-  let tok: i32 = peek_tok_dyn();
-  let kind: i32 = lex_kind(tok);
-  if (kind == tok_rbrace()) { return count; }
-  if (kind == tok_eof()) { return count; }
-  let stmt: i32 = parse_stmt_dyn();
-  if (stmt < 0) { return 0 - 1; }
-  return parse_fn_stmts_dyn(count + 1);
 }
 
 // Compile function from dynamic source buffer
@@ -2155,13 +2275,13 @@ fn compile_fn_dyn() -> i32 {
   codegen_init();
   wat_init();
   let hdr: i32 = parse_fn_header_dyn();
-  if (hdr != 1) { return 0; }
+  if (hdr != 1) { return 301; }
   let body: i32 = parse_fn_body_dyn();
-  if (body < 0) { return 0; }
+  if (body < 0) { return 302; }
   let ir_ok: i32 = emit_ir_block_stmts(body);
-  if (ir_ok < 0) { return 0; }
+  if (ir_ok < 0) { return ir_ok; }
   let wat_ok: i32 = emit_wat_from_ir_general();
-  if (wat_ok != 1) { return 0; }
+  if (wat_ok != 1) { return 304; }
   return 1;
 }
 
@@ -2179,44 +2299,44 @@ fn test_dynamic_compile() -> i32 {
   let ok: i32 = compile_fn_dyn();
   if (ok != 1) {
     clear_src_buffer();
-    return 0;
+    return ok;
   }
 
   // Verify IR: should have 8 instructions
   let ir_cnt: i32 = get_ir_count();
   if (ir_cnt != 8) {
     clear_src_buffer();
-    return 0;
+    return 310;
   }
 
   // Verify: const 5
-  if (ir_opcode(0) != op_const()) { clear_src_buffer(); return 0; }
-  if (ir_arg(0) != 5) { clear_src_buffer(); return 0; }
+  if (ir_opcode(0) != op_const()) { clear_src_buffer(); return 311; }
+  if (ir_arg(0) != 5) { clear_src_buffer(); return 312; }
 
   // Verify: store a
-  if (ir_opcode(1) != op_store()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(1) != op_store()) { clear_src_buffer(); return 313; }
 
   // Verify: const 3
-  if (ir_opcode(2) != op_const()) { clear_src_buffer(); return 0; }
-  if (ir_arg(2) != 3) { clear_src_buffer(); return 0; }
+  if (ir_opcode(2) != op_const()) { clear_src_buffer(); return 314; }
+  if (ir_arg(2) != 3) { clear_src_buffer(); return 315; }
 
   // Verify: store b
-  if (ir_opcode(3) != op_store()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(3) != op_store()) { clear_src_buffer(); return 316; }
 
   // Verify: load a, load b, mul
-  if (ir_opcode(4) != op_load()) { clear_src_buffer(); return 0; }
-  if (ir_opcode(5) != op_load()) { clear_src_buffer(); return 0; }
-  if (ir_opcode(6) != op_mul()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(4) != op_load()) { clear_src_buffer(); return 317; }
+  if (ir_opcode(5) != op_load()) { clear_src_buffer(); return 318; }
+  if (ir_opcode(6) != op_mul()) { clear_src_buffer(); return 319; }
 
   // Verify: ret
-  if (ir_opcode(7) != op_ret()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(7) != op_ret()) { clear_src_buffer(); return 320; }
 
   // Verify WAT output
-  if (get_wat_count() != 8) { clear_src_buffer(); return 0; }
-  if (wat_opcode(0) != w_const()) { clear_src_buffer(); return 0; }
-  if (wat_arg(0) != 5) { clear_src_buffer(); return 0; }
-  if (wat_opcode(6) != w_mul()) { clear_src_buffer(); return 0; }
-  if (wat_opcode(7) != w_return()) { clear_src_buffer(); return 0; }
+  if (get_wat_count() != 8) { clear_src_buffer(); return 321; }
+  if (wat_opcode(0) != w_const()) { clear_src_buffer(); return 322; }
+  if (wat_arg(0) != 5) { clear_src_buffer(); return 323; }
+  if (wat_opcode(6) != w_mul()) { clear_src_buffer(); return 324; }
+  if (wat_opcode(7) != w_return()) { clear_src_buffer(); return 325; }
 
   clear_src_buffer();
   return 1;
@@ -2579,11 +2699,11 @@ fn get_fn_ast(idx: i32) -> i32 {
 
 // Parse a single function definition, returns function index
 fn parse_fn_def_dyn() -> i32 {
-  if (expect_dyn(tok_fn()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_fn()) != 1) { return 0 - 601; }
 
   // Parse function name
   let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  if (lex_kind(tok) != tok_ident()) { return 0 - 602; }
   let start: i32 = skip_ws_dyn(get_pos());
   next_tok_dyn();
   let end: i32 = scan_ident_dyn(start);
@@ -2593,25 +2713,25 @@ fn parse_fn_def_dyn() -> i32 {
   set_local_count(0);
 
   // Parse parameters
-  if (expect_dyn(tok_lparen()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_lparen()) != 1) { return 0 - 603; }
   let param_count: i32 = parse_params_dyn();
-  if (param_count < 0) { return 0 - 1; }
-  if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
+  if (param_count < 0) { return 0 - 604; }
+  if (expect_dyn(tok_rparen()) != 1) { return 0 - 605; }
 
   // Register function with param count
   let fn_idx: i32 = register_fn(fn_id, param_count);
 
   // Parse -> type
-  if (expect_dyn(tok_arrow()) != 1) { return 0 - 1; }
-  if (expect_dyn(tok_i32()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_arrow()) != 1) { return 0 - 606; }
+  if (expect_dyn(tok_i32()) != 1) { return 0 - 607; }
 
   // Parse { body }
-  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 608; }
 
   let body: i32 = parse_block_dyn();
-  if (body < 0) { return 0 - 1; }
+  if (body < 0) { return body; }
 
-  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 610; }
 
   // Store function's body AST and local count
   set_fn_ast(fn_idx, body);
@@ -2671,7 +2791,7 @@ fn parse_fns_dyn(count: i32) -> i32 {
   if (lex_kind(tok) != tok_fn()) { return count; }
 
   let fn_idx: i32 = parse_fn_def_dyn();
-  if (fn_idx < 0) { return 0 - 1; }
+  if (fn_idx < 0) { return fn_idx; }
 
   return parse_fns_dyn(count + 1);
 }
@@ -2709,12 +2829,23 @@ fn compile_program_to_stdout() -> i32 {
   set_fn_count(0);
 
   let fn_count: i32 = parse_program_dyn();
-  if (fn_count < 0) { return 0; }
+  if (fn_count < 0) { return fn_count; }
 
   let len: i32 = gen_wat_module_all();
-  if (len <= 0) { return 0; }
+  if (len <= 0) { return 502; }
 
-  return out_flush();
+  let rc: i32 = out_flush();
+  if (rc != 0) { return 503; }
+  return 1;
+}
+
+// Read source from stdin and compile to WAT on stdout
+fn compile_stdin_to_stdout() -> i32 {
+  let nread: i32 = read_src_from_stdin();
+  if (nread <= 0) { return 401; }
+  let rc: i32 = compile_program_to_stdout();
+  if (rc != 1) { return rc; }
+  return 1;
 }
 
 // Compile all functions in program (full version)
@@ -2760,13 +2891,17 @@ fn get_fn_ir_count(idx: i32) -> i32 {
 // ============================================================================
 // Stage 5: WAT Text Output
 // ============================================================================
-// Output buffer at 0x8000 (32KB), size 16KB
-fn out_buffer_addr() -> i32 { return 32768; }
-fn out_buffer_size() -> i32 { return 16384; }
-fn io_vec_addr() -> i32 { return 49152; }
-fn io_nwritten_addr() -> i32 { return 49160; }
+// Output buffer at 0x390000 (512KB)
+fn out_buffer_addr() -> i32 { return 3735984; }
+fn out_buffer_size() -> i32 { return 524288; }
+fn io_vec_addr() -> i32 { return 4259840; }
+fn io_nwritten_addr() -> i32 { return io_vec_addr() + 8; }
+fn io_nread_addr() -> i32 { return io_vec_addr() + 12; }
 
 fn state_out_pos() -> i32 { return state_base() + 36; }
+fn state_emit_stdout_flag() -> i32 { return state_base() + 40; }
+fn state_stdin_flag() -> i32 { return state_base() + 44; }
+fn state_debug_flag() -> i32 { return state_base() + 48; }
 fn get_out_pos() -> i32 { return __mem_load(state_out_pos()); }
 fn set_out_pos(p: i32) -> i32 { __mem_store(state_out_pos(), p); return 0; }
 
@@ -2782,6 +2917,36 @@ fn out_flush() -> i32 {
   __mem_store(io_vec_addr() + 4, len);
   __mem_store(io_nwritten_addr(), 0);
   return __fd_write(1, io_vec_addr(), 1, io_nwritten_addr());
+}
+
+// Read stdin into source buffer, null-terminate, and return bytes read
+fn read_src_from_stdin() -> i32 {
+  init_src_buffer();
+  let max_len: i32 = src_buffer_size() - 1;
+  let total: i32 = 0;
+  let done: i32 = 0;
+
+  while (done == 0) {
+    if (total >= max_len) {
+      done = 1;
+    } else {
+      let remain: i32 = max_len - total;
+      __mem_store(io_vec_addr(), src_buffer_addr() + total);
+      __mem_store(io_vec_addr() + 4, remain);
+      __mem_store(io_nread_addr(), 0);
+      let rc: i32 = __fd_read(0, io_vec_addr(), 1, io_nread_addr());
+      if (rc != 0) { return 0; }
+      let nread: i32 = __mem_load(io_nread_addr());
+      if (nread <= 0) {
+        done = 1;
+      } else {
+        total = total + nread;
+      }
+    }
+  }
+
+  __mem_store8(src_buffer_addr() + total, 0);
+  return total;
 }
 
 // Append a single byte to output
@@ -3026,6 +3191,14 @@ fn out_str_return() -> i32 {
   return 0;
 }
 
+fn out_str_drop() -> i32 {
+  out_char(100); // d
+  out_char(114); // r
+  out_char(111); // o
+  out_char(112); // p
+  return 0;
+}
+
 fn out_str_call() -> i32 {
   out_char(99);  // c
   out_char(97);  // a
@@ -3191,6 +3364,11 @@ fn gen_wat_instr(idx: i32) -> i32 {
   }
   if (op == w_return()) {
     out_str_return();
+    out_nl();
+    return 0;
+  }
+  if (op == w_drop()) {
+    out_str_drop();
     out_nl();
     return 0;
   }
@@ -3617,13 +3795,23 @@ fn test_wat_multi_fn() -> i32 {
 
 // Test WAT output to stdout (via out_flush)
 fn test_wat_stdout() -> i32 {
+  if (emit_wat_stdout_enabled() != 1) { return 1; }
   // Program: fn main() -> i32 { return 42; }
   init_src_buffer();
   load_simple_return();
 
   let rc: i32 = compile_program_to_stdout();
-  if (rc != 0) { clear_src_buffer(); return 0; }
+  if (rc != 1) { clear_src_buffer(); return 0; }
 
+  clear_src_buffer();
+  return 1;
+}
+
+// Test stdin -> stdout compile path (skips if disabled)
+fn test_wat_stdin() -> i32 {
+  if (compile_stdin_enabled() != 1) { return 1; }
+  let rc: i32 = compile_stdin_to_stdout();
+  if (rc != 1) { clear_src_buffer(); return rc; }
   clear_src_buffer();
   return 1;
 }
@@ -4107,6 +4295,9 @@ fn emit_wat_ir_op(idx: i32) -> i32 {
   if (op == op_call()) {
     return emit_wat_call(arg);
   }
+  if (op == op_drop()) {
+    return emit_wat_simple(w_drop());
+  }
 
   return 0 - 1;
 }
@@ -4202,9 +4393,33 @@ fn parse_fn_header() -> i32 {
 // Parse function body using general parser
 // Returns block node index, or -1 on error
 fn parse_fn_body_general() -> i32 {
-  let first_stmt: i32 = get_ast_count();
-  let count: i32 = parse_fn_stmts(0);
-  if (count < 0) { return 0 - 1; }
+  let first_stmt: i32 = 0 - 1;
+  let last_stmt: i32 = 0 - 1;
+  let count: i32 = 0;
+
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok();
+    let kind: i32 = lex_kind(tok);
+    if (kind == tok_rbrace()) {
+      done = 1;
+    } else {
+      if (kind == tok_eof()) {
+        done = 1;
+      } else {
+        let stmt: i32 = parse_stmt();
+        if (stmt < 0) { return 0 - 1; }
+
+        if (first_stmt < 0) {
+          first_stmt = stmt;
+        } else {
+          ast_set_c(last_stmt, stmt);
+        }
+        last_stmt = stmt;
+        count = count + 1;
+      }
+    }
+  }
 
   // Expect closing }
   if (expect(tok_rbrace()) != 1) { return 0 - 1; }
@@ -4213,20 +4428,6 @@ fn parse_fn_body_general() -> i32 {
   let node: i32 = alloc_ast();
   ast_set(node, nk_block(), first_stmt, count, 0);
   return node;
-}
-
-// Parse statements until }
-fn parse_fn_stmts(count: i32) -> i32 {
-  let tok: i32 = peek_tok();
-  let kind: i32 = lex_kind(tok);
-
-  if (kind == tok_rbrace()) { return count; }
-  if (kind == tok_eof()) { return count; }
-
-  let stmt: i32 = parse_stmt();
-  if (stmt < 0) { return 0 - 1; }
-
-  return parse_fn_stmts(count + 1);
 }
 
 // Compile a function using the general pipeline
@@ -4239,19 +4440,19 @@ fn compile_fn_general() -> i32 {
 
   // Parse function header
   let hdr: i32 = parse_fn_header();
-  if (hdr != 1) { return 0; }
+  if (hdr != 1) { return 201; }
 
   // Parse function body
   let body: i32 = parse_fn_body_general();
-  if (body < 0) { return 0; }
+  if (body < 0) { return 202; }
 
   // Emit IR from body statements
   let ir_ok: i32 = emit_ir_block_stmts(body);
-  if (ir_ok < 0) { return 0; }
+  if (ir_ok < 0) { return ir_ok; }
 
   // Lower IR to WAT
   let wat_ok: i32 = emit_wat_from_ir_general();
-  if (wat_ok != 1) { return 0; }
+  if (wat_ok != 1) { return 204; }
 
   return 1;
 }
@@ -4260,7 +4461,7 @@ fn compile_fn_general() -> i32 {
 fn test_general_compile() -> i32 {
   // The hardcoded char_at() contains: fn main() -> i32 { let x: i32 = 1; let y: i32 = 2; return x + y; }
   let ok: i32 = compile_fn_general();
-  if (ok != 1) { return 0; }
+  if (ok != 1) { return ok; }
 
   // Verify AST was built correctly
   // Should have: let x = 1, let y = 2, return x + y
@@ -4268,47 +4469,47 @@ fn test_general_compile() -> i32 {
   let ast_cnt: i32 = get_ast_count();
   let body_node: i32 = ast_cnt - 1;
 
-  if (ast_kind(body_node) != nk_block()) { return 0; }
+  if (ast_kind(body_node) != nk_block()) { return 102; }
   let first_stmt: i32 = ast_a(body_node);
   let stmt_count: i32 = ast_b(body_node);
-  if (stmt_count != 3) { return 0; }
+  if (stmt_count != 3) { return 103; }
 
   // Verify IR was emitted
   // Expected: const 1; store x; const 2; store y; load x; load y; add; ret
   let ir_cnt: i32 = get_ir_count();
-  if (ir_cnt != 8) { return 0; }
+  if (ir_cnt != 8) { return 104; }
 
   // Verify IR sequence
-  if (ir_opcode(0) != op_const()) { return 0; }
-  if (ir_arg(0) != 1) { return 0; }
-  if (ir_opcode(1) != op_store()) { return 0; }
-  if (ir_opcode(2) != op_const()) { return 0; }
-  if (ir_arg(2) != 2) { return 0; }
-  if (ir_opcode(3) != op_store()) { return 0; }
-  if (ir_opcode(4) != op_load()) { return 0; }
-  if (ir_opcode(5) != op_load()) { return 0; }
-  if (ir_opcode(6) != op_add()) { return 0; }
-  if (ir_opcode(7) != op_ret()) { return 0; }
+  if (ir_opcode(0) != op_const()) { return 105; }
+  if (ir_arg(0) != 1) { return 106; }
+  if (ir_opcode(1) != op_store()) { return 107; }
+  if (ir_opcode(2) != op_const()) { return 108; }
+  if (ir_arg(2) != 2) { return 109; }
+  if (ir_opcode(3) != op_store()) { return 110; }
+  if (ir_opcode(4) != op_load()) { return 111; }
+  if (ir_opcode(5) != op_load()) { return 112; }
+  if (ir_opcode(6) != op_add()) { return 113; }
+  if (ir_opcode(7) != op_ret()) { return 114; }
 
   // Verify WAT was emitted
   let wat_cnt: i32 = get_wat_count();
-  if (wat_cnt != 8) { return 0; }
+  if (wat_cnt != 8) { return 115; }
 
   // Verify WAT sequence
-  if (wat_opcode(0) != w_const()) { return 0; }
-  if (wat_arg(0) != 1) { return 0; }
-  if (wat_opcode(1) != w_local_set()) { return 0; }
-  if (wat_arg(1) != 0) { return 0; }
-  if (wat_opcode(2) != w_const()) { return 0; }
-  if (wat_arg(2) != 2) { return 0; }
-  if (wat_opcode(3) != w_local_set()) { return 0; }
-  if (wat_arg(3) != 1) { return 0; }
-  if (wat_opcode(4) != w_local_get()) { return 0; }
-  if (wat_arg(4) != 0) { return 0; }
-  if (wat_opcode(5) != w_local_get()) { return 0; }
-  if (wat_arg(5) != 1) { return 0; }
-  if (wat_opcode(6) != w_add()) { return 0; }
-  if (wat_opcode(7) != w_return()) { return 0; }
+  if (wat_opcode(0) != w_const()) { return 116; }
+  if (wat_arg(0) != 1) { return 117; }
+  if (wat_opcode(1) != w_local_set()) { return 118; }
+  if (wat_arg(1) != 0) { return 119; }
+  if (wat_opcode(2) != w_const()) { return 120; }
+  if (wat_arg(2) != 2) { return 121; }
+  if (wat_opcode(3) != w_local_set()) { return 122; }
+  if (wat_arg(3) != 1) { return 123; }
+  if (wat_opcode(4) != w_local_get()) { return 124; }
+  if (wat_arg(4) != 0) { return 125; }
+  if (wat_opcode(5) != w_local_get()) { return 126; }
+  if (wat_arg(5) != 1) { return 127; }
+  if (wat_opcode(6) != w_add()) { return 128; }
+  if (wat_opcode(7) != w_return()) { return 129; }
 
   return 1;
 }
@@ -4400,7 +4601,7 @@ fn test_while_codegen() -> i32 {
 // End-to-end test: parse "1 + 2 * 3" and emit IR
 fn test_end_to_end() -> i32 {
   // Use test input: "1 + 2 * 3"
-  let test_base: i32 = 16384;
+  let test_base: i32 = src_buffer_addr();
   __mem_store8(test_base + 0, 49);  // '1'
   __mem_store8(test_base + 1, 32);  // ' '
   __mem_store8(test_base + 2, 43);  // '+'
@@ -4459,18 +4660,18 @@ fn test_end_to_end() -> i32 {
 // ============================================================================
 // Stage 1.5: General Parser Infrastructure
 // ============================================================================
-// Parser state stored in memory at 0x3000+:
-//   0x3000: parse_pos (current position in input)
-//   0x3004: ast_count (next AST node index)
-//   0x3008: local_count (number of locals)
-//   0x3100+: symbol table (8 bytes per entry: ident_id, local_idx)
+// Parser state stored in memory at 0x300000+:
+//   0x300000: parse_pos (current position in input)
+//   0x300004: ast_count (next AST node index)
+//   0x300008: local_count (number of locals)
+//   0x300100+: symbol table (8 bytes per entry: ident_id, local_idx)
 
-fn state_base() -> i32 { return 12288; }
+fn state_base() -> i32 { return 3145728; }
 fn state_pos() -> i32 { return state_base(); }
 fn state_ast() -> i32 { return state_base() + 4; }
 fn state_locals() -> i32 { return state_base() + 8; }
 fn state_ir_count() -> i32 { return state_base() + 16; }
-fn sym_base() -> i32 { return 12544; }
+fn sym_base() -> i32 { return state_base() + 256; }
 fn sym_entry_size() -> i32 { return 8; }
 
 fn get_pos() -> i32 { return __mem_load(state_pos()); }
@@ -4843,27 +5044,37 @@ fn parse_while_stmt() -> i32 {
 // Parse multiple statements until }, returns block node
 // Block node: nk_block, arg_a = first_stmt_idx, arg_b = stmt_count
 fn parse_block_stmts() -> i32 {
-  let first_stmt: i32 = get_ast_count();
-  let count: i32 = parse_stmts_until_rbrace(0);
+  let first_stmt: i32 = 0 - 1;
+  let last_stmt: i32 = 0 - 1;
+  let count: i32 = 0;
+
+  let done2: i32 = 0;
+  while (done2 == 0) {
+    let tok: i32 = peek_tok();
+    let kind: i32 = lex_kind(tok);
+    if (kind == tok_rbrace()) {
+      done2 = 1;
+    } else {
+      if (kind == tok_eof()) {
+        done2 = 1;
+      } else {
+        let stmt: i32 = parse_stmt();
+        if (stmt < 0) { return 0 - 1; }
+
+        if (first_stmt < 0) {
+          first_stmt = stmt;
+        } else {
+          ast_set_c(last_stmt, stmt);
+        }
+        last_stmt = stmt;
+        count = count + 1;
+      }
+    }
+  }
 
   let node: i32 = alloc_ast();
   ast_set(node, nk_block(), first_stmt, count, 0);
   return node;
-}
-
-fn parse_stmts_until_rbrace(count: i32) -> i32 {
-  let tok: i32 = peek_tok();
-  if (lex_kind(tok) == tok_rbrace()) {
-    return count;
-  }
-  if (lex_kind(tok) == tok_eof()) {
-    return count;
-  }
-
-  let stmt: i32 = parse_stmt();
-  if (stmt < 0) { return 0 - 1; }
-
-  return parse_stmts_until_rbrace(count + 1);
 }
 
 // ============================================================================

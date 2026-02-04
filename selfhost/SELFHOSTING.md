@@ -228,11 +228,14 @@ Compiler stub with hardcoded input, validates full pipeline.
 
 ### Memory Layout (implemented)
 ```
-0x0000 - 0x0FFF: AST node array (256 nodes × 16 bytes)  [ast_base() = 0]
-0x1000 - 0x1FFF: IR instruction array (256 ops × 8 bytes) [ir_base() = 4096]
-0x2000 - 0x2FFF: WAT opcode array (256 ops × 8 bytes) [wat_base() = 8192]
-0x3000 - 0x3FFF: Source input buffer (4KB) [future]
-0x4000+        : Heap (bump allocator) [future]
+0x000000 - 0x0FFFFF: AST node array (64K nodes × 16 bytes)    [ast_base() = 0]
+0x100000 - 0x1FFFFF: IR instruction array (128K ops × 8 bytes) [ir_base() = 1048576]
+0x200000 - 0x2FFFFF: WAT opcode array (128K ops × 8 bytes)     [wat_base() = 2097152]
+0x300000 - 0x303FFF: Parser/state + symbol table              [state_base() = 3145728]
+0x304000 - 0x383FFF: Source input buffer (512KB)
+0x384000 - 0x384FFF: Function table
+0x390000 - 0x40FFFF: Output buffer (512KB)
+0x410000+       : I/O scratch (iovec + counters)
 ```
 
 ### AST Node Format (16 bytes)
