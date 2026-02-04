@@ -280,6 +280,8 @@ fn nk_mem_load8() -> i32 { return 24; }
 fn nk_mem_store8() -> i32 { return 25; }
 fn nk_stmt() -> i32 { return 26; }
 fn nk_bool() -> i32 { return 27; }
+fn nk_and() -> i32 { return 28; }
+fn nk_or() -> i32 { return 29; }
 
 // Intrinsic call IDs (avoid collision with ident_id_dyn)
 fn intrin_mem_load_id() -> i32 { return 1000001; }
@@ -547,6 +549,14 @@ fn lex(pos: i32) -> i32 {
   if (c == 45) { // -
     if (char_at(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); } // ->
     return pack_tok(tok_minus(), p + 1); // -
+  }
+  if (c == 38) { // &
+    if (char_at(p + 1) == 38) { return pack_tok(tok_and(), p + 2); } // &&
+    return pack_tok(tok_eof(), p + 1);
+  }
+  if (c == 124) { // |
+    if (char_at(p + 1) == 124) { return pack_tok(tok_or(), p + 2); } // ||
+    return pack_tok(tok_eof(), p + 1);
   }
   return pack_tok(tok_eof(), p + 1);
 }
@@ -840,6 +850,8 @@ fn tok_bang() -> i32 { return 28; }
 fn tok_comma() -> i32 { return 29; }
 fn tok_true() -> i32 { return 30; }
 fn tok_false() -> i32 { return 31; }
+fn tok_and() -> i32 { return 32; }
+fn tok_or() -> i32 { return 33; }
 
 // IR opcodes.
 fn op_const() -> i32 { return 1; }
@@ -1534,8 +1546,64 @@ fn emit_ir_expr(node: i32) -> i32 {
   if (kind == nk_ge()) {
     return emit_ir_binop(node, op_ge());
   }
+  if (kind == nk_and()) {
+    return emit_ir_and(node);
+  }
+  if (kind == nk_or()) {
+    return emit_ir_or(node);
+  }
 
   return 0 - 3000 - kind;
+}
+
+fn emit_ir_and(node: i32) -> i32 {
+  let left: i32 = ast_a(node);
+  let right: i32 = ast_b(node);
+
+  let r1: i32 = emit_ir_expr(left);
+  if (r1 < 0) { return r1; }
+  let z1: i32 = alloc_ir();
+  ir_set(z1, op_const(), 0);
+  let ne1: i32 = alloc_ir();
+  ir_set(ne1, op_ne(), 0);
+
+  let r2: i32 = emit_ir_expr(right);
+  if (r2 < 0) { return r2; }
+  let z2: i32 = alloc_ir();
+  ir_set(z2, op_const(), 0);
+  let ne2: i32 = alloc_ir();
+  ir_set(ne2, op_ne(), 0);
+
+  let mul: i32 = alloc_ir();
+  ir_set(mul, op_mul(), 0);
+  return r1 + r2 + 5;
+}
+
+fn emit_ir_or(node: i32) -> i32 {
+  let left: i32 = ast_a(node);
+  let right: i32 = ast_b(node);
+
+  let r1: i32 = emit_ir_expr(left);
+  if (r1 < 0) { return r1; }
+  let z1: i32 = alloc_ir();
+  ir_set(z1, op_const(), 0);
+  let ne1: i32 = alloc_ir();
+  ir_set(ne1, op_ne(), 0);
+
+  let r2: i32 = emit_ir_expr(right);
+  if (r2 < 0) { return r2; }
+  let z2: i32 = alloc_ir();
+  ir_set(z2, op_const(), 0);
+  let ne2: i32 = alloc_ir();
+  ir_set(ne2, op_ne(), 0);
+
+  let add: i32 = alloc_ir();
+  ir_set(add, op_add(), 0);
+  let z3: i32 = alloc_ir();
+  ir_set(z3, op_const(), 0);
+  let ne3: i32 = alloc_ir();
+  ir_set(ne3, op_ne(), 0);
+  return r1 + r2 + 7;
 }
 
 fn emit_ir_bool(node: i32) -> i32 {
@@ -1748,7 +1816,24 @@ fn typecheck_expr(node: i32) -> i32 {
     return type_bool();
   }
 
+  if (kind == nk_and() || kind == nk_or()) {
+    let left3: i32 = ast_a(node);
+    let right3: i32 = ast_b(node);
+    let l3: i32 = typecheck_expr(left3);
+    if (l3 < 0) { return l3; }
+    let r3: i32 = typecheck_expr(right3);
+    if (r3 < 0) { return r3; }
+    if (!type_is_truthy(l3) || !type_is_truthy(r3)) { return 0 - 7225 - kind; }
+    return type_bool();
+  }
+
   return 0 - 7100 - kind;
+}
+
+fn type_is_truthy(t: i32) -> i32 {
+  if (t == type_i32()) { return 1; }
+  if (t == type_bool()) { return 1; }
+  return 0;
 }
 
 fn typecheck_stmt(node: i32) -> i32 {
@@ -1796,7 +1881,8 @@ fn typecheck_stmt(node: i32) -> i32 {
   if (kind == nk_call() || kind == nk_int() || kind == nk_bool() || kind == nk_ident()
       || kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()
       || kind == nk_lt() || kind == nk_gt() || kind == nk_eq() || kind == nk_ne()
-      || kind == nk_le() || kind == nk_ge()) {
+      || kind == nk_le() || kind == nk_ge()
+      || kind == nk_and() || kind == nk_or()) {
     let t: i32 = typecheck_expr(node);
     if (t < 0) { return t; }
     return 1;
@@ -1872,6 +1958,8 @@ fn emit_ir_stmt(node: i32) -> i32 {
   if (kind == nk_ne()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_le()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_ge()) { return emit_ir_expr_stmt(node); }
+  if (kind == nk_and()) { return emit_ir_expr_stmt(node); }
+  if (kind == nk_or()) { return emit_ir_expr_stmt(node); }
 
   return 0 - 1000 - kind;
 }
@@ -2262,6 +2350,14 @@ fn lex_dyn(pos: i32) -> i32 {
   if (c == 45) {
     if (char_at_dyn(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); }
     return pack_tok(tok_minus(), p + 1);
+  }
+  if (c == 38) {
+    if (char_at_dyn(p + 1) == 38) { return pack_tok(tok_and(), p + 2); }
+    return pack_tok(tok_eof(), p + 1);
+  }
+  if (c == 124) {
+    if (char_at_dyn(p + 1) == 124) { return pack_tok(tok_or(), p + 2); }
+    return pack_tok(tok_eof(), p + 1);
   }
   return pack_tok(tok_eof(), p + 1);
 }
@@ -2770,7 +2866,63 @@ fn parse_cmp_op_dyn(left: i32, nk: i32) -> i32 {
 }
 
 fn parse_expr_dyn() -> i32 {
-  return parse_cmp_dyn();
+  return parse_or_dyn();
+}
+
+fn parse_and_dyn() -> i32 {
+  let left: i32 = parse_cmp_dyn();
+  if (left < 0) { return left; }
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_and()) {
+    next_tok_dyn();
+    let right: i32 = parse_cmp_dyn();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_and(), left, right, 0);
+    return parse_and_dyn_rest(node);
+  }
+  return left;
+}
+
+fn parse_and_dyn_rest(left: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_and()) {
+    next_tok_dyn();
+    let right: i32 = parse_cmp_dyn();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_and(), left, right, 0);
+    return parse_and_dyn_rest(node);
+  }
+  return left;
+}
+
+fn parse_or_dyn() -> i32 {
+  let left: i32 = parse_and_dyn();
+  if (left < 0) { return left; }
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_or()) {
+    next_tok_dyn();
+    let right: i32 = parse_and_dyn();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_or(), left, right, 0);
+    return parse_or_dyn_rest(node);
+  }
+  return left;
+}
+
+fn parse_or_dyn_rest(left: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_or()) {
+    next_tok_dyn();
+    let right: i32 = parse_and_dyn();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_or(), left, right, 0);
+    return parse_or_dyn_rest(node);
+  }
+  return left;
 }
 
 // Statement parsing with dynamic input
@@ -6492,7 +6644,63 @@ fn parse_cmp_op(left: i32, nk: i32) -> i32 {
 
 // Top-level expression
 fn parse_expr() -> i32 {
-  return parse_cmp();
+  return parse_or();
+}
+
+fn parse_and() -> i32 {
+  let left: i32 = parse_cmp();
+  if (left < 0) { return left; }
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == tok_and()) {
+    next_tok();
+    let right: i32 = parse_cmp();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_and(), left, right, 0);
+    return parse_and_rest(node);
+  }
+  return left;
+}
+
+fn parse_and_rest(left: i32) -> i32 {
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == tok_and()) {
+    next_tok();
+    let right: i32 = parse_cmp();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_and(), left, right, 0);
+    return parse_and_rest(node);
+  }
+  return left;
+}
+
+fn parse_or() -> i32 {
+  let left: i32 = parse_and();
+  if (left < 0) { return left; }
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == tok_or()) {
+    next_tok();
+    let right: i32 = parse_and();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_or(), left, right, 0);
+    return parse_or_rest(node);
+  }
+  return left;
+}
+
+fn parse_or_rest(left: i32) -> i32 {
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == tok_or()) {
+    next_tok();
+    let right: i32 = parse_and();
+    if (right < 0) { return right; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_or(), left, right, 0);
+    return parse_or_rest(node);
+  }
+  return left;
 }
 
 // ============================================================================
