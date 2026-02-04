@@ -241,7 +241,7 @@ pub fn emit_wat(prog: &Program) -> String {
 
     // Emit memory if we have strings or use memory intrinsics
     if needs_memory {
-        out.push_str("  (memory 1024)\n");
+        out.push_str("  (memory 2048)\n");
         out.push_str("  (export \"memory\" (memory 0))\n");
     }
 

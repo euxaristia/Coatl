@@ -228,14 +228,15 @@ Compiler stub with hardcoded input, validates full pipeline.
 
 ### Memory Layout (implemented)
 ```
-0x000000 - 0x0FFFFF: AST node array (64K nodes × 16 bytes)    [ast_base() = 0]
-0x100000 - 0x1FFFFF: IR instruction array (128K ops × 8 bytes) [ir_base() = 1048576]
-0x200000 - 0x2FFFFF: WAT opcode array (128K ops × 8 bytes)     [wat_base() = 2097152]
-0x300000 - 0x303FFF: Parser/state + symbol table              [state_base() = 3145728]
-0x304000 - 0x383FFF: Source input buffer (512KB)
-0x384000 - 0x384FFF: Function table
-0x390000 - 0x338FFFF: Output buffer (48MB)
-0x3400000+      : I/O scratch (iovec + counters)
+0x000000 - 0x1FFFFF: AST node array (128K nodes × 16 bytes)     [ast_base() = 0]
+0x200000 - 0x9FFFFF: IR instruction array (1M ops × 8 bytes)    [ir_base() = 2097152]
+0xA00000 - 0x11FFFFF: WAT opcode array (1M ops × 8 bytes)       [wat_base() = 10485760]
+0x1200000 - 0x123FFFF: Parser/state + symbol table              [state_base() = 18874368]
+0x1240000 - 0x12BFFFF: Source input buffer (512KB)
+0x12C0000 - 0x12FFFFF: Function tables (entries/AST/IR counts)
+0x1300000 - 0x42FFFFF: Output buffer (48MB)
+0x4300000 - 0x44FFFFF: Function local identifier table (per-function locals)
+0x4600000+      : I/O scratch (iovec + counters)
 ```
 
 ### AST Node Format (16 bytes)
