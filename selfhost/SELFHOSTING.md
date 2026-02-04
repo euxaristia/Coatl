@@ -189,9 +189,9 @@ Compiler stub with hardcoded input, validates full pipeline.
 ### Stage 5: WAT Text Output (current)
 **Goal**: Generate WAT text output.
 **Rust compiler work**:
-- [ ] WASI `path_open`, `fd_read`, `fd_write` (for file output)
-- [ ] Add intrinsic(s) for output: `__fd_write` (buffer, len) or `__write_all`
-- [ ] Wire intrinsic(s) through type checker and WAT/x86_64 backends
+- [x] WASI `path_open`, `fd_read`, `fd_write`, `fd_close` imports
+- [x] Add intrinsic(s) for output: `__fd_write`, `__fd_read`, `__path_open`, `__fd_close`
+- [x] Wire intrinsic(s) through type checker and WAT/x86_64 backends
 
 **Bootstrap work**:
 - [x] Output buffer infrastructure (`out_init`, `out_byte`, `out_char`)
@@ -205,7 +205,7 @@ Compiler stub with hardcoded input, validates full pipeline.
 - [x] Export main function
 - [x] Test: multi-function WAT generation
 - [x] Add `out_flush` to write buffer via `__fd_write`
-- [ ] Add file output wrapper (`compile_program_to_file`)
+- [x] Add file output wrapper (`compile_program_to_file`)
 - [ ] Test: compile sample program and verify written WAT file
 
 ### Stage 6: Self-Compile
@@ -237,8 +237,8 @@ Compiler stub with hardcoded input, validates full pipeline.
 4. ~~**Bootstrap**: Function parameters and arguments~~ ✓
 5. ~~**Bootstrap**: Assignment statements~~ ✓
 6. ~~**Bootstrap**: Line comments~~ ✓
-7. **Rust compiler**: Add WASI imports + output intrinsic(s) (Stage 5)
-8. **Bootstrap**: `out_flush` + write WAT to file (Stage 5)
+7. ~~**Rust compiler**: Add WASI imports + output intrinsic(s) (Stage 5)~~ ✓
+8. ~~**Bootstrap**: `out_flush` + write WAT to file (Stage 5)~~ ✓
 9. **Bootstrap**: Minimal type checker + error reporting (Stage 6)
 10. **Bootstrap**: Self-compile verification loop (Stage 6)
 

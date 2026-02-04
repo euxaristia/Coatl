@@ -177,6 +177,28 @@ fn type_of_expr(
                 }
                 return Ok(Type::I32);
             }
+            if callee == "__path_open" {
+                if args.len() != 9 {
+                    return Err(TypeError { message: "__path_open expects 9 arguments".to_string() });
+                }
+                for arg in args.iter() {
+                    let aty = type_of_expr(arg, vars, fn_sigs, struct_defs)?;
+                    if aty != Type::I32 {
+                        return Err(TypeError { message: "__path_open args must be i32".to_string() });
+                    }
+                }
+                return Ok(Type::I32);
+            }
+            if callee == "__fd_close" {
+                if args.len() != 1 {
+                    return Err(TypeError { message: "__fd_close expects 1 argument".to_string() });
+                }
+                let fd_ty = type_of_expr(&args[0], vars, fn_sigs, struct_defs)?;
+                if fd_ty != Type::I32 {
+                    return Err(TypeError { message: "__fd_close arg must be i32".to_string() });
+                }
+                return Ok(Type::I32);
+            }
             let (params, ret) = fn_sigs.get(callee)
                 .ok_or_else(|| TypeError { message: format!("unknown function {}", callee) })?
                 .clone();

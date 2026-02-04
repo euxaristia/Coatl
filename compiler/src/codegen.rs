@@ -103,6 +103,24 @@ fn uses_fd_read(prog: &Program) -> bool {
     false
 }
 
+fn uses_path_open(prog: &Program) -> bool {
+    for f in &prog.functions {
+        if block_uses_path_open(&f.body) {
+            return true;
+        }
+    }
+    false
+}
+
+fn uses_fd_close(prog: &Program) -> bool {
+    for f in &prog.functions {
+        if block_uses_fd_close(&f.body) {
+            return true;
+        }
+    }
+    false
+}
+
 fn block_uses_fd_write(block: &Block) -> bool {
     for stmt in &block.statements {
         if stmt_uses_fd_write(stmt) {
@@ -115,6 +133,24 @@ fn block_uses_fd_write(block: &Block) -> bool {
 fn block_uses_fd_read(block: &Block) -> bool {
     for stmt in &block.statements {
         if stmt_uses_fd_read(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+fn block_uses_path_open(block: &Block) -> bool {
+    for stmt in &block.statements {
+        if stmt_uses_path_open(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+fn block_uses_fd_close(block: &Block) -> bool {
+    for stmt in &block.statements {
+        if stmt_uses_fd_close(stmt) {
             return true;
         }
     }
@@ -151,6 +187,36 @@ fn stmt_uses_fd_read(stmt: &Stmt) -> bool {
     }
 }
 
+fn stmt_uses_path_open(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { expr, .. } => expr_uses_path_open(expr),
+        Stmt::Assign { expr, .. } => expr_uses_path_open(expr),
+        Stmt::If { cond, then_block, else_block } => {
+            expr_uses_path_open(cond)
+                || block_uses_path_open(then_block)
+                || else_block.as_ref().map_or(false, block_uses_path_open)
+        }
+        Stmt::While { cond, body } => expr_uses_path_open(cond) || block_uses_path_open(body),
+        Stmt::Return(expr) => expr_uses_path_open(expr),
+        Stmt::Expr(expr) => expr_uses_path_open(expr),
+    }
+}
+
+fn stmt_uses_fd_close(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { expr, .. } => expr_uses_fd_close(expr),
+        Stmt::Assign { expr, .. } => expr_uses_fd_close(expr),
+        Stmt::If { cond, then_block, else_block } => {
+            expr_uses_fd_close(cond)
+                || block_uses_fd_close(then_block)
+                || else_block.as_ref().map_or(false, block_uses_fd_close)
+        }
+        Stmt::While { cond, body } => expr_uses_fd_close(cond) || block_uses_fd_close(body),
+        Stmt::Return(expr) => expr_uses_fd_close(expr),
+        Stmt::Expr(expr) => expr_uses_fd_close(expr),
+    }
+}
+
 fn expr_uses_fd_write(expr: &Expr) -> bool {
     match expr {
         Expr::Call { callee, args } => {
@@ -177,6 +243,36 @@ fn expr_uses_fd_read(expr: &Expr) -> bool {
         Expr::Binary { left, right, .. } => expr_uses_fd_read(left) || expr_uses_fd_read(right),
         Expr::FieldAccess { expr, .. } => expr_uses_fd_read(expr),
         Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_read(e)),
+        _ => false,
+    }
+}
+
+fn expr_uses_path_open(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { callee, args } => {
+            if callee == "__path_open" {
+                return true;
+            }
+            args.iter().any(expr_uses_path_open)
+        }
+        Expr::Binary { left, right, .. } => expr_uses_path_open(left) || expr_uses_path_open(right),
+        Expr::FieldAccess { expr, .. } => expr_uses_path_open(expr),
+        Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_path_open(e)),
+        _ => false,
+    }
+}
+
+fn expr_uses_fd_close(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { callee, args } => {
+            if callee == "__fd_close" {
+                return true;
+            }
+            args.iter().any(expr_uses_fd_close)
+        }
+        Expr::Binary { left, right, .. } => expr_uses_fd_close(left) || expr_uses_fd_close(right),
+        Expr::FieldAccess { expr, .. } => expr_uses_fd_close(expr),
+        Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_close(e)),
         _ => false,
     }
 }
@@ -227,7 +323,9 @@ pub fn emit_wat(prog: &Program) -> String {
     let struct_defs = collect_struct_defs(prog);
     let needs_fd_write = uses_fd_write(prog);
     let needs_fd_read = uses_fd_read(prog);
-    let needs_wasi = needs_fd_write || needs_fd_read;
+    let needs_path_open = uses_path_open(prog);
+    let needs_fd_close = uses_fd_close(prog);
+    let needs_wasi = needs_fd_write || needs_fd_read || needs_path_open || needs_fd_close;
     let needs_memory = !strings.is_empty() || uses_memory(prog) || needs_wasi;
     let mut out = String::new();
     out.push_str("(module\n");
@@ -237,6 +335,12 @@ pub fn emit_wat(prog: &Program) -> String {
     }
     if needs_fd_read {
         out.push_str("  (import \"wasi_snapshot_preview1\" \"fd_read\" (func $__fd_read (param i32 i32 i32 i32) (result i32)))\n");
+    }
+    if needs_path_open {
+        out.push_str("  (import \"wasi_snapshot_preview1\" \"path_open\" (func $__path_open (param i32 i32 i32 i32 i32 i64 i64 i32 i32) (result i32)))\n");
+    }
+    if needs_fd_close {
+        out.push_str("  (import \"wasi_snapshot_preview1\" \"fd_close\" (func $__fd_close (param i32) (result i32)))\n");
     }
 
     // Emit memory if we have strings or use memory intrinsics
@@ -941,6 +1045,32 @@ fn emit_expr_wat_with_strings(
                 out.push_str("  call $__fd_read\n");
                 return;
             }
+            if callee == "__path_open" {
+                if args.len() != 9 {
+                    panic!("__path_open expects 9 arguments (dirfd, dirflags, path_ptr, path_len, oflags, rights_base, rights_inheriting, fdflags, opened_fd_ptr)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[2], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[3], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[4], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[5], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  i64.extend_i32_u\n");
+                emit_expr_wat_with_strings(&args[6], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  i64.extend_i32_u\n");
+                emit_expr_wat_with_strings(&args[7], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[8], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  call $__path_open\n");
+                return;
+            }
+            if callee == "__fd_close" {
+                if args.len() != 1 {
+                    panic!("__fd_close expects 1 argument (fd)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  call $__fd_close\n");
+                return;
+            }
             for arg in args {
                 emit_expr_wat_with_strings(arg, locals, var_types, _struct_defs, string_offsets, out);
             }
@@ -1089,6 +1219,12 @@ fn emit_expr_x86_64_with_strings(
             }
             if callee == "__fd_read" {
                 panic!("__fd_read is not supported in the x86_64 backend yet");
+            }
+            if callee == "__path_open" {
+                panic!("__path_open is not supported in the x86_64 backend yet");
+            }
+            if callee == "__fd_close" {
+                panic!("__fd_close is not supported in the x86_64 backend yet");
             }
             let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
             let reg_count = if args.len() < arg_regs.len() { args.len() } else { arg_regs.len() };
