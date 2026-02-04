@@ -216,7 +216,7 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 - [x] Basic call arity checking (non-intrinsics)
 - [ ] Implement all constructs used by `bootstrap.mee`
 - [x] Minimal type checker (i32 only, no inference)
-- [ ] Error reporting with line/column spans
+- [x] Error reporting with line/column spans (parse errors)
 - [ ] Deterministic output (stable ordering, stable formatting)
 - [ ] Verification: `mee build bootstrap.mee` produces identical WAT
 - [ ] Round-trip check: bootstrap compiles itself and runs test suite

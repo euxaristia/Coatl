@@ -157,10 +157,12 @@ fn set_debug_stage(code: i32) -> i32 {
   __mem_store(state_err_code(), code);
   __mem_store(state_err_pos(), 0);
   __mem_store(state_err_tok(), 0);
+  __mem_store(state_err_line(), 0);
+  __mem_store(state_err_col(), 0);
   return 0;
 }
 
-// Emit parse error info: "<code> <pos> <tok>\n"
+// Emit parse error info: "<code> <pos> <tok> <line> <col>\n"
 fn debug_dump_error() -> i32 {
   out_init();
   out_num(__mem_load(state_err_code()));
@@ -168,6 +170,10 @@ fn debug_dump_error() -> i32 {
   out_num(__mem_load(state_err_pos()));
   out_sp();
   out_num(__mem_load(state_err_tok()));
+  out_sp();
+  out_num(__mem_load(state_err_line()));
+  out_sp();
+  out_num(__mem_load(state_err_col()));
   out_nl();
   out_flush();
   return 0;
@@ -232,6 +238,7 @@ fn set_parse_error(code: i32) -> i32 {
   __mem_store(state_err_pos(), get_pos());
   let tok: i32 = peek_tok_dyn();
   __mem_store(state_err_tok(), lex_kind(tok));
+  set_error_line_col(get_pos());
   return code;
 }
 
@@ -3659,6 +3666,8 @@ fn state_err_tok() -> i32 { return state_base() + 60; }
 fn state_current_fn() -> i32 { return state_base() + 64; }
 fn state_out_fd() -> i32 { return state_base() + 68; }
 fn state_emit_file_flag() -> i32 { return state_base() + 72; }
+fn state_err_line() -> i32 { return state_base() + 76; }
+fn state_err_col() -> i32 { return state_base() + 80; }
 fn get_out_pos() -> i32 { return __mem_load(state_out_pos()); }
 fn set_out_pos(p: i32) -> i32 { __mem_store(state_out_pos(), p); return 0; }
 fn get_current_fn() -> i32 { return __mem_load(state_current_fn()); }
@@ -3755,6 +3764,26 @@ fn read_src_from_stdin() -> i32 {
 
   __mem_store8(src_buffer_addr() + total, 0);
   return total;
+}
+
+// Compute line/column from position and store in error state
+fn set_error_line_col(pos: i32) -> i32 {
+  let i: i32 = 0;
+  let line: i32 = 1;
+  let col: i32 = 1;
+  while (i < pos) {
+    let c: i32 = char_at_dyn(i);
+    if (c == 10) {
+      line = line + 1;
+      col = 1;
+    } else {
+      col = col + 1;
+    }
+    i = i + 1;
+  }
+  __mem_store(state_err_line(), line);
+  __mem_store(state_err_col(), col);
+  return 0;
 }
 
 // Append a single byte to output
