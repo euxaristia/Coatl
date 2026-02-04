@@ -2428,6 +2428,8 @@ fn parse_ident_or_call_dyn() -> i32 {
   }
 
   // Just an identifier
+  if (intr != 0) { return 0 - 835; }
+  if (lookup_local(id) < 0) { return 0 - 836; }
   let node: i32 = alloc_ast();
   ast_set(node, nk_ident(), id, 0, 0);
   return node;
@@ -2605,6 +2607,7 @@ fn parse_assign_or_expr_dyn() -> i32 {
   let next: i32 = peek_tok_dyn();
   if (lex_kind(next) == tok_eq()) {
     next_tok_dyn();
+    if (lookup_local(id) < 0) { return 0 - 712; }
     let expr: i32 = parse_expr_dyn();
     if (expr < 0) { return expr; }
     if (expect_dyn(tok_semi()) != 1) { return 0 - 711; }
@@ -6128,6 +6131,7 @@ fn parse_ident_expr() -> i32 {
   let start: i32 = skip_ws(get_pos());
   next_tok();
   let id: i32 = ident_id_range(start, get_pos());
+  if (lookup_local(id) < 0) { return 0 - 432; }
   let node: i32 = alloc_ast();
   ast_set(node, nk_ident(), id, 0, 0);
   return node;
