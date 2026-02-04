@@ -121,6 +121,38 @@ check_case() {
   echo "  ok (return=$expected_ret)"
 }
 
+check_rust_only_case() {
+  local src="$1"
+  local expected_ret="$2"
+  local expect_substr="${3:-}"
+  local base
+  base=$(basename "$src" .mee)
+  local rust_wat="/tmp/mee-rust-${base}.wat"
+
+  echo "[rust-only] $src"
+  compile_with_rust "$src" "$rust_wat"
+
+  local rust_out
+  rust_out=$(wasmtime --invoke main "$rust_wat")
+  local rust_ret
+  rust_ret=$(printf '%s\n' "$rust_out" | awk 'NF { line=$0 } END { print line }')
+
+  if [[ "$rust_ret" != "$expected_ret" ]]; then
+    echo "rust return mismatch for $src: got $rust_ret expected $expected_ret"
+    printf '%s\n' "$rust_out"
+    exit 1
+  fi
+  if [[ -n "$expect_substr" ]]; then
+    if ! printf '%s\n' "$rust_out" | grep -Fq "$expect_substr"; then
+      echo "rust output missing expected text for $src: $expect_substr"
+      printf '%s\n' "$rust_out"
+      exit 1
+    fi
+  fi
+
+  echo "  ok (return=$expected_ret)"
+}
+
 echo "[roundtrip] Verifying self-compile convergence"
 "$SELFHOST_CHECK"
 
@@ -136,5 +168,10 @@ check_case "tests/mem_test.mee" "142"
 check_case "tests/array_sim.mee" "100"
 check_case "tests/byte_test.mee" "389"
 check_case "examples/hello.mee" "0" "Hello, world!"
+
+echo "[roundtrip] Running struct ABI suite (Rust compiler)"
+check_rust_only_case "tests/struct_param_pass.mee" "9"
+check_rust_only_case "tests/struct_return_basic.mee" "15"
+check_rust_only_case "tests/struct_chain_calls.mee" "6"
 
 echo "All round-trip checks passed"

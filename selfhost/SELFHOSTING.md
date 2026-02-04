@@ -53,7 +53,7 @@ Memory intrinsics (`__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`) e
 ## Constraints (current Mee compiler)
 - ~~No memory ops~~ ✓ **DONE**: `__mem_load`/`__mem_store` intrinsics added
 - No array syntax `[T; N]` - use memory intrinsics as workaround
-- Struct parameters/returns are still unsupported in codegen (fields in locals are supported)
+- Bootstrap compiler still has no struct support
 - No I/O - blocks reading source files
 
 ## Stages
@@ -118,6 +118,7 @@ Compiler stub with hardcoded input, validates full pipeline.
 - [x] Fix struct codegen panic (flatten fields to locals or memory)
 - [x] Lower `s.field` read to appropriate local/memory access
 - [x] Lower `s.field = val` write
+- [x] Lower struct params/returns in WAT and x86_64 backends (sret + flattened fields)
 
 **Bootstrap work**:
 - [ ] Replace parallel arrays with `struct Node { kind: i32, a: i32, b: i32, c: i32 }`

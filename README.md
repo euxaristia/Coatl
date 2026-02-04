@@ -9,6 +9,7 @@ Mee is a draft systems language that aims to be safer than C while staying predi
 - Parser, AST, and basic type checker (i32/bool/char, plus string literals as pointer values).
 - WAT codegen with WASI I/O intrinsics (`fd_write`, `fd_read`, `path_open`, `fd_close`).
 - x86_64 backend for scalar arithmetic and function calls (no WASI).
+- Struct codegen: local struct values, field read/write, struct params, and struct returns.
 - Bootstrap compiler can parse, compile to WAT, and verify output; self-hosting convergence is documented.
 
 ## Quick Start
@@ -72,6 +73,7 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 - x86_64 backend has no WASI/file I/O support.
 - No ownership/borrow checker, enums, or pattern matching yet.
 - Minimal type system (i32/bool/char + string literals as pointers).
+- Bootstrap (Mee-in-Mee) compiler does not yet implement structs.
 
 ## Self-Hosting
 
