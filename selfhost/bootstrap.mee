@@ -31,6 +31,13 @@ fn nk_return() -> i32 { return 2; }
 fn nk_ident() -> i32 { return 3; }
 fn nk_let() -> i32 { return 4; }
 fn nk_add() -> i32 { return 5; }
+fn nk_sub() -> i32 { return 6; }
+fn nk_mul() -> i32 { return 7; }
+fn nk_div() -> i32 { return 8; }
+fn nk_lt() -> i32 { return 9; }
+fn nk_gt() -> i32 { return 10; }
+fn nk_eq() -> i32 { return 11; }
+fn nk_if() -> i32 { return 12; }
 
 fn parse_program(pos: i32) -> i32 {
   let p: i32 = pos;
@@ -230,10 +237,18 @@ fn lex(pos: i32) -> i32 {
   if (c == 125) { return pack_tok(tok_rbrace(), p + 1); } // }
   if (c == 58) { return pack_tok(tok_colon(), p + 1); } // :
   if (c == 59) { return pack_tok(tok_semi(), p + 1); } // ;
-  if (c == 61) { return pack_tok(tok_eq(), p + 1); } // =
   if (c == 43) { return pack_tok(tok_plus(), p + 1); } // +
+  if (c == 42) { return pack_tok(tok_star(), p + 1); } // *
+  if (c == 47) { return pack_tok(tok_slash(), p + 1); } // /
+  if (c == 60) { return pack_tok(tok_lt(), p + 1); } // <
+  if (c == 62) { return pack_tok(tok_gt(), p + 1); } // >
+  if (c == 61) { // =
+    if (char_at(p + 1) == 61) { return pack_tok(tok_eqeq(), p + 2); } // ==
+    return pack_tok(tok_eq(), p + 1); // =
+  }
   if (c == 45) { // -
-    if (char_at(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); }
+    if (char_at(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); } // ->
+    return pack_tok(tok_minus(), p + 1); // -
   }
   return pack_tok(tok_eof(), p + 1);
 }
@@ -281,18 +296,53 @@ fn scan_int(pos: i32) -> i32 {
 fn ident_kind(start: i32, end: i32) -> i32 {
   let len: i32 = end - start;
   if (len == 2) {
+    // "fn"
     if (char_at(start) == 102) {
       if (char_at(start + 1) == 110) { return tok_fn(); }
     }
+    // "if"
+    if (char_at(start) == 105) {
+      if (char_at(start + 1) == 102) { return tok_if(); }
+    }
   }
   if (len == 3) {
+    // "let"
     if (char_at(start) == 108) {
       if (char_at(start + 1) == 101) {
         if (char_at(start + 2) == 116) { return tok_let(); }
       }
     }
+    // "i32"
+    if (char_at(start) == 105) {
+      if (char_at(start + 1) == 51) {
+        if (char_at(start + 2) == 50) { return tok_i32(); }
+      }
+    }
+  }
+  if (len == 4) {
+    // "else"
+    if (char_at(start) == 101) {
+      if (char_at(start + 1) == 108) {
+        if (char_at(start + 2) == 115) {
+          if (char_at(start + 3) == 101) { return tok_else(); }
+        }
+      }
+    }
+  }
+  if (len == 5) {
+    // "while"
+    if (char_at(start) == 119) {
+      if (char_at(start + 1) == 104) {
+        if (char_at(start + 2) == 105) {
+          if (char_at(start + 3) == 108) {
+            if (char_at(start + 4) == 101) { return tok_while(); }
+          }
+        }
+      }
+    }
   }
   if (len == 6) {
+    // "return"
     if (char_at(start) == 114) {
       if (char_at(start + 1) == 101) {
         if (char_at(start + 2) == 116) {
@@ -302,13 +352,6 @@ fn ident_kind(start: i32, end: i32) -> i32 {
             }
           }
         }
-      }
-    }
-  }
-  if (len == 3) {
-    if (char_at(start) == 105) {
-      if (char_at(start + 1) == 51) {
-        if (char_at(start + 2) == 50) { return tok_i32(); }
       }
     }
   }
@@ -473,6 +516,15 @@ fn tok_let() -> i32 { return 12; }
 fn tok_colon() -> i32 { return 13; }
 fn tok_eq() -> i32 { return 14; }
 fn tok_plus() -> i32 { return 15; }
+fn tok_minus() -> i32 { return 16; }
+fn tok_star() -> i32 { return 17; }
+fn tok_slash() -> i32 { return 18; }
+fn tok_lt() -> i32 { return 19; }
+fn tok_gt() -> i32 { return 20; }
+fn tok_eqeq() -> i32 { return 21; }
+fn tok_if() -> i32 { return 22; }
+fn tok_else() -> i32 { return 23; }
+fn tok_while() -> i32 { return 24; }
 
 // IR opcodes.
 fn op_const() -> i32 { return 1; }
@@ -480,6 +532,16 @@ fn op_store() -> i32 { return 2; }
 fn op_load() -> i32 { return 3; }
 fn op_ret() -> i32 { return 4; }
 fn op_add() -> i32 { return 5; }
+fn op_sub() -> i32 { return 6; }
+fn op_mul() -> i32 { return 7; }
+fn op_div() -> i32 { return 8; }
+fn op_lt() -> i32 { return 9; }
+fn op_gt() -> i32 { return 10; }
+fn op_eq() -> i32 { return 11; }
+fn op_br_if() -> i32 { return 12; }
+fn op_br() -> i32 { return 13; }
+fn op_block() -> i32 { return 14; }
+fn op_end() -> i32 { return 15; }
 
 // Emit IR from memory-based AST (Stage 1).
 fn emit_program_from_mem() -> i32 {
@@ -540,6 +602,19 @@ fn w_local_set() -> i32 { return 2; }
 fn w_local_get() -> i32 { return 3; }
 fn w_return() -> i32 { return 4; }
 fn w_add() -> i32 { return 5; }
+fn w_sub() -> i32 { return 6; }
+fn w_mul() -> i32 { return 7; }
+fn w_div() -> i32 { return 8; }
+fn w_lt() -> i32 { return 9; }
+fn w_gt() -> i32 { return 10; }
+fn w_eq() -> i32 { return 11; }
+fn w_br_if() -> i32 { return 12; }
+fn w_br() -> i32 { return 13; }
+fn w_block() -> i32 { return 14; }
+fn w_end() -> i32 { return 15; }
+fn w_loop() -> i32 { return 16; }
+fn w_if() -> i32 { return 17; }
+fn w_else() -> i32 { return 18; }
 
 // Emit WAT opcodes from memory-based IR (Stage 1).
 // WAT stream stored at wat_base() (offset 0x2000).
