@@ -85,6 +85,54 @@ fn uses_memory(prog: &Program) -> bool {
     false
 }
 
+fn uses_fd_write(prog: &Program) -> bool {
+    for f in &prog.functions {
+        if block_uses_fd_write(&f.body) {
+            return true;
+        }
+    }
+    false
+}
+
+fn block_uses_fd_write(block: &Block) -> bool {
+    for stmt in &block.statements {
+        if stmt_uses_fd_write(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+fn stmt_uses_fd_write(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { expr, .. } => expr_uses_fd_write(expr),
+        Stmt::Assign { expr, .. } => expr_uses_fd_write(expr),
+        Stmt::If { cond, then_block, else_block } => {
+            expr_uses_fd_write(cond)
+                || block_uses_fd_write(then_block)
+                || else_block.as_ref().map_or(false, block_uses_fd_write)
+        }
+        Stmt::While { cond, body } => expr_uses_fd_write(cond) || block_uses_fd_write(body),
+        Stmt::Return(expr) => expr_uses_fd_write(expr),
+        Stmt::Expr(expr) => expr_uses_fd_write(expr),
+    }
+}
+
+fn expr_uses_fd_write(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call { callee, args } => {
+            if callee == "__fd_write" {
+                return true;
+            }
+            args.iter().any(expr_uses_fd_write)
+        }
+        Expr::Binary { left, right, .. } => expr_uses_fd_write(left) || expr_uses_fd_write(right),
+        Expr::FieldAccess { expr, .. } => expr_uses_fd_write(expr),
+        Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_write(e)),
+        _ => false,
+    }
+}
+
 fn block_uses_memory(block: &Block) -> bool {
     for stmt in &block.statements {
         if stmt_uses_memory(stmt) {
@@ -129,9 +177,14 @@ fn expr_uses_memory(expr: &Expr) -> bool {
 pub fn emit_wat(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
     let struct_defs = collect_struct_defs(prog);
-    let needs_memory = !strings.is_empty() || uses_memory(prog);
+    let needs_fd_write = uses_fd_write(prog);
+    let needs_memory = !strings.is_empty() || uses_memory(prog) || needs_fd_write;
     let mut out = String::new();
     out.push_str("(module\n");
+
+    if needs_fd_write {
+        out.push_str("  (import \"wasi_snapshot_preview1\" \"fd_write\" (func $__fd_write (param i32 i32 i32 i32) (result i32)))\n");
+    }
 
     // Emit memory if we have strings or use memory intrinsics
     if needs_memory {
@@ -799,6 +852,17 @@ fn emit_expr_wat_with_strings(
                 out.push_str("  i32.const 0\n");
                 return;
             }
+            if callee == "__fd_write" {
+                if args.len() != 4 {
+                    panic!("__fd_write expects 4 arguments (fd, iov_ptr, iov_cnt, nwritten_ptr)");
+                }
+                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[2], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[3], locals, var_types, _struct_defs, string_offsets, out);
+                out.push_str("  call $__fd_write\n");
+                return;
+            }
             for arg in args {
                 emit_expr_wat_with_strings(arg, locals, var_types, _struct_defs, string_offsets, out);
             }
@@ -940,6 +1004,9 @@ fn emit_expr_x86_64_with_strings(
                 out.push_str("  mov BYTE PTR [rcx], al\n");
                 out.push_str("  xor rax, rax\n"); // Return 0
                 return;
+            }
+            if callee == "__fd_write" {
+                panic!("__fd_write is not supported in the x86_64 backend yet");
             }
             let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
             let reg_count = if args.len() < arg_regs.len() { args.len() } else { arg_regs.len() };

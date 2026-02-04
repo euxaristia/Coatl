@@ -1,4 +1,6 @@
 fn main() -> i32 {
+  // Toggle to emit WAT text to stdout (1 = enabled, 0 = disabled)
+  let emit_stdout: i32 = emit_wat_stdout_enabled();
   // Stage0: placeholder Mee "compiler".
   // Validates full pipeline with hardcoded input.
   let stage0_ok: i32 = compile_stub();
@@ -11,7 +13,82 @@ fn main() -> i32 {
   let ir_ok: i32 = test_mem_ir();
   if (ir_ok != 1) { return 3; }
 
+  // Stage1.5: test general parser.
+  let parser_ok: i32 = test_general_parser();
+  if (parser_ok != 1) { return 4; }
+
+  // Stage1.6: test general codegen.
+  let codegen_ok: i32 = test_general_codegen();
+  if (codegen_ok != 1) { return 5; }
+
+  // Stage1.7: test general compile pipeline.
+  let compile_ok: i32 = test_general_compile();
+  if (compile_ok != 1) { return 6; }
+
+  // Stage1.7b: test control flow codegen.
+  let if_ok: i32 = test_if_codegen();
+  if (if_ok != 1) { return 7; }
+
+  let while_ok: i32 = test_while_codegen();
+  if (while_ok != 1) { return 8; }
+
+  // Stage 3: test dynamic input compilation.
+  let dyn_ok: i32 = test_dynamic_compile();
+  if (dyn_ok != 1) { return 9; }
+
+  // Stage 3b: test dynamic input with control flow.
+  let dyn_if_ok: i32 = test_dynamic_if();
+  if (dyn_if_ok != 1) { return 10; }
+
+  // Stage 4: test function calls.
+  let call_ok: i32 = test_function_call();
+  if (call_ok != 1) { return 11; }
+
+  let parse_call_ok: i32 = test_parse_call_dyn();
+  if (parse_call_ok != 1) { return 12; }
+
+  // Stage 4b: test multi-function programs.
+  let multi_fn_ok: i32 = test_multi_fn();
+  if (multi_fn_ok != 1) { return 13; }
+
+  // Stage 4c: test function parameters.
+  let params_ok: i32 = test_fn_params();
+  if (params_ok != 1) { return 14; }
+
+  // Stage 4d: test assignment statements.
+  let assign_ok: i32 = test_assignment();
+  if (assign_ok != 1) { return 15; }
+
+  // Stage 4e: test comments.
+  let comment_ok: i32 = test_comments();
+  if (comment_ok != 1) { return 16; }
+
+  // Stage 5: test WAT text generation.
+  let wat_text_ok: i32 = test_wat_text_gen();
+  if (wat_text_ok != 1) { return 17; }
+
+  // Stage 5b: test multi-function WAT generation.
+  let wat_multi_ok: i32 = test_wat_multi_fn();
+  if (wat_multi_ok != 1) { return 18; }
+
+  // Stage 5c: test WAT output via stdout
+  let wat_stdout_ok: i32 = test_wat_stdout();
+  if (wat_stdout_ok != 1) { return 19; }
+
+  // Emit WAT to stdout (simple return program) if enabled
+  if (emit_stdout == 1) {
+    init_src_buffer();
+    load_simple_return();
+    if (compile_program_to_stdout() != 0) { return 20; }
+    clear_src_buffer();
+  }
+
   // All stages passed
+  return 0;
+}
+
+// Set to 1 to emit WAT text to stdout from main()
+fn emit_wat_stdout_enabled() -> i32 {
   return 0;
 }
 
@@ -38,6 +115,19 @@ fn nk_lt() -> i32 { return 9; }
 fn nk_gt() -> i32 { return 10; }
 fn nk_eq() -> i32 { return 11; }
 fn nk_if() -> i32 { return 12; }
+fn nk_while() -> i32 { return 13; }
+fn nk_block() -> i32 { return 14; }
+fn nk_ne() -> i32 { return 15; }
+fn nk_le() -> i32 { return 16; }
+fn nk_ge() -> i32 { return 17; }
+fn nk_call() -> i32 { return 18; }
+fn nk_fn() -> i32 { return 19; }
+fn nk_program() -> i32 { return 20; }
+fn nk_assign() -> i32 { return 21; }
+fn nk_mem_load() -> i32 { return 22; }
+fn nk_mem_store() -> i32 { return 23; }
+fn nk_mem_load8() -> i32 { return 24; }
+fn nk_mem_store8() -> i32 { return 25; }
 
 fn parse_program(pos: i32) -> i32 {
   let p: i32 = pos;
@@ -240,8 +330,18 @@ fn lex(pos: i32) -> i32 {
   if (c == 43) { return pack_tok(tok_plus(), p + 1); } // +
   if (c == 42) { return pack_tok(tok_star(), p + 1); } // *
   if (c == 47) { return pack_tok(tok_slash(), p + 1); } // /
-  if (c == 60) { return pack_tok(tok_lt(), p + 1); } // <
-  if (c == 62) { return pack_tok(tok_gt(), p + 1); } // >
+  if (c == 60) { // <
+    if (char_at(p + 1) == 61) { return pack_tok(tok_le(), p + 2); } // <=
+    return pack_tok(tok_lt(), p + 1);
+  }
+  if (c == 62) { // >
+    if (char_at(p + 1) == 61) { return pack_tok(tok_ge(), p + 2); } // >=
+    return pack_tok(tok_gt(), p + 1);
+  }
+  if (c == 33) { // !
+    if (char_at(p + 1) == 61) { return pack_tok(tok_ne(), p + 2); } // !=
+    return pack_tok(tok_bang(), p + 1);
+  }
   if (c == 61) { // =
     if (char_at(p + 1) == 61) { return pack_tok(tok_eqeq(), p + 2); } // ==
     return pack_tok(tok_eq(), p + 1); // =
@@ -525,6 +625,11 @@ fn tok_eqeq() -> i32 { return 21; }
 fn tok_if() -> i32 { return 22; }
 fn tok_else() -> i32 { return 23; }
 fn tok_while() -> i32 { return 24; }
+fn tok_ne() -> i32 { return 25; }
+fn tok_le() -> i32 { return 26; }
+fn tok_ge() -> i32 { return 27; }
+fn tok_bang() -> i32 { return 28; }
+fn tok_comma() -> i32 { return 29; }
 
 // IR opcodes.
 fn op_const() -> i32 { return 1; }
@@ -542,6 +647,15 @@ fn op_br_if() -> i32 { return 12; }
 fn op_br() -> i32 { return 13; }
 fn op_block() -> i32 { return 14; }
 fn op_end() -> i32 { return 15; }
+fn op_ne() -> i32 { return 16; }
+fn op_le() -> i32 { return 17; }
+fn op_ge() -> i32 { return 18; }
+fn op_loop() -> i32 { return 19; }
+fn op_call() -> i32 { return 20; }
+fn op_mem_load() -> i32 { return 21; }
+fn op_mem_store() -> i32 { return 22; }
+fn op_mem_load8() -> i32 { return 23; }
+fn op_mem_store8() -> i32 { return 24; }
 
 // Emit IR from memory-based AST (Stage 1).
 fn emit_program_from_mem() -> i32 {
@@ -615,6 +729,14 @@ fn w_end() -> i32 { return 15; }
 fn w_loop() -> i32 { return 16; }
 fn w_if() -> i32 { return 17; }
 fn w_else() -> i32 { return 18; }
+fn w_ne() -> i32 { return 19; }
+fn w_le() -> i32 { return 20; }
+fn w_ge() -> i32 { return 21; }
+fn w_call() -> i32 { return 22; }
+fn w_i32_load() -> i32 { return 23; }
+fn w_i32_store() -> i32 { return 24; }
+fn w_i32_load8_u() -> i32 { return 25; }
+fn w_i32_store8() -> i32 { return 26; }
 
 // Emit WAT opcodes from memory-based IR (Stage 1).
 // WAT stream stored at wat_base() (offset 0x2000).
@@ -803,4 +925,4001 @@ fn test_mem_ir() -> i32 {
   if (ir_opcode(7) != op_ret()) { return 0; }
 
   return 1;
+}
+
+// ============================================================================
+// Stage 1.5 Test: General parser
+// ============================================================================
+fn test_general_parser() -> i32 {
+  // Test expression parsing with precedence
+  // Parse: 1 + 2 * 3 (should be 1 + (2 * 3), not (1 + 2) * 3)
+  parser_init(0);
+
+  // Test parsing integer
+  // We'll use the hardcoded input which starts at position 32: "1"
+  set_pos(32);
+  let int_node: i32 = parse_primary();
+  if (int_node < 0) { return 0; }
+  if (ast_kind(int_node) != nk_int()) { return 0; }
+  if (ast_a(int_node) != 1) { return 0; }
+
+  // Test precedence with 1 + 2 (positions in our hardcoded string)
+  // We need to create a test string for this
+  // For now, test that basic parsing machinery works
+  parser_init(0);
+
+  // Test symbol table
+  set_local_count(0);
+  let local0: i32 = add_local(100);
+  if (local0 != 0) { return 0; }
+  let local1: i32 = add_local(200);
+  if (local1 != 1) { return 0; }
+
+  let found0: i32 = lookup_local(100);
+  if (found0 != 0) { return 0; }
+  let found1: i32 = lookup_local(200);
+  if (found1 != 1) { return 0; }
+  let notfound: i32 = lookup_local(999);
+  if (notfound != 0 - 1) { return 0; }
+
+  // Test parsing let statement from the hardcoded input
+  // Position 19 starts "let x: i32 = 1;"
+  parser_init(0);
+  set_pos(19);
+  let let_node: i32 = parse_let_stmt();
+  if (let_node < 0) { return 0; }
+  if (ast_kind(let_node) != nk_let()) { return 0; }
+
+  // The expression should be an int node with value 1
+  let expr_idx: i32 = ast_b(let_node);
+  if (ast_kind(expr_idx) != nk_int()) { return 0; }
+  if (ast_a(expr_idx) != 1) { return 0; }
+
+  // Test expression precedence: 1 + 2 * 3 should parse as 1 + (2 * 3)
+  let prec_ok: i32 = test_precedence();
+  if (prec_ok != 1) { return 0; }
+
+  return 1;
+}
+
+// Test expression precedence parsing
+fn test_precedence() -> i32 {
+  // Use a new test source: "1 + 2 * 3"
+  // We'll test the expression parser directly using memory
+  // Store test string at position 0x4000 (test input area)
+  let test_base: i32 = 16384;
+  // "1 + 2 * 3"
+  __mem_store8(test_base + 0, 49);  // '1'
+  __mem_store8(test_base + 1, 32);  // ' '
+  __mem_store8(test_base + 2, 43);  // '+'
+  __mem_store8(test_base + 3, 32);  // ' '
+  __mem_store8(test_base + 4, 50);  // '2'
+  __mem_store8(test_base + 5, 32);  // ' '
+  __mem_store8(test_base + 6, 42);  // '*'
+  __mem_store8(test_base + 7, 32);  // ' '
+  __mem_store8(test_base + 8, 51);  // '3'
+  __mem_store8(test_base + 9, 0);   // null terminator
+
+  // Initialize parser using test input reader
+  parser_init(0);
+  set_test_input_base(test_base);
+
+  // Parse expression
+  let node: i32 = parse_expr_with_test_input();
+  if (node < 0) { return 0; }
+
+  // Should be: add(int(1), mul(int(2), int(3)))
+  if (ast_kind(node) != nk_add()) { return 0; }
+  let left: i32 = ast_a(node);
+  let right: i32 = ast_b(node);
+
+  // Left should be int(1)
+  if (ast_kind(left) != nk_int()) { return 0; }
+  if (ast_a(left) != 1) { return 0; }
+
+  // Right should be mul(int(2), int(3))
+  if (ast_kind(right) != nk_mul()) { return 0; }
+  let mul_left: i32 = ast_a(right);
+  let mul_right: i32 = ast_b(right);
+
+  if (ast_kind(mul_left) != nk_int()) { return 0; }
+  if (ast_a(mul_left) != 2) { return 0; }
+  if (ast_kind(mul_right) != nk_int()) { return 0; }
+  if (ast_a(mul_right) != 3) { return 0; }
+
+  // Clear test mode
+  set_test_input_base(0 - 1);
+
+  return 1;
+}
+
+// Test input support - when set, char_at_test reads from this base instead
+fn test_input_addr() -> i32 { return state_base() + 12; }
+fn get_test_input_base() -> i32 { return __mem_load(test_input_addr()); }
+fn set_test_input_base(base: i32) -> i32 { __mem_store(test_input_addr(), base); return 0; }
+
+// Character reader that supports test mode
+fn char_at_test(pos: i32) -> i32 {
+  let test_base: i32 = get_test_input_base();
+  if (test_base >= 0) {
+    return __mem_load8(test_base + pos);
+  }
+  return char_at(pos);
+}
+
+// Lexer using test input
+fn lex_test(pos: i32) -> i32 {
+  let p: i32 = skip_ws_test(pos);
+  let c: i32 = char_at_test(p);
+  if (c == 0) { return pack_tok(tok_eof(), p); }
+
+  if (is_ident_start(c) == 1) {
+    let ident_end: i32 = scan_ident_test(p);
+    let ident_k: i32 = ident_kind_test(p, ident_end);
+    return pack_tok(ident_k, ident_end);
+  }
+  if (is_digit(c) == 1) {
+    let int_end: i32 = scan_int_test(p);
+    return pack_tok(tok_int(), int_end);
+  }
+
+  if (c == 40) { return pack_tok(tok_lparen(), p + 1); }
+  if (c == 41) { return pack_tok(tok_rparen(), p + 1); }
+  if (c == 123) { return pack_tok(tok_lbrace(), p + 1); }
+  if (c == 125) { return pack_tok(tok_rbrace(), p + 1); }
+  if (c == 58) { return pack_tok(tok_colon(), p + 1); }
+  if (c == 59) { return pack_tok(tok_semi(), p + 1); }
+  if (c == 43) { return pack_tok(tok_plus(), p + 1); }
+  if (c == 42) { return pack_tok(tok_star(), p + 1); }
+  if (c == 47) { return pack_tok(tok_slash(), p + 1); }
+  if (c == 60) {
+    if (char_at_test(p + 1) == 61) { return pack_tok(tok_le(), p + 2); }
+    return pack_tok(tok_lt(), p + 1);
+  }
+  if (c == 62) {
+    if (char_at_test(p + 1) == 61) { return pack_tok(tok_ge(), p + 2); }
+    return pack_tok(tok_gt(), p + 1);
+  }
+  if (c == 33) {
+    if (char_at_test(p + 1) == 61) { return pack_tok(tok_ne(), p + 2); }
+    return pack_tok(tok_bang(), p + 1);
+  }
+  if (c == 61) {
+    if (char_at_test(p + 1) == 61) { return pack_tok(tok_eqeq(), p + 2); }
+    return pack_tok(tok_eq(), p + 1);
+  }
+  if (c == 45) {
+    if (char_at_test(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); }
+    return pack_tok(tok_minus(), p + 1);
+  }
+  return pack_tok(tok_eof(), p + 1);
+}
+
+fn skip_ws_test(pos: i32) -> i32 {
+  let c: i32 = char_at_test(pos);
+  if (is_space(c) == 1) {
+    return skip_ws_test(pos + 1);
+  }
+  return pos;
+}
+
+fn scan_ident_test(pos: i32) -> i32 {
+  let c: i32 = char_at_test(pos);
+  if (is_ident_cont(c) == 1) {
+    return scan_ident_test(pos + 1);
+  }
+  return pos;
+}
+
+fn scan_int_test(pos: i32) -> i32 {
+  let c: i32 = char_at_test(pos);
+  if (is_digit(c) == 1) {
+    return scan_int_test(pos + 1);
+  }
+  return pos;
+}
+
+fn ident_kind_test(start: i32, end: i32) -> i32 {
+  // For test input, just return tok_ident for now
+  return tok_ident();
+}
+
+// Parse expression using test input
+fn peek_tok_test() -> i32 {
+  return lex_test(get_pos());
+}
+
+fn next_tok_test() -> i32 {
+  let tok: i32 = peek_tok_test();
+  set_pos(lex_next(tok));
+  return tok;
+}
+
+fn parse_expr_with_test_input() -> i32 {
+  return parse_cmp_test();
+}
+
+fn parse_cmp_test() -> i32 {
+  let left: i32 = parse_add_test();
+  if (left < 0) { return left; }
+  return left;
+}
+
+fn parse_add_test() -> i32 {
+  let left: i32 = parse_mul_test();
+  if (left < 0) { return left; }
+  return parse_add_rest_test(left);
+}
+
+fn parse_add_rest_test(left: i32) -> i32 {
+  let tok: i32 = peek_tok_test();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_plus()) { return parse_add_op_test(left, nk_add()); }
+  if (kind == tok_minus()) { return parse_add_op_test(left, nk_sub()); }
+  return left;
+}
+
+fn parse_add_op_test(left: i32, nk: i32) -> i32 {
+  next_tok_test();
+  let right: i32 = parse_mul_test();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return parse_add_rest_test(node);
+}
+
+fn parse_mul_test() -> i32 {
+  let left: i32 = parse_primary_test();
+  if (left < 0) { return left; }
+  return parse_mul_rest_test(left);
+}
+
+fn parse_mul_rest_test(left: i32) -> i32 {
+  let tok: i32 = peek_tok_test();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_star()) { return parse_mul_op_test(left, nk_mul()); }
+  if (kind == tok_slash()) { return parse_mul_op_test(left, nk_div()); }
+  return left;
+}
+
+fn parse_mul_op_test(left: i32, nk: i32) -> i32 {
+  next_tok_test();
+  let right: i32 = parse_primary_test();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return parse_mul_rest_test(node);
+}
+
+fn parse_primary_test() -> i32 {
+  let tok: i32 = peek_tok_test();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_int()) {
+    return parse_int_test();
+  }
+  if (kind == tok_ident()) {
+    return parse_ident_test();
+  }
+  if (kind == tok_lparen()) {
+    next_tok_test();
+    let inner: i32 = parse_expr_with_test_input();
+    let rtok: i32 = peek_tok_test();
+    if (lex_kind(rtok) != tok_rparen()) { return 0 - 1; }
+    next_tok_test();
+    return inner;
+  }
+  return 0 - 1;
+}
+
+fn parse_int_test() -> i32 {
+  let start: i32 = skip_ws_test(get_pos());
+  next_tok_test();
+  let val: i32 = int_value_test(start);
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_int(), val, 0, 0);
+  return node;
+}
+
+fn int_value_test(start: i32) -> i32 {
+  let end: i32 = find_int_end_test(start);
+  return int_value_range_test(start, end);
+}
+
+fn find_int_end_test(pos: i32) -> i32 {
+  let c: i32 = char_at_test(pos);
+  if (is_digit(c) == 1) {
+    return find_int_end_test(pos + 1);
+  }
+  return pos;
+}
+
+fn int_value_range_test(start: i32, end: i32) -> i32 {
+  if (start >= end) { return 0; }
+  let v: i32 = int_value_range_test(start + 1, end);
+  let d: i32 = char_at_test(start) - 48;
+  let pow: i32 = pow10(end - start - 1);
+  return d * pow + v;
+}
+
+fn parse_ident_test() -> i32 {
+  let start: i32 = skip_ws_test(get_pos());
+  next_tok_test();
+  let end: i32 = get_pos();
+  let id: i32 = 999;
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_ident(), id, 0, 0);
+  return node;
+}
+
+// ============================================================================
+// Stage 1.6: General Codegen
+// ============================================================================
+// Recursively emit IR from AST nodes
+
+// Initialize codegen state
+fn codegen_init() -> i32 {
+  set_ir_count(0);
+  return 0;
+}
+
+// Emit IR for an expression, leaves result on stack
+fn emit_ir_expr(node: i32) -> i32 {
+  let kind: i32 = ast_kind(node);
+
+  if (kind == nk_int()) {
+    return emit_ir_int(node);
+  }
+  if (kind == nk_ident()) {
+    return emit_ir_ident(node);
+  }
+  if (kind == nk_call()) {
+    return emit_ir_call(node);
+  }
+  if (kind == nk_add()) {
+    return emit_ir_binop(node, op_add());
+  }
+  if (kind == nk_sub()) {
+    return emit_ir_binop(node, op_sub());
+  }
+  if (kind == nk_mul()) {
+    return emit_ir_binop(node, op_mul());
+  }
+  if (kind == nk_div()) {
+    return emit_ir_binop(node, op_div());
+  }
+  if (kind == nk_lt()) {
+    return emit_ir_binop(node, op_lt());
+  }
+  if (kind == nk_gt()) {
+    return emit_ir_binop(node, op_gt());
+  }
+  if (kind == nk_eq()) {
+    return emit_ir_binop(node, op_eq());
+  }
+  if (kind == nk_ne()) {
+    return emit_ir_binop(node, op_ne());
+  }
+  if (kind == nk_le()) {
+    return emit_ir_binop(node, op_le());
+  }
+  if (kind == nk_ge()) {
+    return emit_ir_binop(node, op_ge());
+  }
+
+  return 0 - 1;
+}
+
+fn emit_ir_call(node: i32) -> i32 {
+  let fn_id: i32 = ast_a(node);
+  let first_arg: i32 = ast_b(node);
+  let arg_count: i32 = ast_c(node);
+
+  // Emit arguments (they go on the stack in order)
+  let args_ok: i32 = emit_ir_args(first_arg, arg_count, 0);
+  if (args_ok < 0) { return args_ok; }
+
+  // Emit call instruction
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_call(), fn_id);
+  return args_ok + 1;
+}
+
+fn emit_ir_args(first: i32, count: i32, total: i32) -> i32 {
+  if (count <= 0) { return total; }
+  let r: i32 = emit_ir_expr(first);
+  if (r < 0) { return r; }
+  return emit_ir_args(first + 1, count - 1, total + r);
+}
+
+fn emit_ir_int(node: i32) -> i32 {
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_const(), ast_a(node));
+  return 1;
+}
+
+fn emit_ir_ident(node: i32) -> i32 {
+  let ident_id: i32 = ast_a(node);
+  let local_idx: i32 = lookup_local(ident_id);
+  if (local_idx < 0) { return 0 - 1; }
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_load(), ident_id);
+  return 1;
+}
+
+fn emit_ir_binop(node: i32, op: i32) -> i32 {
+  let left: i32 = ast_a(node);
+  let right: i32 = ast_b(node);
+
+  let r1: i32 = emit_ir_expr(left);
+  if (r1 < 0) { return r1; }
+
+  let r2: i32 = emit_ir_expr(right);
+  if (r2 < 0) { return r2; }
+
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op, 0);
+  return r1 + r2 + 1;
+}
+
+// Emit IR for a statement
+fn emit_ir_stmt(node: i32) -> i32 {
+  let kind: i32 = ast_kind(node);
+
+  if (kind == nk_let()) {
+    return emit_ir_let(node);
+  }
+  if (kind == nk_return()) {
+    return emit_ir_return(node);
+  }
+  if (kind == nk_if()) {
+    return emit_ir_if(node);
+  }
+  if (kind == nk_while()) {
+    return emit_ir_while(node);
+  }
+  if (kind == nk_assign()) {
+    return emit_ir_assign(node);
+  }
+
+  return 0 - 1;
+}
+
+fn emit_ir_assign(node: i32) -> i32 {
+  let ident_id: i32 = ast_a(node);
+  let expr_node: i32 = ast_b(node);
+
+  // Emit expression
+  let r: i32 = emit_ir_expr(expr_node);
+  if (r < 0) { return r; }
+
+  // Emit store
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_store(), ident_id);
+  return r + 1;
+}
+
+fn emit_ir_let(node: i32) -> i32 {
+  let ident_id: i32 = ast_a(node);
+  let expr_node: i32 = ast_b(node);
+
+  // Emit expression
+  let r: i32 = emit_ir_expr(expr_node);
+  if (r < 0) { return r; }
+
+  // Emit store
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_store(), ident_id);
+  return r + 1;
+}
+
+fn emit_ir_return(node: i32) -> i32 {
+  let expr_node: i32 = ast_a(node);
+
+  // Emit expression
+  let r: i32 = emit_ir_expr(expr_node);
+  if (r < 0) { return r; }
+
+  // Emit return
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_ret(), 0);
+  return r + 1;
+}
+
+fn emit_ir_if(node: i32) -> i32 {
+  // For now, just emit condition and then-block
+  // Full if/else codegen needs block/br_if which is more complex
+  let cond_node: i32 = ast_a(node);
+  let then_block: i32 = ast_b(node);
+  let else_block: i32 = ast_c(node);
+
+  // Emit condition
+  let r1: i32 = emit_ir_expr(cond_node);
+  if (r1 < 0) { return r1; }
+
+  // Emit block start
+  let blk_idx: i32 = alloc_ir();
+  ir_set(blk_idx, op_block(), 0);
+
+  // Emit br_if to skip block if condition is false
+  let br_idx: i32 = alloc_ir();
+  ir_set(br_idx, op_br_if(), 0);
+
+  // Emit then statements
+  let r2: i32 = emit_ir_block_stmts(then_block);
+  if (r2 < 0) { return r2; }
+
+  // Emit block end
+  let end_idx: i32 = alloc_ir();
+  ir_set(end_idx, op_end(), 0);
+
+  // TODO: handle else block
+
+  return r1 + r2 + 3;
+}
+
+fn emit_ir_while(node: i32) -> i32 {
+  let cond_node: i32 = ast_a(node);
+  let body_block: i32 = ast_b(node);
+
+  // Emit loop start
+  let loop_idx: i32 = alloc_ir();
+  ir_set(loop_idx, op_loop(), 0);
+
+  // Emit condition
+  let r1: i32 = emit_ir_expr(cond_node);
+  if (r1 < 0) { return r1; }
+
+  // Emit br_if to exit loop if condition is false
+  let br_idx: i32 = alloc_ir();
+  ir_set(br_idx, op_br_if(), 1);
+
+  // Emit body
+  let r2: i32 = emit_ir_block_stmts(body_block);
+  if (r2 < 0) { return r2; }
+
+  // Emit br to loop start
+  let br_back: i32 = alloc_ir();
+  ir_set(br_back, op_br(), 0);
+
+  // Emit loop end
+  let end_idx: i32 = alloc_ir();
+  ir_set(end_idx, op_end(), 0);
+
+  return r1 + r2 + 4;
+}
+
+fn emit_ir_block_stmts(block_node: i32) -> i32 {
+  if (ast_kind(block_node) != nk_block()) { return 0 - 1; }
+  let first_stmt: i32 = ast_a(block_node);
+  let stmt_count: i32 = ast_b(block_node);
+  return emit_ir_stmts_range(first_stmt, stmt_count, 0);
+}
+
+fn emit_ir_stmts_range(start: i32, count: i32, total: i32) -> i32 {
+  if (count <= 0) { return total; }
+  let r: i32 = emit_ir_stmt(start);
+  if (r < 0) { return r; }
+  return emit_ir_stmts_range(start + 1, count - 1, total + r);
+}
+
+// ============================================================================
+// Stage 1.6 Test: General Codegen
+// ============================================================================
+fn test_general_codegen() -> i32 {
+  // Test emitting IR from a simple expression: 1 + 2
+  codegen_init();
+  parser_init(0);
+
+  // Build AST manually: add(int(1), int(2))
+  ast_set(0, nk_int(), 1, 0, 0);
+  ast_set(1, nk_int(), 2, 0, 0);
+  ast_set(2, nk_add(), 0, 1, 0);
+
+  // Emit IR for the expression
+  let r: i32 = emit_ir_expr(2);
+  if (r < 0) { return 0; }
+
+  // Should have emitted: const 1; const 2; add
+  if (get_ir_count() != 3) { return 0; }
+  if (ir_opcode(0) != op_const()) { return 0; }
+  if (ir_arg(0) != 1) { return 0; }
+  if (ir_opcode(1) != op_const()) { return 0; }
+  if (ir_arg(1) != 2) { return 0; }
+  if (ir_opcode(2) != op_add()) { return 0; }
+
+  // Test let statement: let x = 1 + 2;
+  codegen_init();
+  set_local_count(0);
+  add_local(100); // x has ident_id 100
+
+  // Build AST: let(x, add(int(1), int(2)))
+  ast_set(0, nk_int(), 1, 0, 0);
+  ast_set(1, nk_int(), 2, 0, 0);
+  ast_set(2, nk_add(), 0, 1, 0);
+  ast_set(3, nk_let(), 100, 2, 0);
+
+  // Emit IR for let statement
+  let r2: i32 = emit_ir_stmt(3);
+  if (r2 < 0) { return 0; }
+
+  // Should have: const 1; const 2; add; store x
+  if (get_ir_count() != 4) { return 0; }
+  if (ir_opcode(3) != op_store()) { return 0; }
+  if (ir_arg(3) != 100) { return 0; }
+
+  // End-to-end test: parse + codegen
+  let e2e_ok: i32 = test_end_to_end();
+  if (e2e_ok != 1) { return 0; }
+
+  return 1;
+}
+
+// ============================================================================
+// Stage 1.7: General WAT Lowering
+// ============================================================================
+
+fn state_wat_count() -> i32 { return state_base() + 20; }
+fn get_wat_count() -> i32 { return __mem_load(state_wat_count()); }
+fn set_wat_count(n: i32) -> i32 { __mem_store(state_wat_count(), n); return 0; }
+
+// Source buffer configuration for dynamic input (Stage 3)
+fn state_src_base() -> i32 { return state_base() + 24; }
+fn get_src_base() -> i32 { return __mem_load(state_src_base()); }
+fn set_src_base(base: i32) -> i32 { __mem_store(state_src_base(), base); return 0; }
+
+// Source buffer at 0x5000 (20KB)
+fn src_buffer_addr() -> i32 { return 20480; }
+fn src_buffer_size() -> i32 { return 4096; }
+
+// ============================================================================
+// Stage 4: Function Table
+// ============================================================================
+// Function table at 0x6000 (24KB)
+// Each entry: 12 bytes (ident_id: i32, param_count: i32, local_count: i32)
+fn fn_table_addr() -> i32 { return 24576; }
+fn fn_entry_size() -> i32 { return 12; }
+fn fn_table_max() -> i32 { return 64; }
+
+fn state_fn_count() -> i32 { return state_base() + 28; }
+fn get_fn_count() -> i32 { return __mem_load(state_fn_count()); }
+fn set_fn_count(n: i32) -> i32 { __mem_store(state_fn_count(), n); return 0; }
+
+fn fn_entry_addr(idx: i32, field: i32) -> i32 {
+  return fn_table_addr() + idx * fn_entry_size() + field;
+}
+
+fn fn_set(idx: i32, ident_id: i32, param_cnt: i32, local_cnt: i32) -> i32 {
+  __mem_store(fn_entry_addr(idx, 0), ident_id);
+  __mem_store(fn_entry_addr(idx, 4), param_cnt);
+  __mem_store(fn_entry_addr(idx, 8), local_cnt);
+  return 0;
+}
+
+fn fn_ident(idx: i32) -> i32 { return __mem_load(fn_entry_addr(idx, 0)); }
+fn fn_params(idx: i32) -> i32 { return __mem_load(fn_entry_addr(idx, 4)); }
+fn fn_locals(idx: i32) -> i32 { return __mem_load(fn_entry_addr(idx, 8)); }
+
+// Register a function, returns its index
+fn register_fn(ident_id: i32, param_cnt: i32) -> i32 {
+  let idx: i32 = get_fn_count();
+  fn_set(idx, ident_id, param_cnt, 0);
+  set_fn_count(idx + 1);
+  return idx;
+}
+
+// Look up function by ident_id, returns index or -1
+fn lookup_fn(ident_id: i32) -> i32 {
+  return lookup_fn_from(ident_id, 0, get_fn_count());
+}
+
+fn lookup_fn_from(ident_id: i32, idx: i32, count: i32) -> i32 {
+  if (idx >= count) { return 0 - 1; }
+  if (fn_ident(idx) == ident_id) { return idx; }
+  return lookup_fn_from(ident_id, idx + 1, count);
+}
+
+// Read character from dynamic source (memory buffer or fallback to hardcoded)
+fn char_at_dyn(pos: i32) -> i32 {
+  let base: i32 = get_src_base();
+  if (base > 0) {
+    return __mem_load8(base + pos);
+  }
+  return char_at(pos);
+}
+
+// Initialize source buffer for dynamic input
+fn init_src_buffer() -> i32 {
+  set_src_base(src_buffer_addr());
+  return 0;
+}
+
+// Clear source buffer (revert to hardcoded)
+fn clear_src_buffer() -> i32 {
+  set_src_base(0);
+  return 0;
+}
+
+// Store a byte in the source buffer
+fn src_store(pos: i32, byte: i32) -> i32 {
+  let base: i32 = get_src_base();
+  __mem_store8(base + pos, byte);
+  return 0;
+}
+
+// ============================================================================
+// Stage 3: Dynamic Lexer (reads from memory buffer)
+// ============================================================================
+
+fn lex_dyn(pos: i32) -> i32 {
+  let p: i32 = skip_ws_dyn(pos);
+  let c: i32 = char_at_dyn(p);
+  if (c == 0) { return pack_tok(tok_eof(), p); }
+
+  if (is_ident_start(c) == 1) {
+    let ident_end: i32 = scan_ident_dyn(p);
+    let ident_k: i32 = ident_kind_dyn(p, ident_end);
+    return pack_tok(ident_k, ident_end);
+  }
+  if (is_digit(c) == 1) {
+    let int_end: i32 = scan_int_dyn(p);
+    return pack_tok(tok_int(), int_end);
+  }
+
+  if (c == 40) { return pack_tok(tok_lparen(), p + 1); }
+  if (c == 41) { return pack_tok(tok_rparen(), p + 1); }
+  if (c == 123) { return pack_tok(tok_lbrace(), p + 1); }
+  if (c == 125) { return pack_tok(tok_rbrace(), p + 1); }
+  if (c == 58) { return pack_tok(tok_colon(), p + 1); }
+  if (c == 59) { return pack_tok(tok_semi(), p + 1); }
+  if (c == 44) { return pack_tok(tok_comma(), p + 1); }
+  if (c == 43) { return pack_tok(tok_plus(), p + 1); }
+  if (c == 42) { return pack_tok(tok_star(), p + 1); }
+  if (c == 47) { return pack_tok(tok_slash(), p + 1); }
+  if (c == 60) {
+    if (char_at_dyn(p + 1) == 61) { return pack_tok(tok_le(), p + 2); }
+    return pack_tok(tok_lt(), p + 1);
+  }
+  if (c == 62) {
+    if (char_at_dyn(p + 1) == 61) { return pack_tok(tok_ge(), p + 2); }
+    return pack_tok(tok_gt(), p + 1);
+  }
+  if (c == 33) {
+    if (char_at_dyn(p + 1) == 61) { return pack_tok(tok_ne(), p + 2); }
+    return pack_tok(tok_bang(), p + 1);
+  }
+  if (c == 61) {
+    if (char_at_dyn(p + 1) == 61) { return pack_tok(tok_eqeq(), p + 2); }
+    return pack_tok(tok_eq(), p + 1);
+  }
+  if (c == 45) {
+    if (char_at_dyn(p + 1) == 62) { return pack_tok(tok_arrow(), p + 2); }
+    return pack_tok(tok_minus(), p + 1);
+  }
+  return pack_tok(tok_eof(), p + 1);
+}
+
+fn skip_ws_dyn(pos: i32) -> i32 {
+  let c: i32 = char_at_dyn(pos);
+  if (is_space(c) == 1) {
+    return skip_ws_dyn(pos + 1);
+  }
+  // Skip // comments
+  if (c == 47) {
+    if (char_at_dyn(pos + 1) == 47) {
+      return skip_line_comment(pos + 2);
+    }
+  }
+  return pos;
+}
+
+fn skip_line_comment(pos: i32) -> i32 {
+  let c: i32 = char_at_dyn(pos);
+  if (c == 0) { return pos; }
+  if (c == 10) { return skip_ws_dyn(pos + 1); }
+  return skip_line_comment(pos + 1);
+}
+
+fn scan_ident_dyn(pos: i32) -> i32 {
+  let c: i32 = char_at_dyn(pos);
+  if (is_ident_cont(c) == 1) {
+    return scan_ident_dyn(pos + 1);
+  }
+  return pos;
+}
+
+fn scan_int_dyn(pos: i32) -> i32 {
+  let c: i32 = char_at_dyn(pos);
+  if (is_digit(c) == 1) {
+    return scan_int_dyn(pos + 1);
+  }
+  return pos;
+}
+
+fn ident_kind_dyn(start: i32, end: i32) -> i32 {
+  let len: i32 = end - start;
+  if (len == 2) {
+    if (char_at_dyn(start) == 102) {
+      if (char_at_dyn(start + 1) == 110) { return tok_fn(); }
+    }
+    if (char_at_dyn(start) == 105) {
+      if (char_at_dyn(start + 1) == 102) { return tok_if(); }
+    }
+  }
+  if (len == 3) {
+    if (char_at_dyn(start) == 108) {
+      if (char_at_dyn(start + 1) == 101) {
+        if (char_at_dyn(start + 2) == 116) { return tok_let(); }
+      }
+    }
+    if (char_at_dyn(start) == 105) {
+      if (char_at_dyn(start + 1) == 51) {
+        if (char_at_dyn(start + 2) == 50) { return tok_i32(); }
+      }
+    }
+  }
+  if (len == 4) {
+    if (char_at_dyn(start) == 101) {
+      if (char_at_dyn(start + 1) == 108) {
+        if (char_at_dyn(start + 2) == 115) {
+          if (char_at_dyn(start + 3) == 101) { return tok_else(); }
+        }
+      }
+    }
+  }
+  if (len == 5) {
+    if (char_at_dyn(start) == 119) {
+      if (char_at_dyn(start + 1) == 104) {
+        if (char_at_dyn(start + 2) == 105) {
+          if (char_at_dyn(start + 3) == 108) {
+            if (char_at_dyn(start + 4) == 101) { return tok_while(); }
+          }
+        }
+      }
+    }
+  }
+  if (len == 6) {
+    if (char_at_dyn(start) == 114) {
+      if (char_at_dyn(start + 1) == 101) {
+        if (char_at_dyn(start + 2) == 116) {
+          if (char_at_dyn(start + 3) == 117) {
+            if (char_at_dyn(start + 4) == 114) {
+              if (char_at_dyn(start + 5) == 110) { return tok_return(); }
+            }
+          }
+        }
+      }
+    }
+  }
+  return tok_ident();
+}
+
+fn int_value_dyn(start: i32, end: i32) -> i32 {
+  if (start >= end) { return 0; }
+  let v: i32 = int_value_dyn(start + 1, end);
+  let d: i32 = char_at_dyn(start) - 48;
+  let pow: i32 = pow10(end - start - 1);
+  return d * pow + v;
+}
+
+fn ident_id_dyn(start: i32, end: i32) -> i32 {
+  let len: i32 = end - start;
+  let c0: i32 = char_at_dyn(start);
+  return c0 * 256 + len;
+}
+
+// Dynamic parser functions
+fn peek_tok_dyn() -> i32 {
+  return lex_dyn(get_pos());
+}
+
+fn next_tok_dyn() -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  set_pos(lex_next(tok));
+  return tok;
+}
+
+fn expect_dyn(kind: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == kind) {
+    next_tok_dyn();
+    return 1;
+  }
+  return 0;
+}
+
+// Parse primary expression with dynamic input
+fn parse_primary_dyn() -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_int()) {
+    return parse_int_dyn();
+  }
+  if (kind == tok_ident()) {
+    return parse_ident_or_call_dyn();
+  }
+  if (kind == tok_lparen()) {
+    next_tok_dyn();
+    let inner: i32 = parse_expr_dyn();
+    if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
+    return inner;
+  }
+  return 0 - 1;
+}
+
+// Parse identifier or function call
+fn parse_ident_or_call_dyn() -> i32 {
+  let start: i32 = skip_ws_dyn(get_pos());
+  next_tok_dyn();
+  let end: i32 = scan_ident_dyn(start);
+  let id: i32 = ident_id_dyn(start, end);
+
+  // Check if followed by (
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_lparen()) {
+    return parse_call_dyn(id);
+  }
+
+  // Just an identifier
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_ident(), id, 0, 0);
+  return node;
+}
+
+// Parse function call: name(args...)
+// nk_call: arg_a = fn_id, arg_b = first_arg_node, arg_c = arg_count
+fn parse_call_dyn(fn_id: i32) -> i32 {
+  if (expect_dyn(tok_lparen()) != 1) { return 0 - 1; }
+
+  let first_arg: i32 = get_ast_count();
+  let arg_count: i32 = parse_args_dyn();
+  if (arg_count < 0) { return 0 - 1; }
+
+  if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
+
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_call(), fn_id, first_arg, arg_count);
+  return node;
+}
+
+// Parse argument list
+fn parse_args_dyn() -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_rparen()) { return 0; }
+  return parse_arg_list_dyn(0);
+}
+
+fn parse_arg_list_dyn(count: i32) -> i32 {
+  let arg: i32 = parse_expr_dyn();
+  if (arg < 0) { return 0 - 1; }
+
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_comma()) {
+    next_tok_dyn();
+    return parse_arg_list_dyn(count + 1);
+  }
+
+  return count + 1;
+}
+
+fn parse_int_dyn() -> i32 {
+  let start: i32 = skip_ws_dyn(get_pos());
+  next_tok_dyn();
+  let end: i32 = scan_int_dyn(start);
+  let val: i32 = int_value_dyn(start, end);
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_int(), val, 0, 0);
+  return node;
+}
+
+fn parse_mul_dyn() -> i32 {
+  let left: i32 = parse_primary_dyn();
+  if (left < 0) { return left; }
+  return parse_mul_rest_dyn(left);
+}
+
+fn parse_mul_rest_dyn(left: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  let kind: i32 = lex_kind(tok);
+  if (kind == tok_star()) { return parse_mul_op_dyn(left, nk_mul()); }
+  if (kind == tok_slash()) { return parse_mul_op_dyn(left, nk_div()); }
+  return left;
+}
+
+fn parse_mul_op_dyn(left: i32, nk: i32) -> i32 {
+  next_tok_dyn();
+  let right: i32 = parse_primary_dyn();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return parse_mul_rest_dyn(node);
+}
+
+fn parse_add_dyn() -> i32 {
+  let left: i32 = parse_mul_dyn();
+  if (left < 0) { return left; }
+  return parse_add_rest_dyn(left);
+}
+
+fn parse_add_rest_dyn(left: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  let kind: i32 = lex_kind(tok);
+  if (kind == tok_plus()) { return parse_add_op_dyn(left, nk_add()); }
+  if (kind == tok_minus()) { return parse_add_op_dyn(left, nk_sub()); }
+  return left;
+}
+
+fn parse_add_op_dyn(left: i32, nk: i32) -> i32 {
+  next_tok_dyn();
+  let right: i32 = parse_mul_dyn();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return parse_add_rest_dyn(node);
+}
+
+fn parse_cmp_dyn() -> i32 {
+  let left: i32 = parse_add_dyn();
+  if (left < 0) { return left; }
+  let tok: i32 = peek_tok_dyn();
+  let kind: i32 = lex_kind(tok);
+  if (kind == tok_eqeq()) { return parse_cmp_op_dyn(left, nk_eq()); }
+  if (kind == tok_ne()) { return parse_cmp_op_dyn(left, nk_ne()); }
+  if (kind == tok_lt()) { return parse_cmp_op_dyn(left, nk_lt()); }
+  if (kind == tok_gt()) { return parse_cmp_op_dyn(left, nk_gt()); }
+  if (kind == tok_le()) { return parse_cmp_op_dyn(left, nk_le()); }
+  if (kind == tok_ge()) { return parse_cmp_op_dyn(left, nk_ge()); }
+  return left;
+}
+
+fn parse_cmp_op_dyn(left: i32, nk: i32) -> i32 {
+  next_tok_dyn();
+  let right: i32 = parse_add_dyn();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return node;
+}
+
+fn parse_expr_dyn() -> i32 {
+  return parse_cmp_dyn();
+}
+
+// Statement parsing with dynamic input
+fn parse_stmt_dyn() -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  let kind: i32 = lex_kind(tok);
+  if (kind == tok_let()) { return parse_let_dyn(); }
+  if (kind == tok_return()) { return parse_return_dyn(); }
+  if (kind == tok_if()) { return parse_if_dyn(); }
+  if (kind == tok_while()) { return parse_while_dyn(); }
+  if (kind == tok_ident()) { return parse_assign_or_expr_dyn(); }
+  return 0 - 1;
+}
+
+// Parse assignment (x = expr;) or expression statement
+fn parse_assign_or_expr_dyn() -> i32 {
+  let start: i32 = skip_ws_dyn(get_pos());
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  next_tok_dyn();
+  let end: i32 = scan_ident_dyn(start);
+  let id: i32 = ident_id_dyn(start, end);
+
+  // Check if followed by = (assignment)
+  let next: i32 = peek_tok_dyn();
+  if (lex_kind(next) == tok_eq()) {
+    next_tok_dyn();
+    let expr: i32 = parse_expr_dyn();
+    if (expr < 0) { return expr; }
+    if (expect_dyn(tok_semi()) != 1) { return 0 - 1; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_assign(), id, expr, 0);
+    return node;
+  }
+
+  // Not an assignment, rewind and try as expression statement
+  // For now, return error (expression statements not supported)
+  return 0 - 1;
+}
+
+fn parse_let_dyn() -> i32 {
+  if (expect_dyn(tok_let()) != 1) { return 0 - 1; }
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  let start: i32 = skip_ws_dyn(get_pos());
+  next_tok_dyn();
+  let end: i32 = scan_ident_dyn(start);
+  let id: i32 = ident_id_dyn(start, end);
+  if (expect_dyn(tok_colon()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_i32()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_eq()) != 1) { return 0 - 1; }
+  let expr: i32 = parse_expr_dyn();
+  if (expr < 0) { return expr; }
+  if (expect_dyn(tok_semi()) != 1) { return 0 - 1; }
+  add_local(id);
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_let(), id, expr, 0);
+  return node;
+}
+
+fn parse_return_dyn() -> i32 {
+  if (expect_dyn(tok_return()) != 1) { return 0 - 1; }
+  let expr: i32 = parse_expr_dyn();
+  if (expr < 0) { return expr; }
+  if (expect_dyn(tok_semi()) != 1) { return 0 - 1; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_return(), expr, 0, 0);
+  return node;
+}
+
+fn parse_if_dyn() -> i32 {
+  if (expect_dyn(tok_if()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_lparen()) != 1) { return 0 - 1; }
+  let cond: i32 = parse_expr_dyn();
+  if (cond < 0) { return cond; }
+  if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+  let then_block: i32 = parse_block_dyn();
+  if (then_block < 0) { return then_block; }
+  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+  let else_block: i32 = 0 - 1;
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_else()) {
+    next_tok_dyn();
+    if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+    else_block = parse_block_dyn();
+    if (else_block < 0) { return else_block; }
+    if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+  }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_if(), cond, then_block, else_block);
+  return node;
+}
+
+fn parse_while_dyn() -> i32 {
+  if (expect_dyn(tok_while()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_lparen()) != 1) { return 0 - 1; }
+  let cond: i32 = parse_expr_dyn();
+  if (cond < 0) { return cond; }
+  if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+  let body: i32 = parse_block_dyn();
+  if (body < 0) { return body; }
+  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_while(), cond, body, 0);
+  return node;
+}
+
+fn parse_block_dyn() -> i32 {
+  let first_stmt: i32 = get_ast_count();
+  let count: i32 = parse_stmts_dyn(0);
+  if (count < 0) { return 0 - 1; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_block(), first_stmt, count, 0);
+  return node;
+}
+
+fn parse_stmts_dyn(count: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  let kind: i32 = lex_kind(tok);
+  if (kind == tok_rbrace()) { return count; }
+  if (kind == tok_eof()) { return count; }
+  let stmt: i32 = parse_stmt_dyn();
+  if (stmt < 0) { return 0 - 1; }
+  return parse_stmts_dyn(count + 1);
+}
+
+// Parse function header with dynamic input
+fn parse_fn_header_dyn() -> i32 {
+  if (expect_dyn(tok_fn()) != 1) { return 0; }
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) != tok_ident()) { return 0; }
+  next_tok_dyn();
+  if (expect_dyn(tok_lparen()) != 1) { return 0; }
+  if (expect_dyn(tok_rparen()) != 1) { return 0; }
+  if (expect_dyn(tok_arrow()) != 1) { return 0; }
+  if (expect_dyn(tok_i32()) != 1) { return 0; }
+  if (expect_dyn(tok_lbrace()) != 1) { return 0; }
+  return 1;
+}
+
+// Parse function body with dynamic input
+fn parse_fn_body_dyn() -> i32 {
+  let first_stmt: i32 = get_ast_count();
+  let count: i32 = parse_fn_stmts_dyn(0);
+  if (count < 0) { return 0 - 1; }
+  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_block(), first_stmt, count, 0);
+  return node;
+}
+
+fn parse_fn_stmts_dyn(count: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  let kind: i32 = lex_kind(tok);
+  if (kind == tok_rbrace()) { return count; }
+  if (kind == tok_eof()) { return count; }
+  let stmt: i32 = parse_stmt_dyn();
+  if (stmt < 0) { return 0 - 1; }
+  return parse_fn_stmts_dyn(count + 1);
+}
+
+// Compile function from dynamic source buffer
+fn compile_fn_dyn() -> i32 {
+  parser_init(0);
+  codegen_init();
+  wat_init();
+  let hdr: i32 = parse_fn_header_dyn();
+  if (hdr != 1) { return 0; }
+  let body: i32 = parse_fn_body_dyn();
+  if (body < 0) { return 0; }
+  let ir_ok: i32 = emit_ir_block_stmts(body);
+  if (ir_ok < 0) { return 0; }
+  let wat_ok: i32 = emit_wat_from_ir_general();
+  if (wat_ok != 1) { return 0; }
+  return 1;
+}
+
+// ============================================================================
+// Stage 3 Test: Compile from dynamic input
+// ============================================================================
+
+fn test_dynamic_compile() -> i32 {
+  // Load a DIFFERENT program into memory and compile it
+  // Program: fn main() -> i32 { let a: i32 = 5; let b: i32 = 3; return a * b; }
+  // This should produce: const 5; store a; const 3; store b; load a; load b; mul; ret
+  init_src_buffer();
+  load_test_program();
+
+  let ok: i32 = compile_fn_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Verify IR: should have 8 instructions
+  let ir_cnt: i32 = get_ir_count();
+  if (ir_cnt != 8) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Verify: const 5
+  if (ir_opcode(0) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(0) != 5) { clear_src_buffer(); return 0; }
+
+  // Verify: store a
+  if (ir_opcode(1) != op_store()) { clear_src_buffer(); return 0; }
+
+  // Verify: const 3
+  if (ir_opcode(2) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(2) != 3) { clear_src_buffer(); return 0; }
+
+  // Verify: store b
+  if (ir_opcode(3) != op_store()) { clear_src_buffer(); return 0; }
+
+  // Verify: load a, load b, mul
+  if (ir_opcode(4) != op_load()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(5) != op_load()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(6) != op_mul()) { clear_src_buffer(); return 0; }
+
+  // Verify: ret
+  if (ir_opcode(7) != op_ret()) { clear_src_buffer(); return 0; }
+
+  // Verify WAT output
+  if (get_wat_count() != 8) { clear_src_buffer(); return 0; }
+  if (wat_opcode(0) != w_const()) { clear_src_buffer(); return 0; }
+  if (wat_arg(0) != 5) { clear_src_buffer(); return 0; }
+  if (wat_opcode(6) != w_mul()) { clear_src_buffer(); return 0; }
+  if (wat_opcode(7) != w_return()) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Load test program: "fn main() -> i32 { let a: i32 = 5; let b: i32 = 3; return a * b; }"
+fn load_test_program() -> i32 {
+  let i: i32 = 0;
+  // f
+  src_store(i, 102); i = i + 1;
+  // n
+  src_store(i, 110); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // m
+  src_store(i, 109); i = i + 1;
+  // a
+  src_store(i, 97); i = i + 1;
+  // i
+  src_store(i, 105); i = i + 1;
+  // n
+  src_store(i, 110); i = i + 1;
+  // (
+  src_store(i, 40); i = i + 1;
+  // )
+  src_store(i, 41); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // -
+  src_store(i, 45); i = i + 1;
+  // >
+  src_store(i, 62); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // i
+  src_store(i, 105); i = i + 1;
+  // 3
+  src_store(i, 51); i = i + 1;
+  // 2
+  src_store(i, 50); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // {
+  src_store(i, 123); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // l
+  src_store(i, 108); i = i + 1;
+  // e
+  src_store(i, 101); i = i + 1;
+  // t
+  src_store(i, 116); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // a
+  src_store(i, 97); i = i + 1;
+  // :
+  src_store(i, 58); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // i
+  src_store(i, 105); i = i + 1;
+  // 3
+  src_store(i, 51); i = i + 1;
+  // 2
+  src_store(i, 50); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // =
+  src_store(i, 61); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // 5
+  src_store(i, 53); i = i + 1;
+  // ;
+  src_store(i, 59); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // l
+  src_store(i, 108); i = i + 1;
+  // e
+  src_store(i, 101); i = i + 1;
+  // t
+  src_store(i, 116); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // b
+  src_store(i, 98); i = i + 1;
+  // :
+  src_store(i, 58); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // i
+  src_store(i, 105); i = i + 1;
+  // 3
+  src_store(i, 51); i = i + 1;
+  // 2
+  src_store(i, 50); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // =
+  src_store(i, 61); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // 3
+  src_store(i, 51); i = i + 1;
+  // ;
+  src_store(i, 59); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // r
+  src_store(i, 114); i = i + 1;
+  // e
+  src_store(i, 101); i = i + 1;
+  // t
+  src_store(i, 116); i = i + 1;
+  // u
+  src_store(i, 117); i = i + 1;
+  // r
+  src_store(i, 114); i = i + 1;
+  // n
+  src_store(i, 110); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // a
+  src_store(i, 97); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // *
+  src_store(i, 42); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // b
+  src_store(i, 98); i = i + 1;
+  // ;
+  src_store(i, 59); i = i + 1;
+  // space
+  src_store(i, 32); i = i + 1;
+  // }
+  src_store(i, 125); i = i + 1;
+  // null terminator
+  src_store(i, 0);
+  return 0;
+}
+
+// Test: compile a program with if statement from dynamic input
+fn test_dynamic_if() -> i32 {
+  // Program: fn main() -> i32 { let x: i32 = 5; if (x > 3) { return 1; } return 0; }
+  init_src_buffer();
+  load_if_program();
+
+  let ok: i32 = compile_fn_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Verify we got some IR with control flow
+  let ir_cnt: i32 = get_ir_count();
+  if (ir_cnt < 5) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Should start with: const 5; store x
+  if (ir_opcode(0) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(0) != 5) { clear_src_buffer(); return 0; }
+  if (ir_opcode(1) != op_store()) { clear_src_buffer(); return 0; }
+
+  // Should have block/br_if for the if
+  let has_block: i32 = find_ir_opcode(op_block(), 0, ir_cnt);
+  if (has_block != 1) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+fn find_ir_opcode(op: i32, idx: i32, cnt: i32) -> i32 {
+  if (idx >= cnt) { return 0; }
+  if (ir_opcode(idx) == op) { return 1; }
+  return find_ir_opcode(op, idx + 1, cnt);
+}
+
+// Load: "fn main() -> i32 { let x: i32 = 5; if (x > 3) { return 1; } return 0; }"
+fn load_if_program() -> i32 {
+  let i: i32 = 0;
+  // "fn main() -> i32 { "
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  // "let x: i32 = 5; "
+  i = store_str(i, 108); // l
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 61);  // =
+  i = store_str(i, 32);  // space
+  i = store_str(i, 53);  // 5
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  // "if (x > 3) { "
+  i = store_str(i, 105); // i
+  i = store_str(i, 102); // f
+  i = store_str(i, 32);  // space
+  i = store_str(i, 40);  // (
+  i = store_str(i, 120); // x
+  i = store_str(i, 32);  // space
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  // "return 1; "
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 49);  // 1
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  // "} "
+  i = store_str(i, 125); // }
+  i = store_str(i, 32);  // space
+  // "return 0; }"
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 48);  // 0
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+fn store_str(pos: i32, byte: i32) -> i32 {
+  src_store(pos, byte);
+  return pos + 1;
+}
+
+// ============================================================================
+// Stage 4 Test: Function calls
+// ============================================================================
+
+fn test_function_call() -> i32 {
+  // Test parsing and compiling a program with a function call
+  // Program: fn main() -> i32 { return foo(); }
+  // We'll manually build the AST and test codegen
+
+  parser_init(0);
+  codegen_init();
+  set_fn_count(0);
+
+  // Register function "foo" with ident_id 1000
+  register_fn(1000, 0);
+
+  // Build AST: return foo();
+  // Node 0: call foo
+  ast_set(0, nk_call(), 1000, 0, 0);
+  // Node 1: return (node 0)
+  ast_set(1, nk_return(), 0, 0, 0);
+
+  // Emit IR
+  let r: i32 = emit_ir_stmt(1);
+  if (r < 0) { return 0; }
+
+  // Should have: call foo; ret
+  if (get_ir_count() != 2) { return 0; }
+  if (ir_opcode(0) != op_call()) { return 0; }
+  if (ir_arg(0) != 1000) { return 0; }
+  if (ir_opcode(1) != op_ret()) { return 0; }
+
+  // Lower to WAT
+  let w: i32 = emit_wat_from_ir_general();
+  if (w != 1) { return 0; }
+
+  // Should have: call; return
+  if (get_wat_count() != 2) { return 0; }
+  if (wat_opcode(0) != w_call()) { return 0; }
+  if (wat_arg(0) != 1000) { return 0; }
+  if (wat_opcode(1) != w_return()) { return 0; }
+
+  return 1;
+}
+
+// Test parsing a function call from dynamic input
+fn test_parse_call_dyn() -> i32 {
+  // Program: fn main() -> i32 { return add(); }
+  init_src_buffer();
+  load_call_program();
+
+  // Register "add" function with expected ident_id
+  // 'a' = 97, len = 3, so ident_id = 97 * 256 + 3 = 24835
+  set_fn_count(0);
+  register_fn(24835, 0);
+
+  let ok: i32 = compile_fn_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Should have: call; ret
+  if (get_ir_count() != 2) { clear_src_buffer(); return 0; }
+  if (ir_opcode(0) != op_call()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(1) != op_ret()) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// ============================================================================
+// Stage 4: Multi-function parsing
+// ============================================================================
+
+// Function AST storage: track each function's body node
+fn state_fn_ast_base() -> i32 { return state_base() + 32; }
+fn fn_ast_addr(idx: i32) -> i32 { return fn_table_addr() + 768 + idx * 4; }
+
+fn set_fn_ast(idx: i32, body_node: i32) -> i32 {
+  __mem_store(fn_ast_addr(idx), body_node);
+  return 0;
+}
+
+fn get_fn_ast(idx: i32) -> i32 {
+  return __mem_load(fn_ast_addr(idx));
+}
+
+// Parse a single function definition, returns function index
+fn parse_fn_def_dyn() -> i32 {
+  if (expect_dyn(tok_fn()) != 1) { return 0 - 1; }
+
+  // Parse function name
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  let start: i32 = skip_ws_dyn(get_pos());
+  next_tok_dyn();
+  let end: i32 = scan_ident_dyn(start);
+  let fn_id: i32 = ident_id_dyn(start, end);
+
+  // Reset locals for this function (params will be added first)
+  set_local_count(0);
+
+  // Parse parameters
+  if (expect_dyn(tok_lparen()) != 1) { return 0 - 1; }
+  let param_count: i32 = parse_params_dyn();
+  if (param_count < 0) { return 0 - 1; }
+  if (expect_dyn(tok_rparen()) != 1) { return 0 - 1; }
+
+  // Register function with param count
+  let fn_idx: i32 = register_fn(fn_id, param_count);
+
+  // Parse -> type
+  if (expect_dyn(tok_arrow()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_i32()) != 1) { return 0 - 1; }
+
+  // Parse { body }
+  if (expect_dyn(tok_lbrace()) != 1) { return 0 - 1; }
+
+  let body: i32 = parse_block_dyn();
+  if (body < 0) { return 0 - 1; }
+
+  if (expect_dyn(tok_rbrace()) != 1) { return 0 - 1; }
+
+  // Store function's body AST and local count
+  set_fn_ast(fn_idx, body);
+  set_fn_local_count(fn_idx, get_local_count());
+
+  return fn_idx;
+}
+
+// Parse function parameters: (name: type, name: type, ...)
+// Returns parameter count
+fn parse_params_dyn() -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_rparen()) { return 0; }
+  return parse_param_list_dyn(0);
+}
+
+fn parse_param_list_dyn(count: i32) -> i32 {
+  // Parse param name
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  let start: i32 = skip_ws_dyn(get_pos());
+  next_tok_dyn();
+  let end: i32 = scan_ident_dyn(start);
+  let param_id: i32 = ident_id_dyn(start, end);
+
+  // Parse : type
+  if (expect_dyn(tok_colon()) != 1) { return 0 - 1; }
+  if (expect_dyn(tok_i32()) != 1) { return 0 - 1; }
+
+  // Register parameter as a local (params come first in local indices)
+  add_local(param_id);
+
+  // Check for more params
+  let next: i32 = peek_tok_dyn();
+  if (lex_kind(next) == tok_comma()) {
+    next_tok_dyn();
+    return parse_param_list_dyn(count + 1);
+  }
+
+  return count + 1;
+}
+
+// Store function's local count
+fn set_fn_local_count(idx: i32, count: i32) -> i32 {
+  __mem_store(fn_entry_addr(idx, 8), count);
+  return 0;
+}
+
+// Parse multiple functions until EOF
+fn parse_program_dyn() -> i32 {
+  return parse_fns_dyn(0);
+}
+
+fn parse_fns_dyn(count: i32) -> i32 {
+  let tok: i32 = peek_tok_dyn();
+  if (lex_kind(tok) == tok_eof()) { return count; }
+  if (lex_kind(tok) != tok_fn()) { return count; }
+
+  let fn_idx: i32 = parse_fn_def_dyn();
+  if (fn_idx < 0) { return 0 - 1; }
+
+  return parse_fns_dyn(count + 1);
+}
+
+// Compile all functions in the program
+fn compile_program_dyn() -> i32 {
+  parser_init(0);
+  set_fn_count(0);
+
+  // First pass: parse all functions
+  let fn_count: i32 = parse_program_dyn();
+  if (fn_count < 0) { return 0; }
+
+  // Second pass: emit IR for each function
+  // For now, just emit main's code
+  let main_idx: i32 = find_main_fn();
+  if (main_idx < 0) { return 0; }
+
+  codegen_init();
+  wat_init();
+
+  let body: i32 = get_fn_ast(main_idx);
+  let ir_ok: i32 = emit_ir_block_stmts(body);
+  if (ir_ok < 0) { return 0; }
+
+  let wat_ok: i32 = emit_wat_from_ir_general();
+  if (wat_ok != 1) { return 0; }
+
+  return 1;
+}
+
+// Compile program and write WAT to stdout
+fn compile_program_to_stdout() -> i32 {
+  parser_init(0);
+  set_fn_count(0);
+
+  let fn_count: i32 = parse_program_dyn();
+  if (fn_count < 0) { return 0; }
+
+  let len: i32 = gen_wat_module_all();
+  if (len <= 0) { return 0; }
+
+  return out_flush();
+}
+
+// Compile all functions in program (full version)
+fn compile_all_fns_dyn() -> i32 {
+  parser_init(0);
+  set_fn_count(0);
+
+  // First pass: parse all functions
+  let fn_count: i32 = parse_program_dyn();
+  if (fn_count < 0) { return 0; }
+
+  // Second pass: emit IR/WAT for each function
+  return compile_fns_ir(0, fn_count);
+}
+
+fn compile_fns_ir(idx: i32, count: i32) -> i32 {
+  if (idx >= count) { return 1; }
+
+  // Emit IR for this function
+  codegen_init();
+  let body: i32 = get_fn_ast(idx);
+  let ir_ok: i32 = emit_ir_block_stmts(body);
+  if (ir_ok < 0) { return 0; }
+
+  // Store IR count for this function
+  set_fn_ir_count(idx, get_ir_count());
+
+  return compile_fns_ir(idx + 1, count);
+}
+
+// Per-function IR count storage
+fn fn_ir_count_addr(idx: i32) -> i32 { return fn_table_addr() + 1024 + idx * 4; }
+
+fn set_fn_ir_count(idx: i32, count: i32) -> i32 {
+  __mem_store(fn_ir_count_addr(idx), count);
+  return 0;
+}
+
+fn get_fn_ir_count(idx: i32) -> i32 {
+  return __mem_load(fn_ir_count_addr(idx));
+}
+
+// ============================================================================
+// Stage 5: WAT Text Output
+// ============================================================================
+// Output buffer at 0x8000 (32KB), size 16KB
+fn out_buffer_addr() -> i32 { return 32768; }
+fn out_buffer_size() -> i32 { return 16384; }
+fn io_vec_addr() -> i32 { return 49152; }
+fn io_nwritten_addr() -> i32 { return 49160; }
+
+fn state_out_pos() -> i32 { return state_base() + 36; }
+fn get_out_pos() -> i32 { return __mem_load(state_out_pos()); }
+fn set_out_pos(p: i32) -> i32 { __mem_store(state_out_pos(), p); return 0; }
+
+fn out_init() -> i32 {
+  set_out_pos(0);
+  return 0;
+}
+
+// Flush output buffer to stdout via WASI fd_write
+fn out_flush() -> i32 {
+  let len: i32 = get_out_pos();
+  __mem_store(io_vec_addr(), out_buffer_addr());
+  __mem_store(io_vec_addr() + 4, len);
+  __mem_store(io_nwritten_addr(), 0);
+  return __fd_write(1, io_vec_addr(), 1, io_nwritten_addr());
+}
+
+// Append a single byte to output
+fn out_byte(b: i32) -> i32 {
+  let pos: i32 = get_out_pos();
+  __mem_store8(out_buffer_addr() + pos, b);
+  set_out_pos(pos + 1);
+  return 0;
+}
+
+// Append a character (same as byte)
+fn out_char(c: i32) -> i32 {
+  return out_byte(c);
+}
+
+// Append a newline
+fn out_nl() -> i32 {
+  return out_char(10);
+}
+
+// Append a space
+fn out_sp() -> i32 {
+  return out_char(32);
+}
+
+// Append multiple spaces for indentation
+fn out_indent(n: i32) -> i32 {
+  if (n <= 0) { return 0; }
+  out_sp();
+  return out_indent(n - 1);
+}
+
+// Append a string literal (hardcoded strings via helper functions)
+fn out_str_module() -> i32 {
+  out_char(40);  // (
+  out_char(109); // m
+  out_char(111); // o
+  out_char(100); // d
+  out_char(117); // u
+  out_char(108); // l
+  out_char(101); // e
+  return 0;
+}
+
+fn out_str_memory() -> i32 {
+  out_char(40);  // (
+  out_char(109); // m
+  out_char(101); // e
+  out_char(109); // m
+  out_char(111); // o
+  out_char(114); // r
+  out_char(121); // y
+  out_sp();
+  out_char(49);  // 1
+  out_char(41);  // )
+  return 0;
+}
+
+fn out_str_func() -> i32 {
+  out_char(40);  // (
+  out_char(102); // f
+  out_char(117); // u
+  out_char(110); // n
+  out_char(99);  // c
+  return 0;
+}
+
+fn out_str_param() -> i32 {
+  out_char(40);  // (
+  out_char(112); // p
+  out_char(97);  // a
+  out_char(114); // r
+  out_char(97);  // a
+  out_char(109); // m
+  return 0;
+}
+
+fn out_str_result() -> i32 {
+  out_char(40);  // (
+  out_char(114); // r
+  out_char(101); // e
+  out_char(115); // s
+  out_char(117); // u
+  out_char(108); // l
+  out_char(116); // t
+  return 0;
+}
+
+fn out_str_local() -> i32 {
+  out_char(40);  // (
+  out_char(108); // l
+  out_char(111); // o
+  out_char(99);  // c
+  out_char(97);  // a
+  out_char(108); // l
+  return 0;
+}
+
+fn out_str_i32() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  return 0;
+}
+
+fn out_str_const() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(99);  // c
+  out_char(111); // o
+  out_char(110); // n
+  out_char(115); // s
+  out_char(116); // t
+  return 0;
+}
+
+fn out_str_local_get() -> i32 {
+  out_char(108); // l
+  out_char(111); // o
+  out_char(99);  // c
+  out_char(97);  // a
+  out_char(108); // l
+  out_char(46);  // .
+  out_char(103); // g
+  out_char(101); // e
+  out_char(116); // t
+  return 0;
+}
+
+fn out_str_local_set() -> i32 {
+  out_char(108); // l
+  out_char(111); // o
+  out_char(99);  // c
+  out_char(97);  // a
+  out_char(108); // l
+  out_char(46);  // .
+  out_char(115); // s
+  out_char(101); // e
+  out_char(116); // t
+  return 0;
+}
+
+fn out_str_add() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(97);  // a
+  out_char(100); // d
+  out_char(100); // d
+  return 0;
+}
+
+fn out_str_sub() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(115); // s
+  out_char(117); // u
+  out_char(98);  // b
+  return 0;
+}
+
+fn out_str_mul() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(109); // m
+  out_char(117); // u
+  out_char(108); // l
+  return 0;
+}
+
+fn out_str_div() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(100); // d
+  out_char(105); // i
+  out_char(118); // v
+  out_char(95);  // _
+  out_char(115); // s
+  return 0;
+}
+
+fn out_str_lt() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(108); // l
+  out_char(116); // t
+  out_char(95);  // _
+  out_char(115); // s
+  return 0;
+}
+
+fn out_str_gt() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(103); // g
+  out_char(116); // t
+  out_char(95);  // _
+  out_char(115); // s
+  return 0;
+}
+
+fn out_str_eq() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(101); // e
+  out_char(113); // q
+  return 0;
+}
+
+fn out_str_ne() -> i32 {
+  out_char(105); // i
+  out_char(51);  // 3
+  out_char(50);  // 2
+  out_char(46);  // .
+  out_char(110); // n
+  out_char(101); // e
+  return 0;
+}
+
+fn out_str_return() -> i32 {
+  out_char(114); // r
+  out_char(101); // e
+  out_char(116); // t
+  out_char(117); // u
+  out_char(114); // r
+  out_char(110); // n
+  return 0;
+}
+
+fn out_str_call() -> i32 {
+  out_char(99);  // c
+  out_char(97);  // a
+  out_char(108); // l
+  out_char(108); // l
+  return 0;
+}
+
+fn out_str_block() -> i32 {
+  out_char(98);  // b
+  out_char(108); // l
+  out_char(111); // o
+  out_char(99);  // c
+  out_char(107); // k
+  return 0;
+}
+
+fn out_str_loop() -> i32 {
+  out_char(108); // l
+  out_char(111); // o
+  out_char(111); // o
+  out_char(112); // p
+  return 0;
+}
+
+fn out_str_br() -> i32 {
+  out_char(98);  // b
+  out_char(114); // r
+  return 0;
+}
+
+fn out_str_br_if() -> i32 {
+  out_char(98);  // b
+  out_char(114); // r
+  out_char(95);  // _
+  out_char(105); // i
+  out_char(102); // f
+  return 0;
+}
+
+fn out_str_end() -> i32 {
+  out_char(101); // e
+  out_char(110); // n
+  out_char(100); // d
+  return 0;
+}
+
+fn out_str_export() -> i32 {
+  out_char(40);  // (
+  out_char(101); // e
+  out_char(120); // x
+  out_char(112); // p
+  out_char(111); // o
+  out_char(114); // r
+  out_char(116); // t
+  return 0;
+}
+
+// Output a decimal number
+fn out_num(n: i32) -> i32 {
+  if (n < 0) {
+    out_char(45); // -
+    return out_num_pos(0 - n);
+  }
+  return out_num_pos(n);
+}
+
+fn out_num_pos(n: i32) -> i32 {
+  if (n < 10) {
+    out_char(48 + n);
+    return 0;
+  }
+  let d: i32 = n / 10;
+  let r: i32 = n - d * 10;
+  out_num_pos(d);
+  out_char(48 + r);
+  return 0;
+}
+
+// Output $name for a local variable index
+fn out_local_name(idx: i32) -> i32 {
+  out_char(36);  // $
+  out_char(108); // l
+  out_num(idx);
+  return 0;
+}
+
+// Output $fname for a function
+fn out_fn_name(fn_idx: i32) -> i32 {
+  out_char(36);  // $
+  out_char(102); // f
+  out_num(fn_idx);
+  return 0;
+}
+
+// Generate WAT for a single instruction
+fn gen_wat_instr(idx: i32) -> i32 {
+  let op: i32 = wat_opcode(idx);
+  let arg: i32 = wat_arg(idx);
+
+  out_indent(2);
+
+  if (op == w_const()) {
+    out_str_const();
+    out_sp();
+    out_num(arg);
+    out_nl();
+    return 0;
+  }
+  if (op == w_local_get()) {
+    out_str_local_get();
+    out_sp();
+    out_local_name(arg);
+    out_nl();
+    return 0;
+  }
+  if (op == w_local_set()) {
+    out_str_local_set();
+    out_sp();
+    out_local_name(arg);
+    out_nl();
+    return 0;
+  }
+  if (op == w_add()) {
+    out_str_add();
+    out_nl();
+    return 0;
+  }
+  if (op == w_sub()) {
+    out_str_sub();
+    out_nl();
+    return 0;
+  }
+  if (op == w_mul()) {
+    out_str_mul();
+    out_nl();
+    return 0;
+  }
+  if (op == w_div()) {
+    out_str_div();
+    out_nl();
+    return 0;
+  }
+  if (op == w_lt()) {
+    out_str_lt();
+    out_nl();
+    return 0;
+  }
+  if (op == w_gt()) {
+    out_str_gt();
+    out_nl();
+    return 0;
+  }
+  if (op == w_eq()) {
+    out_str_eq();
+    out_nl();
+    return 0;
+  }
+  if (op == w_ne()) {
+    out_str_ne();
+    out_nl();
+    return 0;
+  }
+  if (op == w_return()) {
+    out_str_return();
+    out_nl();
+    return 0;
+  }
+  if (op == w_call()) {
+    out_str_call();
+    out_sp();
+    out_fn_name(arg);
+    out_nl();
+    return 0;
+  }
+  if (op == w_block()) {
+    out_str_block();
+    out_nl();
+    return 0;
+  }
+  if (op == w_loop()) {
+    out_str_loop();
+    out_nl();
+    return 0;
+  }
+  if (op == w_br()) {
+    out_str_br();
+    out_sp();
+    out_num(arg);
+    out_nl();
+    return 0;
+  }
+  if (op == w_br_if()) {
+    out_str_br_if();
+    out_sp();
+    out_num(arg);
+    out_nl();
+    return 0;
+  }
+  if (op == w_end()) {
+    out_str_end();
+    out_nl();
+    return 0;
+  }
+
+  return 0;
+}
+
+// Generate WAT for all instructions
+fn gen_wat_instrs(start: i32, count: i32) -> i32 {
+  if (count <= 0) { return 0; }
+  gen_wat_instr(start);
+  return gen_wat_instrs(start + 1, count - 1);
+}
+
+// Generate WAT for a function
+fn gen_wat_fn(fn_idx: i32) -> i32 {
+  let param_count: i32 = fn_params(fn_idx);
+  let local_count: i32 = fn_locals(fn_idx);
+
+  // (func $fname
+  out_indent(1);
+  out_str_func();
+  out_sp();
+  out_fn_name(fn_idx);
+
+  // Parameters
+  gen_wat_params(0, param_count);
+
+  // Result
+  out_sp();
+  out_str_result();
+  out_sp();
+  out_str_i32();
+  out_char(41); // )
+  out_nl();
+
+  // Local variables (excluding params)
+  gen_wat_locals(param_count, local_count);
+
+  // Generate body
+  // For now, generate from the stored WAT opcodes
+  gen_wat_instrs(0, get_wat_count());
+
+  // Close function
+  out_indent(1);
+  out_char(41); // )
+  out_nl();
+  return 0;
+}
+
+fn gen_wat_params(idx: i32, count: i32) -> i32 {
+  if (idx >= count) { return 0; }
+  out_sp();
+  out_str_param();
+  out_sp();
+  out_local_name(idx);
+  out_sp();
+  out_str_i32();
+  out_char(41); // )
+  return gen_wat_params(idx + 1, count);
+}
+
+fn gen_wat_locals(start: i32, total: i32) -> i32 {
+  if (start >= total) { return 0; }
+  out_indent(2);
+  out_str_local();
+  out_sp();
+  out_local_name(start);
+  out_sp();
+  out_str_i32();
+  out_char(41); // )
+  out_nl();
+  return gen_wat_locals(start + 1, total);
+}
+
+// Generate complete WAT module
+fn gen_wat_module() -> i32 {
+  out_init();
+
+  // Module header
+  out_str_module();
+  out_nl();
+
+  // Memory declaration
+  out_indent(1);
+  out_str_memory();
+  out_nl();
+
+  // Generate main function (for now, just main)
+  let main_idx: i32 = find_main_fn();
+  if (main_idx >= 0) {
+    gen_wat_fn(main_idx);
+  }
+
+  // Close module
+  out_char(41); // )
+  out_nl();
+
+  // Null terminate
+  out_char(0);
+
+  return get_out_pos();
+}
+
+// Generate complete WAT module with all functions
+fn gen_wat_module_all() -> i32 {
+  out_init();
+
+  // Module header
+  out_str_module();
+  out_nl();
+
+  // Memory declaration
+  out_indent(1);
+  out_str_memory();
+  out_nl();
+
+  // Generate all functions
+  gen_wat_all_fns(0, get_fn_count());
+
+  // Export main
+  let main_idx: i32 = find_main_fn();
+  if (main_idx >= 0) {
+    out_indent(1);
+    out_str_export();
+    out_sp();
+    out_char(34); // "
+    out_char(109); // m
+    out_char(97);  // a
+    out_char(105); // i
+    out_char(110); // n
+    out_char(34); // "
+    out_sp();
+    out_char(40); // (
+    out_str_func();
+    out_sp();
+    out_fn_name(main_idx);
+    out_char(41); // )
+    out_char(41); // )
+    out_nl();
+  }
+
+  // Close module
+  out_char(41); // )
+  out_nl();
+
+  // Null terminate
+  out_char(0);
+
+  return get_out_pos();
+}
+
+fn gen_wat_all_fns(idx: i32, count: i32) -> i32 {
+  if (idx >= count) { return 0; }
+
+  // Compile this function's body
+  codegen_init();
+  wat_init();
+  set_local_count(fn_locals(idx));
+
+  let body: i32 = get_fn_ast(idx);
+  emit_ir_block_stmts(body);
+  emit_wat_from_ir_general();
+
+  // Generate WAT for this function
+  gen_wat_fn(idx);
+
+  return gen_wat_all_fns(idx + 1, count);
+}
+
+// Get output buffer content at position
+fn out_get(pos: i32) -> i32 {
+  return __mem_load8(out_buffer_addr() + pos);
+}
+
+// Find main function (ident_id for "main" = 109 * 256 + 4 = 27908)
+fn main_ident_id() -> i32 { return 27908; }
+
+fn find_main_fn() -> i32 {
+  return lookup_fn(main_ident_id());
+}
+
+// Test multi-function program
+fn test_multi_fn() -> i32 {
+  // Program with two functions:
+  // fn add() -> i32 { return 42; }
+  // fn main() -> i32 { return add(); }
+  init_src_buffer();
+  load_multi_fn_program();
+
+  let ok: i32 = compile_program_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Verify we have 2 functions registered
+  if (get_fn_count() != 2) { clear_src_buffer(); return 0; }
+
+  // main's IR should have: call add; ret
+  if (get_ir_count() != 2) { clear_src_buffer(); return 0; }
+  if (ir_opcode(0) != op_call()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(1) != op_ret()) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Test function with parameters
+fn test_fn_params() -> i32 {
+  // Program: fn add(a: i32, b: i32) -> i32 { return a + b; } fn main() -> i32 { return add(3, 5); }
+  init_src_buffer();
+  load_params_program();
+
+  let ok: i32 = compile_program_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Verify we have 2 functions
+  if (get_fn_count() != 2) { clear_src_buffer(); return 0; }
+
+  // Check that add has 2 parameters
+  // 'a' = 97, 'd' = 100, 'd' = 100, len = 3 → id = 97 * 256 + 3 = 24835
+  let add_idx: i32 = lookup_fn(24835);
+  if (add_idx < 0) { clear_src_buffer(); return 0; }
+  if (fn_params(add_idx) != 2) { clear_src_buffer(); return 0; }
+
+  // main's IR should have: const 3; const 5; call add; ret
+  if (get_ir_count() < 4) { clear_src_buffer(); return 0; }
+  if (ir_opcode(0) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(0) != 3) { clear_src_buffer(); return 0; }
+  if (ir_opcode(1) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(1) != 5) { clear_src_buffer(); return 0; }
+  if (ir_opcode(2) != op_call()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(3) != op_ret()) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Test assignment statement
+fn test_assignment() -> i32 {
+  // Program: fn main() -> i32 { let x: i32 = 1; x = x + 1; return x; }
+  init_src_buffer();
+  load_assign_program();
+
+  let ok: i32 = compile_program_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // main's IR should have:
+  // const 1; store x; load x; const 1; add; store x; load x; ret
+  if (get_ir_count() < 8) { clear_src_buffer(); return 0; }
+  if (ir_opcode(0) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(0) != 1) { clear_src_buffer(); return 0; }
+  if (ir_opcode(1) != op_store()) { clear_src_buffer(); return 0; }
+  // x = x + 1: load x; const 1; add; store x
+  if (ir_opcode(2) != op_load()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(3) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(3) != 1) { clear_src_buffer(); return 0; }
+  if (ir_opcode(4) != op_add()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(5) != op_store()) { clear_src_buffer(); return 0; }
+  // return x: load x; ret
+  if (ir_opcode(6) != op_load()) { clear_src_buffer(); return 0; }
+  if (ir_opcode(7) != op_ret()) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Test comments
+fn test_comments() -> i32 {
+  // Program: fn main() -> i32 { // comment\n return 42; }
+  init_src_buffer();
+  load_comment_program();
+
+  let ok: i32 = compile_program_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Should have: const 42; ret
+  if (get_ir_count() != 2) { clear_src_buffer(); return 0; }
+  if (ir_opcode(0) != op_const()) { clear_src_buffer(); return 0; }
+  if (ir_arg(0) != 42) { clear_src_buffer(); return 0; }
+  if (ir_opcode(1) != op_ret()) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Test WAT text generation
+fn test_wat_text_gen() -> i32 {
+  // Compile a simple program and generate WAT text
+  // Program: fn main() -> i32 { return 42; }
+  init_src_buffer();
+  load_simple_return();
+
+  let ok: i32 = compile_program_dyn();
+  if (ok != 1) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Generate WAT text
+  let len: i32 = gen_wat_module();
+  if (len < 50) { clear_src_buffer(); return 0; }
+
+  // Verify output starts with "(module"
+  if (out_get(0) != 40) { clear_src_buffer(); return 0; }  // (
+  if (out_get(1) != 109) { clear_src_buffer(); return 0; } // m
+  if (out_get(2) != 111) { clear_src_buffer(); return 0; } // o
+  if (out_get(3) != 100) { clear_src_buffer(); return 0; } // d
+  if (out_get(4) != 117) { clear_src_buffer(); return 0; } // u
+  if (out_get(5) != 108) { clear_src_buffer(); return 0; } // l
+  if (out_get(6) != 101) { clear_src_buffer(); return 0; } // e
+
+  // Verify output contains "i32.const"
+  let has_const: i32 = find_str_in_out(105, 51, 50, 46, 99); // i32.c
+  if (has_const != 1) { clear_src_buffer(); return 0; }
+
+  // Verify output contains "return"
+  let has_ret: i32 = find_str_in_out(114, 101, 116, 117, 114); // retur
+  if (has_ret != 1) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Find a 5-char sequence in output buffer
+fn find_str_in_out(c0: i32, c1: i32, c2: i32, c3: i32, c4: i32) -> i32 {
+  let len: i32 = get_out_pos();
+  return find_str_from(c0, c1, c2, c3, c4, 0, len);
+}
+
+fn find_str_from(c0: i32, c1: i32, c2: i32, c3: i32, c4: i32, pos: i32, len: i32) -> i32 {
+  if (pos + 5 > len) { return 0; }
+  if (out_get(pos) == c0) {
+    if (out_get(pos + 1) == c1) {
+      if (out_get(pos + 2) == c2) {
+        if (out_get(pos + 3) == c3) {
+          if (out_get(pos + 4) == c4) {
+            return 1;
+          }
+        }
+      }
+    }
+  }
+  return find_str_from(c0, c1, c2, c3, c4, pos + 1, len);
+}
+
+// Test multi-function WAT generation
+fn test_wat_multi_fn() -> i32 {
+  // Compile a two-function program and generate WAT
+  // Program: fn add() -> i32 { return 42; } fn main() -> i32 { return add(); }
+  init_src_buffer();
+  load_multi_fn_program();
+
+  parser_init(0);
+  set_fn_count(0);
+  let fn_count: i32 = parse_program_dyn();
+  if (fn_count != 2) {
+    clear_src_buffer();
+    return 0;
+  }
+
+  // Generate WAT for all functions
+  let len: i32 = gen_wat_module_all();
+  if (len < 100) { clear_src_buffer(); return 0; }
+
+  // Verify output contains two (func declarations
+  // Look for "func" twice
+  let func_count: i32 = count_str_in_out(102, 117, 110, 99); // func
+  if (func_count < 2) { clear_src_buffer(); return 0; }
+
+  // Verify output contains "call"
+  let has_call: i32 = find_str_in_out(99, 97, 108, 108, 32); // "call "
+  if (has_call != 1) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Test WAT output to stdout (via out_flush)
+fn test_wat_stdout() -> i32 {
+  // Program: fn main() -> i32 { return 42; }
+  init_src_buffer();
+  load_simple_return();
+
+  let rc: i32 = compile_program_to_stdout();
+  if (rc != 0) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Count occurrences of a 4-char sequence in output
+fn count_str_in_out(c0: i32, c1: i32, c2: i32, c3: i32) -> i32 {
+  let len: i32 = get_out_pos();
+  return count_str_from(c0, c1, c2, c3, 0, len, 0);
+}
+
+fn count_str_from(c0: i32, c1: i32, c2: i32, c3: i32, pos: i32, len: i32, count: i32) -> i32 {
+  if (pos + 4 > len) { return count; }
+  let found: i32 = 0;
+  if (out_get(pos) == c0) {
+    if (out_get(pos + 1) == c1) {
+      if (out_get(pos + 2) == c2) {
+        if (out_get(pos + 3) == c3) {
+          found = 1;
+        }
+      }
+    }
+  }
+  return count_str_from(c0, c1, c2, c3, pos + 1, len, count + found);
+}
+
+// Load: "fn main() -> i32 { return 42; }"
+fn load_simple_return() -> i32 {
+  let i: i32 = 0;
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 52);  // 4
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn main() -> i32 { // comment\n return 42; }"
+fn load_comment_program() -> i32 {
+  let i: i32 = 0;
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  // "// comment\n"
+  i = store_str(i, 47);  // /
+  i = store_str(i, 47);  // /
+  i = store_str(i, 32);  // space
+  i = store_str(i, 99);  // c
+  i = store_str(i, 111); // o
+  i = store_str(i, 109); // m
+  i = store_str(i, 109); // m
+  i = store_str(i, 101); // e
+  i = store_str(i, 110); // n
+  i = store_str(i, 116); // t
+  i = store_str(i, 10);  // newline
+  // "return 42; }"
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 52);  // 4
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn main() -> i32 { let x: i32 = 1; x = x + 1; return x; }"
+fn load_assign_program() -> i32 {
+  let i: i32 = 0;
+  // "fn main() -> i32 { let x: i32 = 1; x = x + 1; return x; }"
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  // "let x: i32 = 1; "
+  i = store_str(i, 108); // l
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 61);  // =
+  i = store_str(i, 32);  // space
+  i = store_str(i, 49);  // 1
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  // "x = x + 1; "
+  i = store_str(i, 120); // x
+  i = store_str(i, 32);  // space
+  i = store_str(i, 61);  // =
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 32);  // space
+  i = store_str(i, 43);  // +
+  i = store_str(i, 32);  // space
+  i = store_str(i, 49);  // 1
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  // "return x; }"
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn add(a: i32, b: i32) -> i32 { return a + b; } fn main() -> i32 { return add(3, 5); }"
+fn load_params_program() -> i32 {
+  let i: i32 = 0;
+  // "fn add(a: i32, b: i32) -> i32 { return a + b; } "
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 97);  // a
+  i = store_str(i, 100); // d
+  i = store_str(i, 100); // d
+  i = store_str(i, 40);  // (
+  i = store_str(i, 97);  // a
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 44);  // ,
+  i = store_str(i, 32);  // space
+  i = store_str(i, 98);  // b
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 97);  // a
+  i = store_str(i, 32);  // space
+  i = store_str(i, 43);  // +
+  i = store_str(i, 32);  // space
+  i = store_str(i, 98);  // b
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 32);  // space
+  // "fn main() -> i32 { return add(3, 5); }"
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 97);  // a
+  i = store_str(i, 100); // d
+  i = store_str(i, 100); // d
+  i = store_str(i, 40);  // (
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 44);  // ,
+  i = store_str(i, 32);  // space
+  i = store_str(i, 53);  // 5
+  i = store_str(i, 41);  // )
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn add() -> i32 { return 42; } fn main() -> i32 { return add(); }"
+fn load_multi_fn_program() -> i32 {
+  let i: i32 = 0;
+  // "fn add() -> i32 { return 42; } "
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 97);  // a
+  i = store_str(i, 100); // d
+  i = store_str(i, 100); // d
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 52);  // 4
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 32);  // space
+  // "fn main() -> i32 { return add(); }"
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 97);  // a
+  i = store_str(i, 100); // d
+  i = store_str(i, 100); // d
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn main() -> i32 { return add(); }"
+fn load_call_program() -> i32 {
+  let i: i32 = 0;
+  // "fn main() -> i32 { return add(); }"
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  // "return add(); }"
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 97);  // a
+  i = store_str(i, 100); // d
+  i = store_str(i, 100); // d
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+fn alloc_wat() -> i32 {
+  let idx: i32 = get_wat_count();
+  set_wat_count(idx + 1);
+  return idx;
+}
+
+fn wat_init() -> i32 {
+  set_wat_count(0);
+  return 0;
+}
+
+// Lower all IR instructions to WAT
+fn emit_wat_from_ir_general() -> i32 {
+  wat_init();
+  let ir_count: i32 = get_ir_count();
+  return emit_wat_ir_range(0, ir_count);
+}
+
+fn emit_wat_ir_range(idx: i32, count: i32) -> i32 {
+  if (idx >= count) { return 1; }
+  let r: i32 = emit_wat_ir_op(idx);
+  if (r < 0) { return r; }
+  return emit_wat_ir_range(idx + 1, count);
+}
+
+fn emit_wat_ir_op(idx: i32) -> i32 {
+  let op: i32 = ir_opcode(idx);
+  let arg: i32 = ir_arg(idx);
+
+  if (op == op_const()) {
+    return emit_wat_const(arg);
+  }
+  if (op == op_store()) {
+    return emit_wat_store(arg);
+  }
+  if (op == op_load()) {
+    return emit_wat_load(arg);
+  }
+  if (op == op_ret()) {
+    return emit_wat_return();
+  }
+  if (op == op_add()) {
+    return emit_wat_simple(w_add());
+  }
+  if (op == op_sub()) {
+    return emit_wat_simple(w_sub());
+  }
+  if (op == op_mul()) {
+    return emit_wat_simple(w_mul());
+  }
+  if (op == op_div()) {
+    return emit_wat_simple(w_div());
+  }
+  if (op == op_lt()) {
+    return emit_wat_simple(w_lt());
+  }
+  if (op == op_gt()) {
+    return emit_wat_simple(w_gt());
+  }
+  if (op == op_eq()) {
+    return emit_wat_simple(w_eq());
+  }
+  if (op == op_ne()) {
+    return emit_wat_simple(w_ne());
+  }
+  if (op == op_le()) {
+    return emit_wat_simple(w_le());
+  }
+  if (op == op_ge()) {
+    return emit_wat_simple(w_ge());
+  }
+  if (op == op_block()) {
+    return emit_wat_simple(w_block());
+  }
+  if (op == op_loop()) {
+    return emit_wat_simple(w_loop());
+  }
+  if (op == op_end()) {
+    return emit_wat_simple(w_end());
+  }
+  if (op == op_br()) {
+    return emit_wat_br(arg);
+  }
+  if (op == op_br_if()) {
+    return emit_wat_br_if(arg);
+  }
+  if (op == op_call()) {
+    return emit_wat_call(arg);
+  }
+
+  return 0 - 1;
+}
+
+fn emit_wat_call(fn_id: i32) -> i32 {
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_call(), fn_id);
+  return 1;
+}
+
+fn emit_wat_const(val: i32) -> i32 {
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_const(), val);
+  return 1;
+}
+
+fn emit_wat_store(ident_id: i32) -> i32 {
+  let local_idx: i32 = map_local_general(ident_id);
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_local_set(), local_idx);
+  return 1;
+}
+
+fn emit_wat_load(ident_id: i32) -> i32 {
+  let local_idx: i32 = map_local_general(ident_id);
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_local_get(), local_idx);
+  return 1;
+}
+
+fn emit_wat_return() -> i32 {
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_return(), 0);
+  return 1;
+}
+
+fn emit_wat_simple(w_op: i32) -> i32 {
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_op, 0);
+  return 1;
+}
+
+fn emit_wat_br(depth: i32) -> i32 {
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_br(), depth);
+  return 1;
+}
+
+fn emit_wat_br_if(depth: i32) -> i32 {
+  let idx: i32 = alloc_wat();
+  wat_set(idx, w_br_if(), depth);
+  return 1;
+}
+
+// Map identifier ID to local index using symbol table
+fn map_local_general(ident_id: i32) -> i32 {
+  let found: i32 = lookup_local(ident_id);
+  if (found >= 0) { return found; }
+  // Fallback for hardcoded idents
+  if (ident_id == 2) { return 0; }
+  if (ident_id == 3) { return 1; }
+  return 0;
+}
+
+// ============================================================================
+// Stage 1.7: Complete Pipeline - General Function Compiler
+// ============================================================================
+
+// Parse function header: fn name() -> type {
+// Returns 1 on success, sets position after {
+fn parse_fn_header() -> i32 {
+  if (expect(tok_fn()) != 1) { return 0; }
+
+  // Parse function name
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) != tok_ident()) { return 0; }
+  next_tok();
+
+  // Parse ()
+  if (expect(tok_lparen()) != 1) { return 0; }
+  if (expect(tok_rparen()) != 1) { return 0; }
+
+  // Parse -> type
+  if (expect(tok_arrow()) != 1) { return 0; }
+  if (expect(tok_i32()) != 1) { return 0; }
+
+  // Parse {
+  if (expect(tok_lbrace()) != 1) { return 0; }
+
+  return 1;
+}
+
+// Parse function body using general parser
+// Returns block node index, or -1 on error
+fn parse_fn_body_general() -> i32 {
+  let first_stmt: i32 = get_ast_count();
+  let count: i32 = parse_fn_stmts(0);
+  if (count < 0) { return 0 - 1; }
+
+  // Expect closing }
+  if (expect(tok_rbrace()) != 1) { return 0 - 1; }
+
+  // Create block node for the function body
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_block(), first_stmt, count, 0);
+  return node;
+}
+
+// Parse statements until }
+fn parse_fn_stmts(count: i32) -> i32 {
+  let tok: i32 = peek_tok();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_rbrace()) { return count; }
+  if (kind == tok_eof()) { return count; }
+
+  let stmt: i32 = parse_stmt();
+  if (stmt < 0) { return 0 - 1; }
+
+  return parse_fn_stmts(count + 1);
+}
+
+// Compile a function using the general pipeline
+// Returns 1 on success
+fn compile_fn_general() -> i32 {
+  // Initialize all state
+  parser_init(0);
+  codegen_init();
+  wat_init();
+
+  // Parse function header
+  let hdr: i32 = parse_fn_header();
+  if (hdr != 1) { return 0; }
+
+  // Parse function body
+  let body: i32 = parse_fn_body_general();
+  if (body < 0) { return 0; }
+
+  // Emit IR from body statements
+  let ir_ok: i32 = emit_ir_block_stmts(body);
+  if (ir_ok < 0) { return 0; }
+
+  // Lower IR to WAT
+  let wat_ok: i32 = emit_wat_from_ir_general();
+  if (wat_ok != 1) { return 0; }
+
+  return 1;
+}
+
+// Test the general compiler with hardcoded input
+fn test_general_compile() -> i32 {
+  // The hardcoded char_at() contains: fn main() -> i32 { let x: i32 = 1; let y: i32 = 2; return x + y; }
+  let ok: i32 = compile_fn_general();
+  if (ok != 1) { return 0; }
+
+  // Verify AST was built correctly
+  // Should have: let x = 1, let y = 2, return x + y
+  // First find the block node (should be last allocated)
+  let ast_cnt: i32 = get_ast_count();
+  let body_node: i32 = ast_cnt - 1;
+
+  if (ast_kind(body_node) != nk_block()) { return 0; }
+  let first_stmt: i32 = ast_a(body_node);
+  let stmt_count: i32 = ast_b(body_node);
+  if (stmt_count != 3) { return 0; }
+
+  // Verify IR was emitted
+  // Expected: const 1; store x; const 2; store y; load x; load y; add; ret
+  let ir_cnt: i32 = get_ir_count();
+  if (ir_cnt != 8) { return 0; }
+
+  // Verify IR sequence
+  if (ir_opcode(0) != op_const()) { return 0; }
+  if (ir_arg(0) != 1) { return 0; }
+  if (ir_opcode(1) != op_store()) { return 0; }
+  if (ir_opcode(2) != op_const()) { return 0; }
+  if (ir_arg(2) != 2) { return 0; }
+  if (ir_opcode(3) != op_store()) { return 0; }
+  if (ir_opcode(4) != op_load()) { return 0; }
+  if (ir_opcode(5) != op_load()) { return 0; }
+  if (ir_opcode(6) != op_add()) { return 0; }
+  if (ir_opcode(7) != op_ret()) { return 0; }
+
+  // Verify WAT was emitted
+  let wat_cnt: i32 = get_wat_count();
+  if (wat_cnt != 8) { return 0; }
+
+  // Verify WAT sequence
+  if (wat_opcode(0) != w_const()) { return 0; }
+  if (wat_arg(0) != 1) { return 0; }
+  if (wat_opcode(1) != w_local_set()) { return 0; }
+  if (wat_arg(1) != 0) { return 0; }
+  if (wat_opcode(2) != w_const()) { return 0; }
+  if (wat_arg(2) != 2) { return 0; }
+  if (wat_opcode(3) != w_local_set()) { return 0; }
+  if (wat_arg(3) != 1) { return 0; }
+  if (wat_opcode(4) != w_local_get()) { return 0; }
+  if (wat_arg(4) != 0) { return 0; }
+  if (wat_opcode(5) != w_local_get()) { return 0; }
+  if (wat_arg(5) != 1) { return 0; }
+  if (wat_opcode(6) != w_add()) { return 0; }
+  if (wat_opcode(7) != w_return()) { return 0; }
+
+  return 1;
+}
+
+// Test control flow: if statement
+fn test_if_codegen() -> i32 {
+  // Manually build AST for: if (1 < 2) { return 1; }
+  parser_init(0);
+  codegen_init();
+
+  // Build AST:
+  // Node 0: int 1
+  ast_set(0, nk_int(), 1, 0, 0);
+  // Node 1: int 2
+  ast_set(1, nk_int(), 2, 0, 0);
+  // Node 2: 1 < 2
+  ast_set(2, nk_lt(), 0, 1, 0);
+  // Node 3: int 1 (return value)
+  ast_set(3, nk_int(), 1, 0, 0);
+  // Node 4: return 1
+  ast_set(4, nk_return(), 3, 0, 0);
+  // Node 5: block containing return
+  ast_set(5, nk_block(), 4, 1, 0);
+  // Node 6: if (1 < 2) { return 1; }
+  ast_set(6, nk_if(), 2, 5, 0 - 1);
+
+  // Emit IR for the if statement
+  let r: i32 = emit_ir_stmt(6);
+  if (r < 0) { return 0; }
+
+  // Should emit: const 1; const 2; lt; block; br_if; const 1; ret; end
+  let ir_cnt: i32 = get_ir_count();
+  if (ir_cnt < 6) { return 0; }
+
+  // Verify condition: const 1; const 2; lt
+  if (ir_opcode(0) != op_const()) { return 0; }
+  if (ir_opcode(1) != op_const()) { return 0; }
+  if (ir_opcode(2) != op_lt()) { return 0; }
+
+  // Verify block structure
+  if (ir_opcode(3) != op_block()) { return 0; }
+  if (ir_opcode(4) != op_br_if()) { return 0; }
+
+  return 1;
+}
+
+// Test while loop codegen
+fn test_while_codegen() -> i32 {
+  // Manually build AST for: while (x < 10) { x = x + 1; }
+  parser_init(0);
+  codegen_init();
+  set_local_count(0);
+  add_local(100); // x has ident_id 100
+
+  // Build AST:
+  // Node 0: ident x
+  ast_set(0, nk_ident(), 100, 0, 0);
+  // Node 1: int 10
+  ast_set(1, nk_int(), 10, 0, 0);
+  // Node 2: x < 10
+  ast_set(2, nk_lt(), 0, 1, 0);
+  // Node 3: ident x (for x + 1)
+  ast_set(3, nk_ident(), 100, 0, 0);
+  // Node 4: int 1
+  ast_set(4, nk_int(), 1, 0, 0);
+  // Node 5: x + 1
+  ast_set(5, nk_add(), 3, 4, 0);
+  // Node 6: let x = x + 1 (assignment)
+  ast_set(6, nk_let(), 100, 5, 0);
+  // Node 7: block containing let
+  ast_set(7, nk_block(), 6, 1, 0);
+  // Node 8: while (x < 10) { let x = x + 1; }
+  ast_set(8, nk_while(), 2, 7, 0);
+
+  // Emit IR for the while statement
+  let r: i32 = emit_ir_stmt(8);
+  if (r < 0) { return 0; }
+
+  // Should emit: loop; load x; const 10; lt; br_if 1; load x; const 1; add; store x; br 0; end
+  let ir_cnt: i32 = get_ir_count();
+  if (ir_cnt < 8) { return 0; }
+
+  // Verify loop structure
+  if (ir_opcode(0) != op_loop()) { return 0; }
+
+  return 1;
+}
+
+// End-to-end test: parse "1 + 2 * 3" and emit IR
+fn test_end_to_end() -> i32 {
+  // Use test input: "1 + 2 * 3"
+  let test_base: i32 = 16384;
+  __mem_store8(test_base + 0, 49);  // '1'
+  __mem_store8(test_base + 1, 32);  // ' '
+  __mem_store8(test_base + 2, 43);  // '+'
+  __mem_store8(test_base + 3, 32);  // ' '
+  __mem_store8(test_base + 4, 50);  // '2'
+  __mem_store8(test_base + 5, 32);  // ' '
+  __mem_store8(test_base + 6, 42);  // '*'
+  __mem_store8(test_base + 7, 32);  // ' '
+  __mem_store8(test_base + 8, 51);  // '3'
+  __mem_store8(test_base + 9, 0);   // null
+
+  parser_init(0);
+  set_test_input_base(test_base);
+
+  // Parse expression
+  let ast_node: i32 = parse_expr_with_test_input();
+  if (ast_node < 0) { return 0; }
+
+  // Clear test mode and emit IR
+  set_test_input_base(0 - 1);
+  codegen_init();
+
+  let r: i32 = emit_ir_expr(ast_node);
+  if (r < 0) { return 0; }
+
+  // Expected IR for 1 + (2 * 3):
+  // const 1; const 2; const 3; mul; add
+  if (get_ir_count() != 5) { return 0; }
+  if (ir_opcode(0) != op_const()) { return 0; }
+  if (ir_arg(0) != 1) { return 0; }
+  if (ir_opcode(1) != op_const()) { return 0; }
+  if (ir_arg(1) != 2) { return 0; }
+  if (ir_opcode(2) != op_const()) { return 0; }
+  if (ir_arg(2) != 3) { return 0; }
+  if (ir_opcode(3) != op_mul()) { return 0; }
+  if (ir_opcode(4) != op_add()) { return 0; }
+
+  // Now lower IR to WAT
+  let w: i32 = emit_wat_from_ir_general();
+  if (w != 1) { return 0; }
+
+  // Expected WAT: i32.const 1; i32.const 2; i32.const 3; i32.mul; i32.add
+  if (get_wat_count() != 5) { return 0; }
+  if (wat_opcode(0) != w_const()) { return 0; }
+  if (wat_arg(0) != 1) { return 0; }
+  if (wat_opcode(1) != w_const()) { return 0; }
+  if (wat_arg(1) != 2) { return 0; }
+  if (wat_opcode(2) != w_const()) { return 0; }
+  if (wat_arg(2) != 3) { return 0; }
+  if (wat_opcode(3) != w_mul()) { return 0; }
+  if (wat_opcode(4) != w_add()) { return 0; }
+
+  return 1;
+}
+
+// ============================================================================
+// Stage 1.5: General Parser Infrastructure
+// ============================================================================
+// Parser state stored in memory at 0x3000+:
+//   0x3000: parse_pos (current position in input)
+//   0x3004: ast_count (next AST node index)
+//   0x3008: local_count (number of locals)
+//   0x3100+: symbol table (8 bytes per entry: ident_id, local_idx)
+
+fn state_base() -> i32 { return 12288; }
+fn state_pos() -> i32 { return state_base(); }
+fn state_ast() -> i32 { return state_base() + 4; }
+fn state_locals() -> i32 { return state_base() + 8; }
+fn state_ir_count() -> i32 { return state_base() + 16; }
+fn sym_base() -> i32 { return 12544; }
+fn sym_entry_size() -> i32 { return 8; }
+
+fn get_pos() -> i32 { return __mem_load(state_pos()); }
+fn set_pos(p: i32) -> i32 { __mem_store(state_pos(), p); return 0; }
+
+fn get_ast_count() -> i32 { return __mem_load(state_ast()); }
+fn set_ast_count(n: i32) -> i32 { __mem_store(state_ast(), n); return 0; }
+
+fn get_local_count() -> i32 { return __mem_load(state_locals()); }
+fn set_local_count(n: i32) -> i32 { __mem_store(state_locals(), n); return 0; }
+
+fn get_ir_count() -> i32 { return __mem_load(state_ir_count()); }
+fn set_ir_count(n: i32) -> i32 { __mem_store(state_ir_count(), n); return 0; }
+
+// Allocate an IR instruction, returns the index
+fn alloc_ir() -> i32 {
+  let idx: i32 = get_ir_count();
+  set_ir_count(idx + 1);
+  return idx;
+}
+
+// Allocate an AST node, returns the index
+fn alloc_ast() -> i32 {
+  let idx: i32 = get_ast_count();
+  set_ast_count(idx + 1);
+  return idx;
+}
+
+// Symbol table: map identifier IDs to local indices
+fn sym_addr(idx: i32, field: i32) -> i32 {
+  return sym_base() + idx * sym_entry_size() + field;
+}
+
+fn sym_set(idx: i32, ident: i32, local_idx: i32) -> i32 {
+  __mem_store(sym_addr(idx, 0), ident);
+  __mem_store(sym_addr(idx, 4), local_idx);
+  return 0;
+}
+
+fn sym_ident(idx: i32) -> i32 { return __mem_load(sym_addr(idx, 0)); }
+fn sym_local(idx: i32) -> i32 { return __mem_load(sym_addr(idx, 4)); }
+
+// Look up identifier, return local index or -1 if not found
+fn lookup_local(ident_id: i32) -> i32 {
+  let count: i32 = get_local_count();
+  let i: i32 = 0;
+  if (i < count) {
+    if (sym_ident(i) == ident_id) { return sym_local(i); }
+    return lookup_local_from(ident_id, i + 1, count);
+  }
+  return 0 - 1;
+}
+
+fn lookup_local_from(ident_id: i32, i: i32, count: i32) -> i32 {
+  if (i >= count) { return 0 - 1; }
+  if (sym_ident(i) == ident_id) { return sym_local(i); }
+  return lookup_local_from(ident_id, i + 1, count);
+}
+
+// Add a local variable, returns the local index
+fn add_local(ident_id: i32) -> i32 {
+  let idx: i32 = get_local_count();
+  sym_set(idx, ident_id, idx);
+  set_local_count(idx + 1);
+  return idx;
+}
+
+// ============================================================================
+// Stage 1.5: General-purpose parser
+// ============================================================================
+
+// Initialize parser state
+fn parser_init(start_pos: i32) -> i32 {
+  set_pos(start_pos);
+  set_ast_count(0);
+  set_local_count(0);
+  return 0;
+}
+
+// Peek at current token without consuming it
+fn peek_tok() -> i32 {
+  let p: i32 = get_pos();
+  return lex(p);
+}
+
+// Consume current token and advance position
+fn next_tok() -> i32 {
+  let tok: i32 = peek_tok();
+  set_pos(lex_next(tok));
+  return tok;
+}
+
+// Expect a specific token kind, return 1 if found (and consumed), 0 otherwise
+fn expect(kind: i32) -> i32 {
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == kind) {
+    next_tok();
+    return 1;
+  }
+  return 0;
+}
+
+// ============================================================================
+// Expression parsing with precedence
+// ============================================================================
+// Precedence levels (lowest to highest):
+//   1: comparison (==, !=, <, >, <=, >=)
+//   2: additive (+, -)
+//   3: multiplicative (*, /)
+//   4: primary (integer, identifier, parenthesized)
+
+// Parse a primary expression: integer, identifier, or (expr)
+fn parse_primary() -> i32 {
+  let tok: i32 = peek_tok();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_int()) {
+    return parse_int_literal();
+  }
+
+  if (kind == tok_ident()) {
+    return parse_ident_expr();
+  }
+
+  if (kind == tok_lparen()) {
+    next_tok();
+    let inner: i32 = parse_expr();
+    if (expect(tok_rparen()) != 1) { return 0 - 1; }
+    return inner;
+  }
+
+  return 0 - 1;
+}
+
+fn parse_int_literal() -> i32 {
+  let start: i32 = skip_ws(get_pos());
+  next_tok();
+  let val: i32 = int_value_range(start, get_pos());
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_int(), val, 0, 0);
+  return node;
+}
+
+fn parse_ident_expr() -> i32 {
+  let start: i32 = skip_ws(get_pos());
+  next_tok();
+  let id: i32 = ident_id_range(start, get_pos());
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_ident(), id, 0, 0);
+  return node;
+}
+
+// Parse multiplicative: primary (* | /) primary ...
+fn parse_mul() -> i32 {
+  let left: i32 = parse_primary();
+  if (left < 0) { return left; }
+  return parse_mul_rest(left);
+}
+
+fn parse_mul_rest(left: i32) -> i32 {
+  let tok: i32 = peek_tok();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_star()) {
+    return parse_mul_op(left, nk_mul());
+  }
+
+  if (kind == tok_slash()) {
+    return parse_mul_op(left, nk_div());
+  }
+
+  return left;
+}
+
+fn parse_mul_op(left: i32, nk: i32) -> i32 {
+  next_tok();
+  let right: i32 = parse_primary();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return parse_mul_rest(node);
+}
+
+// Parse additive: mul (+ | -) mul ...
+fn parse_add() -> i32 {
+  let left: i32 = parse_mul();
+  if (left < 0) { return left; }
+  return parse_add_rest(left);
+}
+
+fn parse_add_rest(left: i32) -> i32 {
+  let tok: i32 = peek_tok();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_plus()) {
+    return parse_add_op(left, nk_add());
+  }
+
+  if (kind == tok_minus()) {
+    return parse_add_op(left, nk_sub());
+  }
+
+  return left;
+}
+
+fn parse_add_op(left: i32, nk: i32) -> i32 {
+  next_tok();
+  let right: i32 = parse_mul();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return parse_add_rest(node);
+}
+
+// Parse comparison: add (== | != | < | > | <= | >=) add
+fn parse_cmp() -> i32 {
+  let left: i32 = parse_add();
+  if (left < 0) { return left; }
+
+  let tok: i32 = peek_tok();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_eqeq()) { return parse_cmp_op(left, nk_eq()); }
+  if (kind == tok_ne()) { return parse_cmp_op(left, nk_ne()); }
+  if (kind == tok_lt()) { return parse_cmp_op(left, nk_lt()); }
+  if (kind == tok_gt()) { return parse_cmp_op(left, nk_gt()); }
+  if (kind == tok_le()) { return parse_cmp_op(left, nk_le()); }
+  if (kind == tok_ge()) { return parse_cmp_op(left, nk_ge()); }
+
+  return left;
+}
+
+fn parse_cmp_op(left: i32, nk: i32) -> i32 {
+  next_tok();
+  let right: i32 = parse_add();
+  if (right < 0) { return right; }
+  let node: i32 = alloc_ast();
+  ast_set(node, nk, left, right, 0);
+  return node;
+}
+
+// Top-level expression
+fn parse_expr() -> i32 {
+  return parse_cmp();
+}
+
+// ============================================================================
+// Statement parsing
+// ============================================================================
+
+// Parse a single statement
+fn parse_stmt() -> i32 {
+  let tok: i32 = peek_tok();
+  let kind: i32 = lex_kind(tok);
+
+  if (kind == tok_let()) {
+    return parse_let_stmt();
+  }
+
+  if (kind == tok_return()) {
+    return parse_return_stmt();
+  }
+
+  if (kind == tok_if()) {
+    return parse_if_stmt();
+  }
+
+  if (kind == tok_while()) {
+    return parse_while_stmt();
+  }
+
+  // Expression statement (not yet supported)
+  return 0 - 1;
+}
+
+// Parse: let ident: type = expr;
+fn parse_let_stmt() -> i32 {
+  if (expect(tok_let()) != 1) { return 0 - 1; }
+
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
+  let start: i32 = skip_ws(get_pos());
+  next_tok();
+  let end: i32 = get_pos();
+  let id: i32 = ident_id_range(start, end);
+
+  if (expect(tok_colon()) != 1) { return 0 - 1; }
+  if (expect(tok_i32()) != 1) { return 0 - 1; }
+  if (expect(tok_eq()) != 1) { return 0 - 1; }
+
+  let expr: i32 = parse_expr();
+  if (expr < 0) { return expr; }
+
+  if (expect(tok_semi()) != 1) { return 0 - 1; }
+
+  // Register the local variable
+  add_local(id);
+
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_let(), id, expr, 0);
+  return node;
+}
+
+// Parse: return expr;
+fn parse_return_stmt() -> i32 {
+  if (expect(tok_return()) != 1) { return 0 - 1; }
+
+  let expr: i32 = parse_expr();
+  if (expr < 0) { return expr; }
+
+  if (expect(tok_semi()) != 1) { return 0 - 1; }
+
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_return(), expr, 0, 0);
+  return node;
+}
+
+// Parse: if (expr) { stmts } [else { stmts }]
+fn parse_if_stmt() -> i32 {
+  if (expect(tok_if()) != 1) { return 0 - 1; }
+  if (expect(tok_lparen()) != 1) { return 0 - 1; }
+
+  let cond: i32 = parse_expr();
+  if (cond < 0) { return cond; }
+
+  if (expect(tok_rparen()) != 1) { return 0 - 1; }
+  if (expect(tok_lbrace()) != 1) { return 0 - 1; }
+
+  let then_block: i32 = parse_block_stmts();
+  if (then_block < 0) { return then_block; }
+
+  if (expect(tok_rbrace()) != 1) { return 0 - 1; }
+
+  let else_block: i32 = 0 - 1;
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == tok_else()) {
+    next_tok();
+    if (expect(tok_lbrace()) != 1) { return 0 - 1; }
+    else_block = parse_block_stmts();
+    if (else_block < 0) { return else_block; }
+    if (expect(tok_rbrace()) != 1) { return 0 - 1; }
+  }
+
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_if(), cond, then_block, else_block);
+  return node;
+}
+
+// Parse: while (expr) { stmts }
+fn parse_while_stmt() -> i32 {
+  if (expect(tok_while()) != 1) { return 0 - 1; }
+  if (expect(tok_lparen()) != 1) { return 0 - 1; }
+
+  let cond: i32 = parse_expr();
+  if (cond < 0) { return cond; }
+
+  if (expect(tok_rparen()) != 1) { return 0 - 1; }
+  if (expect(tok_lbrace()) != 1) { return 0 - 1; }
+
+  let body: i32 = parse_block_stmts();
+  if (body < 0) { return body; }
+
+  if (expect(tok_rbrace()) != 1) { return 0 - 1; }
+
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_while(), cond, body, 0);
+  return node;
+}
+
+// Parse multiple statements until }, returns block node
+// Block node: nk_block, arg_a = first_stmt_idx, arg_b = stmt_count
+fn parse_block_stmts() -> i32 {
+  let first_stmt: i32 = get_ast_count();
+  let count: i32 = parse_stmts_until_rbrace(0);
+
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_block(), first_stmt, count, 0);
+  return node;
+}
+
+fn parse_stmts_until_rbrace(count: i32) -> i32 {
+  let tok: i32 = peek_tok();
+  if (lex_kind(tok) == tok_rbrace()) {
+    return count;
+  }
+  if (lex_kind(tok) == tok_eof()) {
+    return count;
+  }
+
+  let stmt: i32 = parse_stmt();
+  if (stmt < 0) { return 0 - 1; }
+
+  return parse_stmts_until_rbrace(count + 1);
+}
+
+// ============================================================================
+// Helper functions for general parser
+// ============================================================================
+
+// Get integer value from current position range
+fn int_value_range(start: i32, end: i32) -> i32 {
+  // Find end of digits
+  let actual_end: i32 = find_int_end(start);
+  return int_value(start, actual_end);
+}
+
+fn find_int_end(pos: i32) -> i32 {
+  let c: i32 = char_at(pos);
+  if (is_digit(c) == 1) {
+    return find_int_end(pos + 1);
+  }
+  return pos;
+}
+
+// Get identifier ID from current position range
+fn ident_id_range(start: i32, end: i32) -> i32 {
+  // Find end of identifier
+  let actual_end: i32 = find_ident_end(start);
+  return ident_id_dynamic(start, actual_end);
+}
+
+fn find_ident_end(pos: i32) -> i32 {
+  let c: i32 = char_at(pos);
+  if (is_ident_cont(c) == 1) {
+    return find_ident_end(pos + 1);
+  }
+  return pos;
+}
+
+// Dynamic identifier lookup - assigns IDs based on first occurrence
+// ID 1 = main, then sequential for other identifiers
+fn ident_id_dynamic(start: i32, end: i32) -> i32 {
+  let len: i32 = end - start;
+
+  // Check for "main"
+  if (len == 4) {
+    if (char_at(start) == 109) {
+      if (char_at(start + 1) == 97) {
+        if (char_at(start + 2) == 105) {
+          if (char_at(start + 3) == 110) {
+            return 1;
+          }
+        }
+      }
+    }
+  }
+
+  // Compute a hash-like ID based on characters
+  // This is a simplified approach - use first char * 256 + len
+  let c0: i32 = char_at(start);
+  return c0 * 256 + len;
 }
