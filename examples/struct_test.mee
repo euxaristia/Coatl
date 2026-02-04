@@ -5,5 +5,7 @@ struct Point {
 
 fn main() -> i32 {
   let p: Point = Point { x: 1, y: 2 };
+  p.x = p.x + 4;
+  p.y = p.y + 3;
   return p.x + p.y;
 }

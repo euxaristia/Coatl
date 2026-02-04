@@ -50,6 +50,11 @@ pub enum Stmt {
         name: String,
         expr: Expr,
     },
+    FieldAssign {
+        base: String,
+        field: String,
+        expr: Expr,
+    },
     If {
         cond: Expr,
         then_block: Block,

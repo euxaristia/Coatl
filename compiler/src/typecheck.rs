@@ -67,6 +67,24 @@ fn typecheck_block(
                     return Err(TypeError { message: format!("type mismatch in assignment to {}", name) });
                 }
             }
+            Stmt::FieldAssign { base, field, expr } => {
+                let base_ty = vars.get(base)
+                    .ok_or_else(|| TypeError { message: format!("unknown variable {}", base) })?
+                    .clone();
+                let Type::Struct(sname) = base_ty else {
+                    return Err(TypeError { message: format!("field assignment on non-struct {}", base) });
+                };
+                let fields = struct_defs
+                    .get(&sname)
+                    .ok_or_else(|| TypeError { message: format!("unknown struct {}", sname) })?;
+                let field_ty = fields
+                    .get(field)
+                    .ok_or_else(|| TypeError { message: format!("unknown field {} on {}", field, sname) })?;
+                let ety = type_of_expr(expr, vars, fn_sigs, struct_defs)?;
+                if !type_matches(field_ty, &ety) {
+                    return Err(TypeError { message: format!("type mismatch in assignment to {}.{}", base, field) });
+                }
+            }
             Stmt::If { cond, then_block, else_block } => {
                 let cty = type_of_expr(cond, vars, fn_sigs, struct_defs)?;
                 if cty != Type::Bool {

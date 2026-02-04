@@ -53,7 +53,7 @@ Memory intrinsics (`__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`) e
 ## Constraints (current Mee compiler)
 - ~~No memory ops~~ ✓ **DONE**: `__mem_load`/`__mem_store` intrinsics added
 - No array syntax `[T; N]` - use memory intrinsics as workaround
-- No struct field access codegen (parsing/typecheck exist, codegen panics)
+- Struct parameters/returns are still unsupported in codegen (fields in locals are supported)
 - No I/O - blocks reading source files
 
 ## Stages
@@ -115,9 +115,9 @@ Compiler stub with hardcoded input, validates full pipeline.
 ### Stage 2: Struct Field Access
 **Goal**: Enable struct values with field read/write.
 **Rust compiler work**:
-- [ ] Fix struct codegen panic (flatten fields to locals or memory)
-- [ ] Lower `s.field` read to appropriate local/memory access
-- [ ] Lower `s.field = val` write
+- [x] Fix struct codegen panic (flatten fields to locals or memory)
+- [x] Lower `s.field` read to appropriate local/memory access
+- [x] Lower `s.field = val` write
 
 **Bootstrap work**:
 - [ ] Replace parallel arrays with `struct Node { kind: i32, a: i32, b: i32, c: i32 }`

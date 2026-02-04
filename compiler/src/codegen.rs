@@ -31,6 +31,7 @@ fn collect_strings_from_block(block: &Block, strings: &mut Vec<String>) {
         match stmt {
             Stmt::Let { expr, .. } => collect_strings_from_expr(expr, strings),
             Stmt::Assign { expr, .. } => collect_strings_from_expr(expr, strings),
+            Stmt::FieldAssign { expr, .. } => collect_strings_from_expr(expr, strings),
             Stmt::If { cond, then_block, else_block } => {
                 collect_strings_from_expr(cond, strings);
                 collect_strings_from_block(then_block, strings);
@@ -162,6 +163,7 @@ fn stmt_uses_fd_write(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { expr, .. } => expr_uses_fd_write(expr),
         Stmt::Assign { expr, .. } => expr_uses_fd_write(expr),
+        Stmt::FieldAssign { expr, .. } => expr_uses_fd_write(expr),
         Stmt::If { cond, then_block, else_block } => {
             expr_uses_fd_write(cond)
                 || block_uses_fd_write(then_block)
@@ -177,6 +179,7 @@ fn stmt_uses_fd_read(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { expr, .. } => expr_uses_fd_read(expr),
         Stmt::Assign { expr, .. } => expr_uses_fd_read(expr),
+        Stmt::FieldAssign { expr, .. } => expr_uses_fd_read(expr),
         Stmt::If { cond, then_block, else_block } => {
             expr_uses_fd_read(cond)
                 || block_uses_fd_read(then_block)
@@ -192,6 +195,7 @@ fn stmt_uses_path_open(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { expr, .. } => expr_uses_path_open(expr),
         Stmt::Assign { expr, .. } => expr_uses_path_open(expr),
+        Stmt::FieldAssign { expr, .. } => expr_uses_path_open(expr),
         Stmt::If { cond, then_block, else_block } => {
             expr_uses_path_open(cond)
                 || block_uses_path_open(then_block)
@@ -207,6 +211,7 @@ fn stmt_uses_fd_close(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { expr, .. } => expr_uses_fd_close(expr),
         Stmt::Assign { expr, .. } => expr_uses_fd_close(expr),
+        Stmt::FieldAssign { expr, .. } => expr_uses_fd_close(expr),
         Stmt::If { cond, then_block, else_block } => {
             expr_uses_fd_close(cond)
                 || block_uses_fd_close(then_block)
@@ -295,6 +300,7 @@ fn stmt_uses_memory(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { expr, .. } => expr_uses_memory(expr),
         Stmt::Assign { expr, .. } => expr_uses_memory(expr),
+        Stmt::FieldAssign { expr, .. } => expr_uses_memory(expr),
         Stmt::If { cond, then_block, else_block } => {
             expr_uses_memory(cond)
                 || block_uses_memory(then_block)
@@ -752,6 +758,16 @@ fn emit_stmt_wat_with_strings(
                 panic!("unsupported assignment type");
             }
         }
+        Stmt::FieldAssign { base, field, expr } => {
+            let ty = var_types.get(base).unwrap_or_else(|| panic!("unknown variable {}", base));
+            if !matches!(ty, Type::Struct(_)) {
+                panic!("field assignment on non-struct {}", base);
+            }
+            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
+            let lname = field_local_name(base, field);
+            let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown field {} on {}", field, base));
+            out.push_str(&format!("  local.set {}\n", idx));
+        }
         Stmt::If { cond, then_block, else_block } => {
             emit_expr_wat_with_strings(cond, locals, var_types, struct_defs, string_offsets, out);
             out.push_str("  (if\n");
@@ -906,6 +922,19 @@ fn emit_stmt_x86_64_with_strings(
                 }
             } else {
                 panic!("unsupported assignment type");
+            }
+        }
+        Stmt::FieldAssign { base, field, expr } => {
+            let ty = var_types.get(base).unwrap_or_else(|| panic!("unknown variable {}", base));
+            if !matches!(ty, Type::Struct(_)) {
+                panic!("field assignment on non-struct {}", base);
+            }
+            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
+            let lname = field_local_name(base, field);
+            if let Some(off) = locals.get(&lname) {
+                out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
+            } else {
+                panic!("unknown field {} on {}", field, base);
             }
         }
         Stmt::If { cond, then_block, else_block } => {

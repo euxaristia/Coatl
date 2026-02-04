@@ -193,26 +193,7 @@ impl<'a> Parser<'a> {
                     self.expect(TokenKind::Semicolon)?;
                     Ok(Stmt::Expr(Expr::Call { callee: name, args }))
                 } else {
-                    // Check for field access assign? Not supported in Stmt::Assign yet?
-                    // Stmt::Assign takes name: String. It doesn't support assigning to field access expression.
-                    // Stmt::Expr does support it via parse_expr_rest.
-                    // But if it's an assignment like `x.y = 1;` it needs to be handled.
-                    // Current AST `Assign` is only for variables.
-                    // For now, treat as expression statement if not simple assignment.
-                    // Or I need to handle `Ident` then check for postfix, then check for assignment.
-                    // For simplicity, I'll fallback to expression parsing.
-                    // Wait, I already consumed Ident.
-                    
-                    // Recovering the Ident into an Expr::Ident
                     let left = Expr::Ident(name);
-                    // Now parse rest as expression (including postfix field access)
-                    // But parse_expr_rest expects `left` to be fully parsed?
-                    // parse_expr_rest handles binary ops.
-                    // I need to handle postfix ops on `left` first.
-                    
-                    // Actually, `parse_factor` handles postfix.
-                    // If I'm here, I consumed Ident, which is a primary.
-                    // I should continue parsing postfix ops on this Ident.
                     let mut node = left;
                     loop {
                         if self.curr.kind == TokenKind::Dot {
@@ -223,29 +204,30 @@ impl<'a> Parser<'a> {
                             break;
                         }
                     }
-                    
-                    // Now check if it's assignment
+
                     if self.curr.kind == TokenKind::Eq {
-                         // But AST Assign only supports `name: String`. 
-                         // So I can't support `x.y = 1` unless I update Stmt::Assign to take Expr (lvalue).
-                         // For now, I'll skip updating Stmt::Assign and just parse as expression statement, which is wrong for assignment but ...
-                         // If I want to support `x.y = 1`, I need to update Stmt in ast.rs.
-                         // For this task, maybe I just focus on parsing structs first.
-                         // But `x.y = 1` is crucial.
-                         // Let's assume for now I only parse it as expression and if it fails validation so be it.
-                         // Or I can panic/error.
-                         // But wait, `Stmt::Expr` is a valid statement. `x.y` is a valid expression.
-                         // `x.y = 1` is not a valid expression in Mee (statements are not expressions except blocks).
-                         
-                         // If I see `=`, I'm stuck because Stmt::Assign is limited.
-                         // I will leave it as is for now. `x.y = 1` will fail to parse here or parse as binary expr if `=` was an op (it is not).
-                         // It will probably hit `parse_expr_rest` -> `parse_additive_rest` -> stops.
-                         // Then `expect(Semicolon)`.
-                         // If I have `x.y = 1;`, `x.y` is parsed. Then `=` is found. `expect(Semi)` fails.
-                         // So `x.y = 1` is syntax error.
-                         // I will proceed without fixing `x.y = 1` for now, to keep scope manageable.
+                        self.bump();
+                        let expr = self.parse_expr()?;
+                        self.expect(TokenKind::Semicolon)?;
+                        return match node {
+                            Expr::Ident(name) => Ok(Stmt::Assign { name, expr }),
+                            Expr::FieldAccess { expr: base, field } => {
+                                if let Expr::Ident(base_name) = *base {
+                                    Ok(Stmt::FieldAssign { base: base_name, field, expr })
+                                } else {
+                                    Err(ParseError {
+                                        message: "left-hand side of assignment must be a variable or field".to_string(),
+                                        pos: self.curr.pos,
+                                    })
+                                }
+                            }
+                            _ => Err(ParseError {
+                                message: "left-hand side of assignment must be a variable or field".to_string(),
+                                pos: self.curr.pos,
+                            }),
+                        };
                     }
-                    
+
                     let expr = self.parse_expr_rest(node)?;
                     self.expect(TokenKind::Semicolon)?;
                     Ok(Stmt::Expr(expr))
