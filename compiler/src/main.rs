@@ -12,14 +12,28 @@ use parser::Parser;
 use typecheck::typecheck_program;
 
 fn main() {
-    let mut args: Vec<String> = env::args().collect();
+    let args: Vec<String> = env::args().collect();
     if args.len() < 3 || args[1] != "build" {
-        eprintln!("usage: mee build <file> [--emit=wat|asm]");
+        eprintln!("usage: mee build <file> [--emit=wat|asm] [-o <output>]");
         std::process::exit(1);
     }
 
     let file = args[2].clone();
     let emit = args.iter().find(|a| a.starts_with("--emit=")).cloned().unwrap_or("--emit=wat".to_string());
+    let mut output: Option<String> = None;
+    let mut i = 3;
+    while i < args.len() {
+        if args[i] == "-o" {
+            if i + 1 >= args.len() {
+                eprintln!("missing output path after -o");
+                std::process::exit(1);
+            }
+            output = Some(args[i + 1].clone());
+            i += 2;
+            continue;
+        }
+        i += 1;
+    }
 
     let src = match fs::read_to_string(&file) {
         Ok(s) => s,
@@ -46,11 +60,25 @@ fn main() {
     match emit.as_str() {
         "--emit=wat" => {
             let wat = emit_wat(&program);
-            print!("{}", wat);
+            if let Some(path) = output {
+                if let Err(err) = fs::write(&path, wat) {
+                    eprintln!("failed to write {}: {}", path, err);
+                    std::process::exit(1);
+                }
+            } else {
+                print!("{}", wat);
+            }
         }
         "--emit=asm" => {
             let asm = emit_x86_64_asm(&program);
-            print!("{}", asm);
+            if let Some(path) = output {
+                if let Err(err) = fs::write(&path, asm) {
+                    eprintln!("failed to write {}: {}", path, err);
+                    std::process::exit(1);
+                }
+            } else {
+                print!("{}", asm);
+            }
         }
         _ => {
             eprintln!("unknown emit target: {}", emit);

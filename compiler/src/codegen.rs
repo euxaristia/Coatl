@@ -528,7 +528,7 @@ fn emit_function_wat_with_strings(
     );
 
     out.push_str(&format!("  (func ${}", f.name));
-    for p in &f.params {
+    for _p in &f.params {
         out.push_str(" (param i32)");
     }
     if is_scalar(&f.ret) {
