@@ -1723,35 +1723,62 @@ fn emit_ir_if(node: i32) -> i32 {
   let then_block: i32 = ast_b(node);
   let else_block: i32 = ast_c(node);
 
-  // Emit block start
+  if (else_block >= 0) {
+    // if/else via nested blocks:
+    // block $end
+    //   block $else
+    //     cond; i32.const 0; i32.eq; br_if $else
+    //     then...
+    //     br $end
+    //   end
+    //   else...
+    // end
+    let end_blk: i32 = alloc_ir();
+    ir_set(end_blk, op_block(), 0);
+    let else_blk: i32 = alloc_ir();
+    ir_set(else_blk, op_block(), 0);
+
+    let r1: i32 = emit_ir_expr(cond_node);
+    if (r1 < 0) { return r1; }
+    let zero_idx: i32 = alloc_ir();
+    ir_set(zero_idx, op_const(), 0);
+    let eq_idx: i32 = alloc_ir();
+    ir_set(eq_idx, op_eq(), 0);
+    let br_if_idx: i32 = alloc_ir();
+    ir_set(br_if_idx, op_br_if(), 0);
+
+    let r2: i32 = emit_ir_block_stmts(then_block);
+    if (r2 < 0) { return r2; }
+    let br_idx: i32 = alloc_ir();
+    ir_set(br_idx, op_br(), 1);
+    let end_else: i32 = alloc_ir();
+    ir_set(end_else, op_end(), 0);
+
+    let r3: i32 = emit_ir_block_stmts(else_block);
+    if (r3 < 0) { return r3; }
+    let end_if: i32 = alloc_ir();
+    ir_set(end_if, op_end(), 0);
+
+    return r1 + r2 + r3 + 8;
+  }
+
+  // No else: single block with early br_if
   let blk_idx: i32 = alloc_ir();
   ir_set(blk_idx, op_block(), 0);
+  let r4: i32 = emit_ir_expr(cond_node);
+  if (r4 < 0) { return r4; }
+  let zero_idx2: i32 = alloc_ir();
+  ir_set(zero_idx2, op_const(), 0);
+  let eq_idx2: i32 = alloc_ir();
+  ir_set(eq_idx2, op_eq(), 0);
+  let br_idx2: i32 = alloc_ir();
+  ir_set(br_idx2, op_br_if(), 0);
+  let r5: i32 = emit_ir_block_stmts(then_block);
+  if (r5 < 0) { return r5; }
+  let end_idx2: i32 = alloc_ir();
+  ir_set(end_idx2, op_end(), 0);
 
-  // Emit condition inside the block
-  let r1: i32 = emit_ir_expr(cond_node);
-  if (r1 < 0) { return r1; }
-
-  // Compare against 0 to skip block when condition is false
-  let zero_idx: i32 = alloc_ir();
-  ir_set(zero_idx, op_const(), 0);
-  let eq_idx: i32 = alloc_ir();
-  ir_set(eq_idx, op_eq(), 0);
-
-  // Emit br_if to skip block if condition is false (cond == 0)
-  let br_idx: i32 = alloc_ir();
-  ir_set(br_idx, op_br_if(), 0);
-
-  // Emit then statements
-  let r2: i32 = emit_ir_block_stmts(then_block);
-  if (r2 < 0) { return r2; }
-
-  // Emit block end
-  let end_idx: i32 = alloc_ir();
-  ir_set(end_idx, op_end(), 0);
-
-  // TODO: handle else block
-
-  return r1 + r2 + 5;
+  return r4 + r5 + 5;
 }
 
 fn emit_ir_while(node: i32) -> i32 {
