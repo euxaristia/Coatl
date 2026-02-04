@@ -26,6 +26,10 @@ Command sequence used:
 # Full automated convergence check (recommended)
 ./selfhost/check_self_compile.sh
 
+# Full round-trip suite (convergence + compile/run test programs with
+# self-hosted and Rust compilers, compare behavior)
+./selfhost/run_roundtrip_suite.sh
+
 # Manual entry point:
 # set state_stdin_flag (state_base + 44) to 1 in a WAT module, then run:
 wasmtime --invoke main /tmp/some-bootstrap-with-stdin-flag.wat < ../selfhost/bootstrap.mee > /tmp/next.raw
@@ -186,7 +190,7 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 - [x] Extended string escapes (`\\n`, `\\r`, `\\t`, `\\0`, `\\xNN`, `\\u{...}`)
 - [x] Deterministic output (stable ordering, stable formatting)
 - [x] Verification: convergence check script (`selfhost/check_self_compile.sh`)
-- [ ] Round-trip check: bootstrap compiles itself and runs test suite
+- [x] Round-trip check: bootstrap compiles itself and runs test suite (`selfhost/run_roundtrip_suite.sh`)
 
 ## Milestones
 
