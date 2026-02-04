@@ -53,7 +53,7 @@ fn typecheck_block(
         match stmt {
             Stmt::Let { name, ty, expr } => {
                 let ety = type_of_expr(expr, vars, fn_sigs, struct_defs)?;
-                if &ety != ty {
+                if !type_matches(ty, &ety) {
                     return Err(TypeError { message: format!("type mismatch in let {}", name) });
                 }
                 vars.insert(name.clone(), ty.clone());
@@ -63,7 +63,7 @@ fn typecheck_block(
                     .ok_or_else(|| TypeError { message: format!("unknown variable {}", name) })?
                     .clone();
                 let ety = type_of_expr(expr, vars, fn_sigs, struct_defs)?;
-                if ety != var_ty {
+                if !type_matches(&var_ty, &ety) {
                     return Err(TypeError { message: format!("type mismatch in assignment to {}", name) });
                 }
             }
@@ -86,7 +86,7 @@ fn typecheck_block(
             }
             Stmt::Return(expr) => {
                 let ety = type_of_expr(expr, vars, fn_sigs, struct_defs)?;
-                if &ety != ret_ty {
+                if !type_matches(ret_ty, &ety) {
                     return Err(TypeError { message: "return type mismatch".to_string() });
                 }
             }
@@ -132,7 +132,7 @@ fn type_of_expr(
                     return Err(TypeError { message: format!("{} expects 1 argument", callee) });
                 }
                 let aty = type_of_expr(&args[0], vars, fn_sigs, struct_defs)?;
-                if aty != Type::I32 {
+                if !type_matches(&Type::I32, &aty) {
                     return Err(TypeError { message: format!("{} address must be i32", callee) });
                 }
                 return Ok(Type::I32);
@@ -143,10 +143,10 @@ fn type_of_expr(
                 }
                 let addr_ty = type_of_expr(&args[0], vars, fn_sigs, struct_defs)?;
                 let val_ty = type_of_expr(&args[1], vars, fn_sigs, struct_defs)?;
-                if addr_ty != Type::I32 {
+                if !type_matches(&Type::I32, &addr_ty) {
                     return Err(TypeError { message: format!("{} address must be i32", callee) });
                 }
-                if val_ty != Type::I32 {
+                if !type_matches(&Type::I32, &val_ty) {
                     return Err(TypeError { message: format!("{} value must be i32", callee) });
                 }
                 return Ok(Type::I32);
@@ -159,7 +159,11 @@ fn type_of_expr(
                 let iov_ptr_ty = type_of_expr(&args[1], vars, fn_sigs, struct_defs)?;
                 let iov_cnt_ty = type_of_expr(&args[2], vars, fn_sigs, struct_defs)?;
                 let nwritten_ptr_ty = type_of_expr(&args[3], vars, fn_sigs, struct_defs)?;
-                if fd_ty != Type::I32 || iov_ptr_ty != Type::I32 || iov_cnt_ty != Type::I32 || nwritten_ptr_ty != Type::I32 {
+                if !type_matches(&Type::I32, &fd_ty)
+                    || !type_matches(&Type::I32, &iov_ptr_ty)
+                    || !type_matches(&Type::I32, &iov_cnt_ty)
+                    || !type_matches(&Type::I32, &nwritten_ptr_ty)
+                {
                     return Err(TypeError { message: "__fd_write args must be i32".to_string() });
                 }
                 return Ok(Type::I32);
@@ -172,7 +176,11 @@ fn type_of_expr(
                 let iov_ptr_ty = type_of_expr(&args[1], vars, fn_sigs, struct_defs)?;
                 let iov_cnt_ty = type_of_expr(&args[2], vars, fn_sigs, struct_defs)?;
                 let nread_ptr_ty = type_of_expr(&args[3], vars, fn_sigs, struct_defs)?;
-                if fd_ty != Type::I32 || iov_ptr_ty != Type::I32 || iov_cnt_ty != Type::I32 || nread_ptr_ty != Type::I32 {
+                if !type_matches(&Type::I32, &fd_ty)
+                    || !type_matches(&Type::I32, &iov_ptr_ty)
+                    || !type_matches(&Type::I32, &iov_cnt_ty)
+                    || !type_matches(&Type::I32, &nread_ptr_ty)
+                {
                     return Err(TypeError { message: "__fd_read args must be i32".to_string() });
                 }
                 return Ok(Type::I32);
@@ -183,7 +191,7 @@ fn type_of_expr(
                 }
                 for arg in args.iter() {
                     let aty = type_of_expr(arg, vars, fn_sigs, struct_defs)?;
-                    if aty != Type::I32 {
+                    if !type_matches(&Type::I32, &aty) {
                         return Err(TypeError { message: "__path_open args must be i32".to_string() });
                     }
                 }
@@ -194,7 +202,7 @@ fn type_of_expr(
                     return Err(TypeError { message: "__fd_close expects 1 argument".to_string() });
                 }
                 let fd_ty = type_of_expr(&args[0], vars, fn_sigs, struct_defs)?;
-                if fd_ty != Type::I32 {
+                if !type_matches(&Type::I32, &fd_ty) {
                     return Err(TypeError { message: "__fd_close arg must be i32".to_string() });
                 }
                 return Ok(Type::I32);
@@ -207,7 +215,7 @@ fn type_of_expr(
             }
             for (arg, pty) in args.iter().zip(params.iter()) {
                 let aty = type_of_expr(arg, vars, fn_sigs, struct_defs)?;
-                if &aty != pty {
+                if !type_matches(pty, &aty) {
                     return Err(TypeError { message: format!("arg type mismatch for {}", callee) });
                 }
             }
@@ -238,4 +246,12 @@ fn type_of_expr(
             Ok(Type::Struct(name.clone()))
         }
     }
+}
+
+fn type_matches(expected: &Type, actual: &Type) -> bool {
+    if expected == actual {
+        return true;
+    }
+    // Allow string literals to be used as i32 pointers (WAT data offsets).
+    *expected == Type::I32 && *actual == Type::Str
 }
