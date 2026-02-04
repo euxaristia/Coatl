@@ -234,8 +234,8 @@ Compiler stub with hardcoded input, validates full pipeline.
 0x300000 - 0x303FFF: Parser/state + symbol table              [state_base() = 3145728]
 0x304000 - 0x383FFF: Source input buffer (512KB)
 0x384000 - 0x384FFF: Function table
-0x390000 - 0x40FFFF: Output buffer (512KB)
-0x410000+       : I/O scratch (iovec + counters)
+0x390000 - 0x338FFFF: Output buffer (48MB)
+0x3400000+      : I/O scratch (iovec + counters)
 ```
 
 ### AST Node Format (16 bytes)
