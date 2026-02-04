@@ -207,7 +207,7 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 - [x] Test: multi-function WAT generation
 - [x] Add `out_flush` to write buffer via `__fd_write`
 - [x] Add file output wrapper (`compile_program_to_file`)
-- [ ] Test: verify written WAT file contents (smoke test via `test_wat_file` only)
+- [x] Test: verify written WAT file contents (via `test_wat_file`)
 
 ### Stage 6: Self-Compile
 **Goal**: Bootstrap compiler can compile itself.

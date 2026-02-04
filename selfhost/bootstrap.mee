@@ -3521,6 +3521,46 @@ fn out_flush_fd(fd: i32) -> i32 {
   return __fd_write(fd, io_vec_addr(), 1, io_nwritten_addr());
 }
 
+// Read a file into the source buffer via WASI path_open/fd_read
+fn read_file_into_src(path_ptr: i32, path_len: i32) -> i32 {
+  init_src_buffer();
+  let max_len: i32 = src_buffer_size() - 1;
+  let total: i32 = 0;
+  let done: i32 = 0;
+
+  __mem_store(state_out_fd(), 0);
+  let rc_open: i32 = __path_open(3, 0, path_ptr, path_len, 0, 1, 0, 0, state_out_fd());
+  if (rc_open != 0) { return 530; }
+  let fd: i32 = __mem_load(state_out_fd());
+
+  while (done == 0) {
+    if (total >= max_len) {
+      done = 1;
+    } else {
+      let remain: i32 = max_len - total;
+      __mem_store(io_vec_addr(), src_buffer_addr() + total);
+      __mem_store(io_vec_addr() + 4, remain);
+      __mem_store(io_nread_addr(), 0);
+      let rc: i32 = __fd_read(fd, io_vec_addr(), 1, io_nread_addr());
+      if (rc != 0) {
+        __fd_close(fd);
+        return 531;
+      }
+      let nread: i32 = __mem_load(io_nread_addr());
+      if (nread <= 0) {
+        done = 1;
+      } else {
+        total = total + nread;
+      }
+    }
+  }
+
+  __mem_store8(src_buffer_addr() + total, 0);
+  let rc_close: i32 = __fd_close(fd);
+  if (rc_close != 0) { return 532; }
+  return total;
+}
+
 // Read stdin into source buffer, null-terminate, and return bytes read
 fn read_src_from_stdin() -> i32 {
   init_src_buffer();
@@ -4754,6 +4794,11 @@ fn out_get(pos: i32) -> i32 {
   return __mem_load8(out_buffer_addr() + pos);
 }
 
+// Get source buffer content at position
+fn src_get(pos: i32) -> i32 {
+  return __mem_load8(src_buffer_addr() + pos);
+}
+
 // Find main function (ident_id hash for "main")
 fn main_ident_id() -> i32 { return 246720401; }
 
@@ -4992,6 +5037,11 @@ fn test_wat_file() -> i32 {
   let rc: i32 = compile_program_to_file(file_path_addr(), file_path_len());
   if (rc != 1) { clear_src_buffer(); return 0; }
 
+  let out_len: i32 = get_out_pos();
+  let nread: i32 = read_file_into_src(file_path_addr(), file_path_len());
+  if (nread != out_len) { clear_src_buffer(); return 0; }
+  if (compare_out_with_src(out_len) != 1) { clear_src_buffer(); return 0; }
+
   clear_src_buffer();
   return 1;
 }
@@ -5024,6 +5074,16 @@ fn count_str_from(c0: i32, c1: i32, c2: i32, c3: i32, pos: i32, len: i32, count:
     }
   }
   return count_str_from(c0, c1, c2, c3, pos + 1, len, count + found);
+}
+
+// Compare output buffer with source buffer for len bytes
+fn compare_out_with_src(len: i32) -> i32 {
+  let i: i32 = 0;
+  while (i < len) {
+    if (out_get(i) != src_get(i)) { return 0; }
+    i = i + 1;
+  }
+  return 1;
 }
 
 // Write "out.wat" to the fixed file path buffer
