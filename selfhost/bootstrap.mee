@@ -284,6 +284,8 @@ fn nk_and() -> i32 { return 28; }
 fn nk_or() -> i32 { return 29; }
 fn nk_string() -> i32 { return 30; }
 fn nk_not() -> i32 { return 31; }
+fn nk_break() -> i32 { return 32; }
+fn nk_continue() -> i32 { return 33; }
 
 // Intrinsic call IDs (avoid collision with ident_id_dyn)
 fn intrin_mem_load_id() -> i32 { return 1000001; }
@@ -682,6 +684,34 @@ fn ident_kind(start: i32, end: i32) -> i32 {
         }
       }
     }
+    // "break"
+    if (char_at(start) == 98) {
+      if (char_at(start + 1) == 114) {
+        if (char_at(start + 2) == 101) {
+          if (char_at(start + 3) == 97) {
+            if (char_at(start + 4) == 107) { return tok_break(); }
+          }
+        }
+      }
+    }
+  }
+  if (len == 8) {
+    // "continue"
+    if (char_at(start) == 99) {
+      if (char_at(start + 1) == 111) {
+        if (char_at(start + 2) == 110) {
+          if (char_at(start + 3) == 116) {
+            if (char_at(start + 4) == 105) {
+              if (char_at(start + 5) == 110) {
+                if (char_at(start + 6) == 117) {
+                  if (char_at(start + 7) == 101) { return tok_continue(); }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
   if (len == 6) {
     // "return"
@@ -867,6 +897,8 @@ fn tok_false() -> i32 { return 31; }
 fn tok_and() -> i32 { return 32; }
 fn tok_or() -> i32 { return 33; }
 fn tok_string() -> i32 { return 34; }
+fn tok_break() -> i32 { return 35; }
+fn tok_continue() -> i32 { return 36; }
 
 // IR opcodes.
 fn op_const() -> i32 { return 1; }
@@ -1512,6 +1544,7 @@ fn parse_ident_test() -> i32 {
 // Initialize codegen state
 fn codegen_init() -> i32 {
   set_ir_count(0);
+  set_loop_depth(0);
   return 0;
 }
 
@@ -1959,6 +1992,7 @@ fn assign_string_offsets_stmt(node: i32) -> i32 {
   if (kind == nk_return()) {
     return assign_string_offsets_expr(ast_a(node));
   }
+  if (kind == nk_break() || kind == nk_continue()) { return 1; }
   if (kind == nk_if()) {
     let r1: i32 = assign_string_offsets_expr(ast_a(node));
     if (r1 < 0) { return r1; }
@@ -2047,6 +2081,9 @@ fn typecheck_stmt(node: i32) -> i32 {
     if (b < 0) { return b; }
     return 1;
   }
+  if (kind == nk_break() || kind == nk_continue()) {
+    return 1;
+  }
   // expression statement
   if (kind == nk_call() || kind == nk_int() || kind == nk_bool() || kind == nk_string() || kind == nk_ident()
       || kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()
@@ -2132,8 +2169,24 @@ fn emit_ir_stmt(node: i32) -> i32 {
   if (kind == nk_and()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_or()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_not()) { return emit_ir_expr_stmt(node); }
+  if (kind == nk_break()) { return emit_ir_break(); }
+  if (kind == nk_continue()) { return emit_ir_continue(); }
 
   return 0 - 1000 - kind;
+}
+
+fn emit_ir_break() -> i32 {
+  if (get_loop_depth() <= 0) { return 0 - 3401; }
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_br(), 1);
+  return 1;
+}
+
+fn emit_ir_continue() -> i32 {
+  if (get_loop_depth() <= 0) { return 0 - 3402; }
+  let idx: i32 = alloc_ir();
+  ir_set(idx, op_br(), 0);
+  return 1;
 }
 
 // Emit call as a statement (drop return value)
@@ -2286,7 +2339,9 @@ fn emit_ir_while(node: i32) -> i32 {
   ir_set(br_idx, op_br_if(), 1);
 
   // Emit body
+  set_loop_depth(get_loop_depth() + 1);
   let r2: i32 = emit_ir_block_stmts(body_block);
+  set_loop_depth(get_loop_depth() - 1);
   if (r2 < 0) { return r2; }
 
   // Emit br to loop start
@@ -2638,6 +2693,34 @@ fn ident_kind_dyn(start: i32, end: i32) -> i32 {
         if (char_at_dyn(start + 2) == 108) {
           if (char_at_dyn(start + 3) == 115) {
             if (char_at_dyn(start + 4) == 101) { return tok_false(); }
+          }
+        }
+      }
+    }
+    // "break"
+    if (char_at_dyn(start) == 98) {
+      if (char_at_dyn(start + 1) == 114) {
+        if (char_at_dyn(start + 2) == 101) {
+          if (char_at_dyn(start + 3) == 97) {
+            if (char_at_dyn(start + 4) == 107) { return tok_break(); }
+          }
+        }
+      }
+    }
+  }
+  if (len == 8) {
+    // "continue"
+    if (char_at_dyn(start) == 99) {
+      if (char_at_dyn(start + 1) == 111) {
+        if (char_at_dyn(start + 2) == 110) {
+          if (char_at_dyn(start + 3) == 116) {
+            if (char_at_dyn(start + 4) == 105) {
+              if (char_at_dyn(start + 5) == 110) {
+                if (char_at_dyn(start + 6) == 117) {
+                  if (char_at_dyn(start + 7) == 101) { return tok_continue(); }
+                }
+              }
+            }
           }
         }
       }
@@ -3159,6 +3242,16 @@ fn parse_stmt_dyn() -> i32 {
     if (r < 0) { return set_parse_error(r); }
     return r;
   }
+  if (kind == tok_break()) {
+    let r: i32 = parse_break_dyn();
+    if (r < 0) { return set_parse_error(r); }
+    return r;
+  }
+  if (kind == tok_continue()) {
+    let r: i32 = parse_continue_dyn();
+    if (r < 0) { return set_parse_error(r); }
+    return r;
+  }
   if (kind == tok_ident()) {
     let r: i32 = parse_assign_or_expr_dyn();
     if (r < 0) { return set_parse_error(r); }
@@ -3171,6 +3264,22 @@ fn parse_stmt_dyn() -> i32 {
     return expr;
   }
   return set_parse_error(0 - 700 - kind);
+}
+
+fn parse_break_dyn() -> i32 {
+  next_tok_dyn();
+  let _has_semi: i32 = expect_dyn(tok_semi());
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_break(), 0, 0, 0);
+  return node;
+}
+
+fn parse_continue_dyn() -> i32 {
+  next_tok_dyn();
+  let _has_semi: i32 = expect_dyn(tok_semi());
+  let node: i32 = alloc_ast();
+  ast_set(node, nk_continue(), 0, 0, 0);
+  return node;
 }
 
 // Parse assignment (x = expr;) or expression statement
@@ -5375,6 +5484,7 @@ fn gen_wat_data_stmt(node: i32) -> i32 {
   if (kind == nk_return()) {
     return gen_wat_data_expr(ast_a(node));
   }
+  if (kind == nk_break() || kind == nk_continue()) { return 0; }
   if (kind == nk_if()) {
     gen_wat_data_expr(ast_a(node));
     gen_wat_data_block(ast_b(node));
@@ -6755,6 +6865,9 @@ fn get_ir_count() -> i32 { return __mem_load(state_ir_count()); }
 fn set_ir_count(n: i32) -> i32 { __mem_store(state_ir_count(), n); return 0; }
 fn get_str_data_pos() -> i32 { return __mem_load(state_str_data_pos()); }
 fn set_str_data_pos(n: i32) -> i32 { __mem_store(state_str_data_pos(), n); return 0; }
+fn state_loop_depth() -> i32 { return state_base() + 88; }
+fn get_loop_depth() -> i32 { return __mem_load(state_loop_depth()); }
+fn set_loop_depth(n: i32) -> i32 { __mem_store(state_loop_depth(), n); return 0; }
 
 // Allocate an IR instruction, returns the index
 fn alloc_ir() -> i32 {
@@ -7127,6 +7240,20 @@ fn parse_stmt() -> i32 {
 
   if (kind == tok_while()) {
     return parse_while_stmt();
+  }
+  if (kind == tok_break()) {
+    next_tok();
+    let _has_semi: i32 = expect(tok_semi());
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_break(), 0, 0, 0);
+    return node;
+  }
+  if (kind == tok_continue()) {
+    next_tok();
+    let _has_semi: i32 = expect(tok_semi());
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_continue(), 0, 0, 0);
+    return node;
   }
 
   // Expression statement (not yet supported)
