@@ -2,6 +2,14 @@ use std::collections::HashMap;
 
 use crate::ast::{BinOp, Block, Expr, Function, Param, Program, Stmt, Type};
 
+#[derive(Clone)]
+struct FnSig {
+    params: Vec<Type>,
+    ret: Type,
+}
+
+const STRUCT_RET_SCRATCH_BASE: i32 = 65536;
+
 fn is_scalar(ty: &Type) -> bool {
     matches!(ty, Type::I32 | Type::Char | Type::Bool)
 }
@@ -10,12 +18,32 @@ fn field_local_name(var: &str, field: &str) -> String {
     format!("__field__{}__{}", var, field)
 }
 
-fn collect_struct_defs(prog: &Program) -> HashMap<String, Vec<Param>> {
+fn collectstruct_defs(prog: &Program) -> HashMap<String, Vec<Param>> {
     let mut defs = HashMap::new();
     for s in &prog.structs {
         defs.insert(s.name.clone(), s.fields.clone());
     }
     defs
+}
+
+fn collect_fn_sigs(prog: &Program) -> HashMap<String, FnSig> {
+    let mut out = HashMap::new();
+    for f in &prog.functions {
+        out.insert(
+            f.name.clone(),
+            FnSig {
+                params: f.params.iter().map(|p| p.ty.clone()).collect(),
+                ret: f.ret.clone(),
+            },
+        );
+    }
+    out
+}
+
+fn struct_fields<'a>(struct_defs: &'a HashMap<String, Vec<Param>>, sname: &str) -> &'a Vec<Param> {
+    struct_defs
+        .get(sname)
+        .unwrap_or_else(|| panic!("unknown struct {}", sname))
 }
 
 fn collect_strings_from_program(prog: &Program) -> Vec<String> {
@@ -332,13 +360,15 @@ fn expr_uses_memory(expr: &Expr) -> bool {
 
 pub fn emit_wat(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
-    let struct_defs = collect_struct_defs(prog);
+    let struct_defs = collectstruct_defs(prog);
+    let fn_sigs = collect_fn_sigs(prog);
     let needs_fd_write = uses_fd_write(prog);
     let needs_fd_read = uses_fd_read(prog);
     let needs_path_open = uses_path_open(prog);
     let needs_fd_close = uses_fd_close(prog);
     let needs_wasi = needs_fd_write || needs_fd_read || needs_path_open || needs_fd_close;
-    let needs_memory = !strings.is_empty() || uses_memory(prog) || needs_wasi;
+    let has_struct_returns = prog.functions.iter().any(|f| matches!(f.ret, Type::Struct(_)));
+    let needs_memory = !strings.is_empty() || uses_memory(prog) || needs_wasi || has_struct_returns;
     let mut out = String::new();
     out.push_str("(module\n");
 
@@ -392,7 +422,7 @@ pub fn emit_wat(prog: &Program) -> String {
     }
 
     for f in &prog.functions {
-        out.push_str(&emit_function_wat_with_strings(f, &string_offsets, &struct_defs));
+        out.push_str(&emit_function_wat_with_strings(f, &string_offsets, &struct_defs, &fn_sigs));
     }
     if prog.functions.iter().any(|f| f.name == "main") {
         out.push_str("  (export \"main\" (func $main))\n");
@@ -403,7 +433,8 @@ pub fn emit_wat(prog: &Program) -> String {
 
 pub fn emit_x86_64_asm(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
-    let struct_defs = collect_struct_defs(prog);
+    let struct_defs = collectstruct_defs(prog);
+    let fn_sigs = collect_fn_sigs(prog);
     let mut out = String::new();
     out.push_str(".intel_syntax noprefix\n");
 
@@ -424,7 +455,7 @@ pub fn emit_x86_64_asm(prog: &Program) -> String {
 
     out.push_str(".text\n");
     for f in &prog.functions {
-        out.push_str(&emit_function_x86_64_with_strings(f, &strings, &struct_defs));
+        out.push_str(&emit_function_x86_64_with_strings(f, &strings, &struct_defs, &fn_sigs));
     }
     out
 }
@@ -516,20 +547,32 @@ fn emit_function_wat_with_strings(
     f: &Function,
     string_offsets: &HashMap<String, i32>,
     struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
 ) -> String {
     let mut out = String::new();
     let mut locals = HashMap::new();
     let mut var_types: HashMap<String, Type> = HashMap::new();
-    for (idx, p) in f.params.iter().enumerate() {
-        if matches!(p.ty, Type::Struct(_)) {
-            panic!("struct params are not supported in codegen");
-        }
+    let mut param_index = 0i32;
+    if matches!(f.ret, Type::Struct(_)) {
+        locals.insert("__sret_ptr".to_string(), param_index);
+        param_index += 1;
+    }
+    for p in &f.params {
         var_types.insert(p.name.clone(), p.ty.clone());
-        locals.insert(p.name.clone(), idx as i32);
+        if is_scalar(&p.ty) {
+            locals.insert(p.name.clone(), param_index);
+            param_index += 1;
+        } else if let Type::Struct(sname) = &p.ty {
+            for field in struct_fields(struct_defs, sname) {
+                let lname = field_local_name(&p.name, &field.name);
+                locals.insert(lname, param_index);
+                param_index += 1;
+            }
+        }
     }
 
     let mut local_decls: Vec<String> = Vec::new();
-    let mut local_index = f.params.len() as i32;
+    let mut local_index = param_index;
     collect_locals_from_block(
         &f.body,
         &mut locals,
@@ -540,13 +583,20 @@ fn emit_function_wat_with_strings(
     );
 
     out.push_str(&format!("  (func ${}", f.name));
-    for _p in &f.params {
+    if matches!(f.ret, Type::Struct(_)) {
         out.push_str(" (param i32)");
+    }
+    for p in &f.params {
+        if is_scalar(&p.ty) {
+            out.push_str(" (param i32)");
+        } else if let Type::Struct(sname) = &p.ty {
+            for _ in struct_fields(struct_defs, sname) {
+                out.push_str(" (param i32)");
+            }
+        }
     }
     if is_scalar(&f.ret) {
         out.push_str(" (result i32)");
-    } else if matches!(f.ret, Type::Struct(_)) {
-        panic!("struct return values are not supported in codegen");
     }
     out.push_str("\n");
     for d in &local_decls {
@@ -560,6 +610,7 @@ fn emit_function_wat_with_strings(
         &locals,
         &var_types,
         struct_defs,
+        fn_sigs,
         &mut label_counter,
         string_offsets,
         &mut out,
@@ -567,6 +618,8 @@ fn emit_function_wat_with_strings(
 
     if is_scalar(&f.ret) {
         out.push_str("  i32.const 0\n  return\n");
+    } else if matches!(f.ret, Type::Struct(_)) {
+        out.push_str("  return\n");
     }
 
     out.push_str("  )\n");
@@ -577,18 +630,25 @@ fn emit_function_x86_64_with_strings(
     f: &Function,
     strings: &[String],
     struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
 ) -> String {
     let mut out = String::new();
     let mut locals = HashMap::new();
     let mut local_order = Vec::new();
     let mut var_types: HashMap<String, Type> = HashMap::new();
 
+    if matches!(f.ret, Type::Struct(_)) {
+        local_order.push("__sret_ptr".to_string());
+    }
     for p in &f.params {
-        if matches!(p.ty, Type::Struct(_)) {
-            panic!("struct params are not supported in codegen");
-        }
         var_types.insert(p.name.clone(), p.ty.clone());
-        local_order.push(p.name.clone());
+        if is_scalar(&p.ty) {
+            local_order.push(p.name.clone());
+        } else if let Type::Struct(sname) = &p.ty {
+            for field in struct_fields(struct_defs, sname) {
+                local_order.push(field_local_name(&p.name, &field.name));
+            }
+        }
     }
 
     collect_locals_x86_64(&f.body, &mut local_order, struct_defs, &mut var_types);
@@ -611,8 +671,22 @@ fn emit_function_x86_64_with_strings(
     }
 
     let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
-    for (i, p) in f.params.iter().enumerate() {
-        if let Some(off) = locals.get(&p.name) {
+    let mut param_names: Vec<String> = Vec::new();
+    if matches!(f.ret, Type::Struct(_)) {
+        param_names.push("__sret_ptr".to_string());
+    }
+    for p in &f.params {
+        if is_scalar(&p.ty) {
+            param_names.push(p.name.clone());
+        } else if let Type::Struct(sname) = &p.ty {
+            for field in struct_fields(struct_defs, sname) {
+                param_names.push(field_local_name(&p.name, &field.name));
+            }
+        }
+    }
+
+    for (i, pname) in param_names.iter().enumerate() {
+        if let Some(off) = locals.get(pname) {
             if i < arg_regs.len() {
                 out.push_str(&format!("  mov QWORD PTR [rbp{}], {}\n", fmt_offset(*off), arg_regs[i]));
             }
@@ -626,6 +700,7 @@ fn emit_function_x86_64_with_strings(
         &locals,
         &var_types,
         struct_defs,
+        fn_sigs,
         &ret_label,
         &mut label_counter,
         strings,
@@ -635,7 +710,11 @@ fn emit_function_x86_64_with_strings(
     if is_scalar(&f.ret) {
         out.push_str("  mov rax, 0\n");
     } else if matches!(f.ret, Type::Struct(_)) {
-        panic!("struct return values are not supported in codegen");
+        if let Some(off) = locals.get("__sret_ptr") {
+            out.push_str(&format!("  mov rax, QWORD PTR [rbp{}]\n", fmt_offset(*off)));
+        } else {
+            out.push_str("  xor rax, rax\n");
+        }
     }
 
     out.push_str(&format!("{}:\n", ret_label));
@@ -648,12 +727,13 @@ fn emit_block_wat_with_strings(
     locals: &HashMap<String, i32>,
     var_types: &HashMap<String, Type>,
     struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
     label_counter: &mut i32,
     string_offsets: &HashMap<String, i32>,
     out: &mut String,
 ) {
     for stmt in &block.statements {
-        emit_stmt_wat_with_strings(stmt, locals, var_types, struct_defs, label_counter, string_offsets, out);
+        emit_stmt_wat_with_strings(stmt, locals, var_types, struct_defs, fn_sigs, label_counter, string_offsets, out);
     }
 }
 
@@ -662,6 +742,7 @@ fn emit_stmt_wat_with_strings(
     locals: &HashMap<String, i32>,
     var_types: &HashMap<String, Type>,
     struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
     label_counter: &mut i32,
     string_offsets: &HashMap<String, i32>,
     out: &mut String,
@@ -669,7 +750,7 @@ fn emit_stmt_wat_with_strings(
     match stmt {
         Stmt::Let { name, ty, expr } => {
             if is_scalar(ty) {
-                emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 let idx = locals.get(name).unwrap_or_else(|| panic!("unknown local {}", name));
                 out.push_str(&format!("  local.set {}\n", idx));
             } else if let Type::Struct(sname) = ty {
@@ -688,7 +769,7 @@ fn emit_stmt_wat_with_strings(
                                 .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
                                 .1
                                 .clone();
-                            emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, string_offsets, out);
+                            emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                             let lname = field_local_name(name, &field.name);
                             let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
                             out.push_str(&format!("  local.set {}\n", idx));
@@ -702,6 +783,41 @@ fn emit_stmt_wat_with_strings(
                             let dst_idx = locals.get(&dst_name).unwrap_or_else(|| panic!("unknown local {}", dst_name));
                             out.push_str(&format!("  local.get {}\n", src_idx));
                             out.push_str(&format!("  local.set {}\n", dst_idx));
+                        }
+                    }
+                    Expr::Call { callee, args } => {
+                        let sig = fn_sigs.get(callee).unwrap_or_else(|| panic!("unknown function {}", callee));
+                        if !matches!(sig.ret, Type::Struct(_)) {
+                            panic!("expected struct-returning function in struct let init: {}", callee);
+                        }
+                        out.push_str(&format!("  i32.const {}\n", STRUCT_RET_SCRATCH_BASE));
+                        for (arg, pty) in args.iter().zip(sig.params.iter()) {
+                            match pty {
+                                Type::Struct(sname2) => {
+                                    let arg_fields = struct_fields(struct_defs, sname2);
+                                    if let Expr::Ident(vname) = arg {
+                                        for f2 in arg_fields {
+                                            let lname2 = field_local_name(vname, &f2.name);
+                                            let idx2 = locals.get(&lname2).unwrap_or_else(|| panic!("unknown local {}", lname2));
+                                            out.push_str(&format!("  local.get {}\n", idx2));
+                                        }
+                                    } else {
+                                        panic!("unsupported struct argument expression");
+                                    }
+                                }
+                                _ => emit_expr_wat_with_strings(arg, locals, var_types, struct_defs, fn_sigs, string_offsets, out),
+                            }
+                        }
+                        out.push_str(&format!("  call ${}\n", callee));
+                        if is_scalar(&sig.ret) {
+                            out.push_str("  drop\n");
+                        }
+                        for (i, field) in fields.iter().enumerate() {
+                            out.push_str(&format!("  i32.const {}\n", STRUCT_RET_SCRATCH_BASE + (i as i32) * 4));
+                            out.push_str("  i32.load\n");
+                            let lname = field_local_name(name, &field.name);
+                            let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                            out.push_str(&format!("  local.set {}\n", idx));
                         }
                     }
                     _ => {
@@ -715,7 +831,7 @@ fn emit_stmt_wat_with_strings(
         Stmt::Assign { name, expr } => {
             let ty = var_types.get(name).unwrap_or_else(|| panic!("unknown variable {}", name));
             if is_scalar(ty) {
-                emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 let idx = locals.get(name).unwrap_or_else(|| panic!("unknown local {}", name));
                 out.push_str(&format!("  local.set {}\n", idx));
             } else if let Type::Struct(sname) = ty {
@@ -734,7 +850,7 @@ fn emit_stmt_wat_with_strings(
                                 .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
                                 .1
                                 .clone();
-                            emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, string_offsets, out);
+                            emit_expr_wat_with_strings(&init_expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                             let lname = field_local_name(name, &field.name);
                             let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
                             out.push_str(&format!("  local.set {}\n", idx));
@@ -748,6 +864,41 @@ fn emit_stmt_wat_with_strings(
                             let dst_idx = locals.get(&dst_name).unwrap_or_else(|| panic!("unknown local {}", dst_name));
                             out.push_str(&format!("  local.get {}\n", src_idx));
                             out.push_str(&format!("  local.set {}\n", dst_idx));
+                        }
+                    }
+                    Expr::Call { callee, args } => {
+                        let sig = fn_sigs.get(callee).unwrap_or_else(|| panic!("unknown function {}", callee));
+                        if !matches!(sig.ret, Type::Struct(_)) {
+                            panic!("expected struct-returning function in struct assignment: {}", callee);
+                        }
+                        out.push_str(&format!("  i32.const {}\n", STRUCT_RET_SCRATCH_BASE));
+                        for (arg, pty) in args.iter().zip(sig.params.iter()) {
+                            match pty {
+                                Type::Struct(sname2) => {
+                                    let arg_fields = struct_fields(struct_defs, sname2);
+                                    if let Expr::Ident(vname) = arg {
+                                        for f2 in arg_fields {
+                                            let lname2 = field_local_name(vname, &f2.name);
+                                            let idx2 = locals.get(&lname2).unwrap_or_else(|| panic!("unknown local {}", lname2));
+                                            out.push_str(&format!("  local.get {}\n", idx2));
+                                        }
+                                    } else {
+                                        panic!("unsupported struct argument expression");
+                                    }
+                                }
+                                _ => emit_expr_wat_with_strings(arg, locals, var_types, struct_defs, fn_sigs, string_offsets, out),
+                            }
+                        }
+                        out.push_str(&format!("  call ${}\n", callee));
+                        if is_scalar(&sig.ret) {
+                            out.push_str("  drop\n");
+                        }
+                        for (i, field) in fields.iter().enumerate() {
+                            out.push_str(&format!("  i32.const {}\n", STRUCT_RET_SCRATCH_BASE + (i as i32) * 4));
+                            out.push_str("  i32.load\n");
+                            let lname = field_local_name(name, &field.name);
+                            let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                            out.push_str(&format!("  local.set {}\n", idx));
                         }
                     }
                     _ => {
@@ -763,20 +914,20 @@ fn emit_stmt_wat_with_strings(
             if !matches!(ty, Type::Struct(_)) {
                 panic!("field assignment on non-struct {}", base);
             }
-            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
+            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
             let lname = field_local_name(base, field);
             let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown field {} on {}", field, base));
             out.push_str(&format!("  local.set {}\n", idx));
         }
         Stmt::If { cond, then_block, else_block } => {
-            emit_expr_wat_with_strings(cond, locals, var_types, struct_defs, string_offsets, out);
+            emit_expr_wat_with_strings(cond, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
             out.push_str("  (if\n");
             out.push_str("    (then\n");
-            emit_block_wat_with_strings(then_block, locals, var_types, struct_defs, label_counter, string_offsets, out);
+            emit_block_wat_with_strings(then_block, locals, var_types, struct_defs, fn_sigs, label_counter, string_offsets, out);
             out.push_str("    )\n");
             if let Some(eb) = else_block {
                 out.push_str("    (else\n");
-                emit_block_wat_with_strings(eb, locals, var_types, struct_defs, label_counter, string_offsets, out);
+                emit_block_wat_with_strings(eb, locals, var_types, struct_defs, fn_sigs, label_counter, string_offsets, out);
                 out.push_str("    )\n");
             }
             out.push_str("  )\n");
@@ -786,20 +937,56 @@ fn emit_stmt_wat_with_strings(
             *label_counter += 1;
             out.push_str(&format!("  (block $exit_{}\n", n));
             out.push_str(&format!("    (loop $loop_{}\n", n));
-            emit_expr_wat_with_strings(cond, locals, var_types, struct_defs, string_offsets, out);
+            emit_expr_wat_with_strings(cond, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
             out.push_str("      i32.eqz\n");
             out.push_str(&format!("      br_if $exit_{}\n", n));
-            emit_block_wat_with_strings(body, locals, var_types, struct_defs, label_counter, string_offsets, out);
+            emit_block_wat_with_strings(body, locals, var_types, struct_defs, fn_sigs, label_counter, string_offsets, out);
             out.push_str(&format!("      br $loop_{}\n", n));
             out.push_str("    )\n");
             out.push_str("  )\n");
         }
         Stmt::Return(expr) => {
-            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
-            out.push_str("  return\n");
+            if locals.contains_key("__sret_ptr") {
+                let sret_ptr_idx = *locals.get("__sret_ptr").unwrap();
+                match expr {
+                    Expr::StructInit { name, fields } => {
+                        let sfields = struct_fields(struct_defs, name);
+                        for (i, f) in sfields.iter().enumerate() {
+                            let val = fields.iter().find(|(fname, _)| fname == &f.name).unwrap_or_else(|| panic!("missing field {} in return init", f.name)).1.clone();
+                            out.push_str(&format!("  local.get {}\n", sret_ptr_idx));
+                            out.push_str(&format!("  i32.const {}\n", (i as i32) * 4));
+                            out.push_str("  i32.add\n");
+                            emit_expr_wat_with_strings(&val, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                            out.push_str("  i32.store\n");
+                        }
+                    }
+                    Expr::Ident(src) => {
+                        let ty = var_types.get(src).unwrap_or_else(|| panic!("unknown variable {}", src));
+                        if let Type::Struct(sname) = ty {
+                            let sfields = struct_fields(struct_defs, sname);
+                            for (i, f) in sfields.iter().enumerate() {
+                                let lname = field_local_name(src, &f.name);
+                                let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                                out.push_str(&format!("  local.get {}\n", sret_ptr_idx));
+                                out.push_str(&format!("  i32.const {}\n", (i as i32) * 4));
+                                out.push_str("  i32.add\n");
+                                out.push_str(&format!("  local.get {}\n", idx));
+                                out.push_str("  i32.store\n");
+                            }
+                        } else {
+                            panic!("struct-return function must return struct expression");
+                        }
+                    }
+                    _ => panic!("unsupported struct return expression"),
+                }
+                out.push_str("  return\n");
+            } else {
+                emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                out.push_str("  return\n");
+            }
         }
         Stmt::Expr(expr) => {
-            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, string_offsets, out);
+            emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
             out.push_str("  drop\n");
         }
     }
@@ -810,13 +997,14 @@ fn emit_block_x86_64_with_strings(
     locals: &HashMap<String, i32>,
     var_types: &HashMap<String, Type>,
     struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
     ret_label: &str,
     label_counter: &mut i32,
     strings: &[String],
     out: &mut String,
 ) {
     for stmt in &block.statements {
-        emit_stmt_x86_64_with_strings(stmt, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
+        emit_stmt_x86_64_with_strings(stmt, locals, var_types, struct_defs, fn_sigs, ret_label, label_counter, strings, out);
     }
 }
 
@@ -825,6 +1013,7 @@ fn emit_stmt_x86_64_with_strings(
     locals: &HashMap<String, i32>,
     var_types: &HashMap<String, Type>,
     struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
     ret_label: &str,
     label_counter: &mut i32,
     strings: &[String],
@@ -833,7 +1022,7 @@ fn emit_stmt_x86_64_with_strings(
     match stmt {
         Stmt::Let { name, ty, expr } => {
             if is_scalar(ty) {
-                emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, fn_sigs, strings, out);
                 if let Some(off) = locals.get(name) {
                     out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
                 }
@@ -853,7 +1042,7 @@ fn emit_stmt_x86_64_with_strings(
                                 .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
                                 .1
                                 .clone();
-                            emit_expr_x86_64_with_strings(&init_expr, locals, var_types, struct_defs, strings, out);
+                            emit_expr_x86_64_with_strings(&init_expr, locals, var_types, struct_defs, fn_sigs, strings, out);
                             if let Some(off) = locals.get(&field_local_name(name, &field.name)) {
                                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
                             }
@@ -868,6 +1057,84 @@ fn emit_stmt_x86_64_with_strings(
                                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*dst_off)));
                             }
                         }
+                    }
+                    Expr::Call { callee, args } => {
+                        let sig = fn_sigs.get(callee).unwrap_or_else(|| panic!("unknown function {}", callee));
+                        if !matches!(sig.ret, Type::Struct(_)) {
+                            panic!("expected struct-returning function in struct let init: {}", callee);
+                        }
+                        let mut flat_args: Vec<Expr> = Vec::new();
+                        for (arg, pty) in args.iter().zip(sig.params.iter()) {
+                            match pty {
+                                Type::Struct(sname2) => {
+                                    let arg_fields = struct_fields(struct_defs, sname2);
+                                    match arg {
+                                        Expr::Ident(vname) => {
+                                            for f2 in arg_fields {
+                                                flat_args.push(Expr::FieldAccess {
+                                                    expr: Box::new(Expr::Ident(vname.clone())),
+                                                    field: f2.name.clone(),
+                                                });
+                                            }
+                                        }
+                                        Expr::StructInit { name, fields: vals } => {
+                                            if name != sname2 {
+                                                panic!("struct call arg type mismatch: {} vs {}", name, sname2);
+                                            }
+                                            for f2 in arg_fields {
+                                                let val = vals
+                                                    .iter()
+                                                    .find(|(fname, _)| fname == &f2.name)
+                                                    .unwrap_or_else(|| panic!("missing field {} in arg init", f2.name))
+                                                    .1
+                                                    .clone();
+                                                flat_args.push(val);
+                                            }
+                                        }
+                                        _ => panic!("unsupported struct argument expression"),
+                                    }
+                                }
+                                _ => flat_args.push(arg.clone()),
+                            }
+                        }
+
+                        let scratch_size = ((fields.len() as i32) * 4 + 15) / 16 * 16;
+                        out.push_str(&format!("  sub rsp, {}\n", scratch_size));
+                        out.push_str("  lea r11, [rsp]\n");
+
+                        let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+                        let total_args = flat_args.len() + 1;
+                        let stack_count = total_args.saturating_sub(arg_regs.len());
+                        let needs_pad = stack_count % 2 == 1;
+                        if needs_pad {
+                            out.push_str("  sub rsp, 8\n");
+                        }
+                        if total_args > arg_regs.len() {
+                            for i in (arg_regs.len()..total_args).rev() {
+                                emit_expr_x86_64_with_strings(&flat_args[i - 1], locals, var_types, struct_defs, fn_sigs, strings, out);
+                                out.push_str("  push rax\n");
+                            }
+                        }
+                        let reg_count = if total_args < arg_regs.len() { total_args } else { arg_regs.len() };
+                        for i in (0..reg_count).rev() {
+                            if i == 0 {
+                                out.push_str(&format!("  mov {}, r11\n", arg_regs[i]));
+                            } else {
+                                emit_expr_x86_64_with_strings(&flat_args[i - 1], locals, var_types, struct_defs, fn_sigs, strings, out);
+                                out.push_str(&format!("  mov {}, rax\n", arg_regs[i]));
+                            }
+                        }
+                        out.push_str(&format!("  call {}\n", callee));
+
+                        for (i, field) in fields.iter().enumerate() {
+                            out.push_str(&format!("  mov eax, DWORD PTR [r11+{}]\n", (i as i32) * 4));
+                            if let Some(dst_off) = locals.get(&field_local_name(name, &field.name)) {
+                                out.push_str(&format!("  mov DWORD PTR [rbp{}], eax\n", fmt_offset(*dst_off)));
+                            }
+                        }
+
+                        let cleanup = (stack_count as i32) * 8 + if needs_pad { 8 } else { 0 } + scratch_size;
+                        out.push_str(&format!("  add rsp, {}\n", cleanup));
                     }
                     _ => {
                         panic!("unsupported struct initializer for {}", name);
@@ -880,7 +1147,7 @@ fn emit_stmt_x86_64_with_strings(
         Stmt::Assign { name, expr } => {
             let ty = var_types.get(name).unwrap_or_else(|| panic!("unknown variable {}", name));
             if is_scalar(ty) {
-                emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, fn_sigs, strings, out);
                 if let Some(off) = locals.get(name) {
                     out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
                 }
@@ -900,7 +1167,7 @@ fn emit_stmt_x86_64_with_strings(
                                 .unwrap_or_else(|| panic!("missing field {} in init for {}", field.name, sname))
                                 .1
                                 .clone();
-                            emit_expr_x86_64_with_strings(&init_expr, locals, var_types, struct_defs, strings, out);
+                            emit_expr_x86_64_with_strings(&init_expr, locals, var_types, struct_defs, fn_sigs, strings, out);
                             if let Some(off) = locals.get(&field_local_name(name, &field.name)) {
                                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
                             }
@@ -915,6 +1182,84 @@ fn emit_stmt_x86_64_with_strings(
                                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*dst_off)));
                             }
                         }
+                    }
+                    Expr::Call { callee, args } => {
+                        let sig = fn_sigs.get(callee).unwrap_or_else(|| panic!("unknown function {}", callee));
+                        if !matches!(sig.ret, Type::Struct(_)) {
+                            panic!("expected struct-returning function in struct assignment: {}", callee);
+                        }
+                        let mut flat_args: Vec<Expr> = Vec::new();
+                        for (arg, pty) in args.iter().zip(sig.params.iter()) {
+                            match pty {
+                                Type::Struct(sname2) => {
+                                    let arg_fields = struct_fields(struct_defs, sname2);
+                                    match arg {
+                                        Expr::Ident(vname) => {
+                                            for f2 in arg_fields {
+                                                flat_args.push(Expr::FieldAccess {
+                                                    expr: Box::new(Expr::Ident(vname.clone())),
+                                                    field: f2.name.clone(),
+                                                });
+                                            }
+                                        }
+                                        Expr::StructInit { name, fields: vals } => {
+                                            if name != sname2 {
+                                                panic!("struct call arg type mismatch: {} vs {}", name, sname2);
+                                            }
+                                            for f2 in arg_fields {
+                                                let val = vals
+                                                    .iter()
+                                                    .find(|(fname, _)| fname == &f2.name)
+                                                    .unwrap_or_else(|| panic!("missing field {} in arg init", f2.name))
+                                                    .1
+                                                    .clone();
+                                                flat_args.push(val);
+                                            }
+                                        }
+                                        _ => panic!("unsupported struct argument expression"),
+                                    }
+                                }
+                                _ => flat_args.push(arg.clone()),
+                            }
+                        }
+
+                        let scratch_size = ((fields.len() as i32) * 4 + 15) / 16 * 16;
+                        out.push_str(&format!("  sub rsp, {}\n", scratch_size));
+                        out.push_str("  lea r11, [rsp]\n");
+
+                        let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+                        let total_args = flat_args.len() + 1;
+                        let stack_count = total_args.saturating_sub(arg_regs.len());
+                        let needs_pad = stack_count % 2 == 1;
+                        if needs_pad {
+                            out.push_str("  sub rsp, 8\n");
+                        }
+                        if total_args > arg_regs.len() {
+                            for i in (arg_regs.len()..total_args).rev() {
+                                emit_expr_x86_64_with_strings(&flat_args[i - 1], locals, var_types, struct_defs, fn_sigs, strings, out);
+                                out.push_str("  push rax\n");
+                            }
+                        }
+                        let reg_count = if total_args < arg_regs.len() { total_args } else { arg_regs.len() };
+                        for i in (0..reg_count).rev() {
+                            if i == 0 {
+                                out.push_str(&format!("  mov {}, r11\n", arg_regs[i]));
+                            } else {
+                                emit_expr_x86_64_with_strings(&flat_args[i - 1], locals, var_types, struct_defs, fn_sigs, strings, out);
+                                out.push_str(&format!("  mov {}, rax\n", arg_regs[i]));
+                            }
+                        }
+                        out.push_str(&format!("  call {}\n", callee));
+
+                        for (i, field) in fields.iter().enumerate() {
+                            out.push_str(&format!("  mov eax, DWORD PTR [r11+{}]\n", (i as i32) * 4));
+                            if let Some(dst_off) = locals.get(&field_local_name(name, &field.name)) {
+                                out.push_str(&format!("  mov DWORD PTR [rbp{}], eax\n", fmt_offset(*dst_off)));
+                            }
+                        }
+
+                        let cleanup = (stack_count as i32) * 8 + if needs_pad { 8 } else { 0 } + scratch_size;
+                        out.push_str(&format!("  add rsp, {}\n", cleanup));
                     }
                     _ => {
                         panic!("unsupported struct assignment to {}", name);
@@ -929,7 +1274,7 @@ fn emit_stmt_x86_64_with_strings(
             if !matches!(ty, Type::Struct(_)) {
                 panic!("field assignment on non-struct {}", base);
             }
-            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
+            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, fn_sigs, strings, out);
             let lname = field_local_name(base, field);
             if let Some(off) = locals.get(&lname) {
                 out.push_str(&format!("  mov QWORD PTR [rbp{}], rax\n", fmt_offset(*off)));
@@ -940,14 +1285,14 @@ fn emit_stmt_x86_64_with_strings(
         Stmt::If { cond, then_block, else_block } => {
             let n = *label_counter;
             *label_counter += 1;
-            emit_expr_x86_64_with_strings(cond, locals, var_types, struct_defs, strings, out);
+            emit_expr_x86_64_with_strings(cond, locals, var_types, struct_defs, fn_sigs, strings, out);
             out.push_str("  cmp rax, 0\n");
             out.push_str(&format!("  je .Lelse_{}\n", n));
-            emit_block_x86_64_with_strings(then_block, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
+            emit_block_x86_64_with_strings(then_block, locals, var_types, struct_defs, fn_sigs, ret_label, label_counter, strings, out);
             out.push_str(&format!("  jmp .Lendif_{}\n", n));
             out.push_str(&format!(".Lelse_{}:\n", n));
             if let Some(eb) = else_block {
-                emit_block_x86_64_with_strings(eb, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
+                emit_block_x86_64_with_strings(eb, locals, var_types, struct_defs, fn_sigs, ret_label, label_counter, strings, out);
             }
             out.push_str(&format!(".Lendif_{}:\n", n));
         }
@@ -955,19 +1300,55 @@ fn emit_stmt_x86_64_with_strings(
             let n = *label_counter;
             *label_counter += 1;
             out.push_str(&format!(".Lloop_{}:\n", n));
-            emit_expr_x86_64_with_strings(cond, locals, var_types, struct_defs, strings, out);
+            emit_expr_x86_64_with_strings(cond, locals, var_types, struct_defs, fn_sigs, strings, out);
             out.push_str("  cmp rax, 0\n");
             out.push_str(&format!("  je .Lexit_{}\n", n));
-            emit_block_x86_64_with_strings(body, locals, var_types, struct_defs, ret_label, label_counter, strings, out);
+            emit_block_x86_64_with_strings(body, locals, var_types, struct_defs, fn_sigs, ret_label, label_counter, strings, out);
             out.push_str(&format!("  jmp .Lloop_{}\n", n));
             out.push_str(&format!(".Lexit_{}:\n", n));
         }
         Stmt::Return(expr) => {
-            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
-            out.push_str(&format!("  jmp {}\n", ret_label));
+            if let Some(sret_off) = locals.get("__sret_ptr") {
+                match expr {
+                    Expr::StructInit { name, fields } => {
+                        let sfields = struct_fields(struct_defs, name);
+                        out.push_str(&format!("  mov r10, QWORD PTR [rbp{}]\n", fmt_offset(*sret_off)));
+                        for (i, f) in sfields.iter().enumerate() {
+                            let val = fields
+                                .iter()
+                                .find(|(fname, _)| fname == &f.name)
+                                .unwrap_or_else(|| panic!("missing field {} in return init", f.name))
+                                .1
+                                .clone();
+                            emit_expr_x86_64_with_strings(&val, locals, var_types, struct_defs, fn_sigs, strings, out);
+                            out.push_str(&format!("  mov DWORD PTR [r10+{}], eax\n", (i as i32) * 4));
+                        }
+                    }
+                    Expr::Ident(src) => {
+                        let ty = var_types.get(src).unwrap_or_else(|| panic!("unknown variable {}", src));
+                        if let Type::Struct(sname) = ty {
+                            let sfields = struct_fields(struct_defs, sname);
+                            out.push_str(&format!("  mov r10, QWORD PTR [rbp{}]\n", fmt_offset(*sret_off)));
+                            for (i, f) in sfields.iter().enumerate() {
+                                let lname = field_local_name(src, &f.name);
+                                let off = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                                out.push_str(&format!("  mov eax, DWORD PTR [rbp{}]\n", fmt_offset(*off)));
+                                out.push_str(&format!("  mov DWORD PTR [r10+{}], eax\n", (i as i32) * 4));
+                            }
+                        } else {
+                            panic!("struct-return function must return struct expression");
+                        }
+                    }
+                    _ => panic!("unsupported struct return expression"),
+                }
+                out.push_str(&format!("  jmp {}\n", ret_label));
+            } else {
+                emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str(&format!("  jmp {}\n", ret_label));
+            }
         }
         Stmt::Expr(expr) => {
-            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, strings, out);
+            emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, fn_sigs, strings, out);
         }
     }
 }
@@ -976,7 +1357,8 @@ fn emit_expr_wat_with_strings(
     expr: &Expr,
     locals: &HashMap<String, i32>,
     var_types: &HashMap<String, Type>,
-    _struct_defs: &HashMap<String, Vec<Param>>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
     string_offsets: &HashMap<String, i32>,
     out: &mut String,
 ) {
@@ -1004,8 +1386,8 @@ fn emit_expr_wat_with_strings(
             }
         }
         Expr::Binary { op, left, right } => {
-            emit_expr_wat_with_strings(left, locals, var_types, _struct_defs, string_offsets, out);
-            emit_expr_wat_with_strings(right, locals, var_types, _struct_defs, string_offsets, out);
+            emit_expr_wat_with_strings(left, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+            emit_expr_wat_with_strings(right, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
             let instr = match op {
                 BinOp::Add => "i32.add",
                 BinOp::Sub => "i32.sub",
@@ -1037,7 +1419,7 @@ fn emit_expr_wat_with_strings(
         Expr::Unary { op, expr } => {
             match op {
                 crate::ast::UnOp::Not => {
-                    emit_expr_wat_with_strings(expr, locals, var_types, _struct_defs, string_offsets, out);
+                    emit_expr_wat_with_strings(expr, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                     out.push_str("  i32.const 0\n  i32.eq\n");
                 }
             }
@@ -1048,7 +1430,7 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 1 {
                     panic!("__mem_load expects 1 argument (address)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  i32.load\n");
                 return;
             }
@@ -1056,7 +1438,7 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 1 {
                     panic!("__mem_load8 expects 1 argument (address)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  i32.load8_u\n");
                 return;
             }
@@ -1064,8 +1446,8 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 2 {
                     panic!("__mem_store expects 2 arguments (address, value)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  i32.store\n");
                 out.push_str("  i32.const 0\n"); // Return 0 (store is side-effect only)
                 return;
@@ -1074,8 +1456,8 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 2 {
                     panic!("__mem_store8 expects 2 arguments (address, value)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  i32.store8\n");
                 out.push_str("  i32.const 0\n");
                 return;
@@ -1084,10 +1466,10 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 4 {
                     panic!("__fd_write expects 4 arguments (fd, iov_ptr, iov_cnt, nwritten_ptr)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[2], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[3], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[2], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[3], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  call $__fd_write\n");
                 return;
             }
@@ -1095,10 +1477,10 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 4 {
                     panic!("__fd_read expects 4 arguments (fd, iov_ptr, iov_cnt, nread_ptr)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[2], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[3], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[2], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[3], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  call $__fd_read\n");
                 return;
             }
@@ -1106,17 +1488,17 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 9 {
                     panic!("__path_open expects 9 arguments (dirfd, dirflags, path_ptr, path_len, oflags, rights_base, rights_inheriting, fdflags, opened_fd_ptr)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[1], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[2], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[3], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[4], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[5], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[2], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[3], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[4], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[5], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  i64.extend_i32_u\n");
-                emit_expr_wat_with_strings(&args[6], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[6], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  i64.extend_i32_u\n");
-                emit_expr_wat_with_strings(&args[7], locals, var_types, _struct_defs, string_offsets, out);
-                emit_expr_wat_with_strings(&args[8], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[7], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[8], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  call $__path_open\n");
                 return;
             }
@@ -1124,12 +1506,46 @@ fn emit_expr_wat_with_strings(
                 if args.len() != 1 {
                     panic!("__fd_close expects 1 argument (fd)");
                 }
-                emit_expr_wat_with_strings(&args[0], locals, var_types, _struct_defs, string_offsets, out);
+                emit_expr_wat_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, string_offsets, out);
                 out.push_str("  call $__fd_close\n");
                 return;
             }
-            for arg in args {
-                emit_expr_wat_with_strings(arg, locals, var_types, _struct_defs, string_offsets, out);
+            let sig = fn_sigs.get(callee);
+            if let Some(sig) = sig {
+                if matches!(sig.ret, Type::Struct(_)) {
+                    panic!("struct-return call is not valid in scalar expression context: {}", callee);
+                }
+                for (arg, pty) in args.iter().zip(sig.params.iter()) {
+                    match pty {
+                        Type::Struct(sname) => {
+                            let fields = struct_fields(struct_defs, sname);
+                            match arg {
+                                Expr::Ident(vname) => {
+                                    for f in fields {
+                                        let lname = field_local_name(vname, &f.name);
+                                        let idx = locals.get(&lname).unwrap_or_else(|| panic!("unknown local {}", lname));
+                                        out.push_str(&format!("  local.get {}\n", idx));
+                                    }
+                                }
+                                Expr::StructInit { name, fields: vals } => {
+                                    if name != sname {
+                                        panic!("struct call arg type mismatch: {} vs {}", name, sname);
+                                    }
+                                    for f in fields {
+                                        let val = vals.iter().find(|(fname, _)| fname == &f.name).unwrap_or_else(|| panic!("missing field {} in arg init", f.name)).1.clone();
+                                        emit_expr_wat_with_strings(&val, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                                    }
+                                }
+                                _ => panic!("unsupported struct argument expression"),
+                            }
+                        }
+                        _ => emit_expr_wat_with_strings(arg, locals, var_types, struct_defs, fn_sigs, string_offsets, out),
+                    }
+                }
+            } else {
+                for arg in args {
+                    emit_expr_wat_with_strings(arg, locals, var_types, struct_defs, fn_sigs, string_offsets, out);
+                }
             }
             out.push_str(&format!("  call ${}\n", callee));
         }
@@ -1160,7 +1576,8 @@ fn emit_expr_x86_64_with_strings(
     expr: &Expr,
     locals: &HashMap<String, i32>,
     var_types: &HashMap<String, Type>,
-    _struct_defs: &HashMap<String, Vec<Param>>,
+    struct_defs: &HashMap<String, Vec<Param>>,
+    fn_sigs: &HashMap<String, FnSig>,
     strings: &[String],
     out: &mut String,
 ) {
@@ -1188,9 +1605,9 @@ fn emit_expr_x86_64_with_strings(
             }
         }
         Expr::Binary { op, left, right } => {
-            emit_expr_x86_64_with_strings(left, locals, var_types, _struct_defs, strings, out);
+            emit_expr_x86_64_with_strings(left, locals, var_types, struct_defs, fn_sigs, strings, out);
             out.push_str("  push rax\n");
-            emit_expr_x86_64_with_strings(right, locals, var_types, _struct_defs, strings, out);
+            emit_expr_x86_64_with_strings(right, locals, var_types, struct_defs, fn_sigs, strings, out);
             out.push_str("  pop rcx\n");
             match op {
                 BinOp::Add => {
@@ -1239,7 +1656,7 @@ fn emit_expr_x86_64_with_strings(
         Expr::Unary { op, expr } => {
             match op {
                 crate::ast::UnOp::Not => {
-                    emit_expr_x86_64_with_strings(expr, locals, var_types, _struct_defs, strings, out);
+                    emit_expr_x86_64_with_strings(expr, locals, var_types, struct_defs, fn_sigs, strings, out);
                     out.push_str("  cmp rax, 0\n  sete al\n  movzx rax, al\n");
                 }
             }
@@ -1250,7 +1667,7 @@ fn emit_expr_x86_64_with_strings(
                 if args.len() != 1 {
                     panic!("__mem_load expects 1 argument (address)");
                 }
-                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
                 // rax has address, load 32-bit value and sign-extend to 64-bit
                 out.push_str("  movsxd rax, DWORD PTR [rax]\n");
                 return;
@@ -1259,7 +1676,7 @@ fn emit_expr_x86_64_with_strings(
                 if args.len() != 1 {
                     panic!("__mem_load8 expects 1 argument (address)");
                 }
-                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
                 // rax has address, load byte and zero-extend
                 out.push_str("  movzx rax, BYTE PTR [rax]\n");
                 return;
@@ -1268,9 +1685,9 @@ fn emit_expr_x86_64_with_strings(
                 if args.len() != 2 {
                     panic!("__mem_store expects 2 arguments (address, value)");
                 }
-                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
                 out.push_str("  push rax\n");
-                emit_expr_x86_64_with_strings(&args[1], locals, var_types, _struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, strings, out);
                 out.push_str("  pop rcx\n");
                 // rcx has address, rax has value
                 out.push_str("  mov DWORD PTR [rcx], eax\n");
@@ -1281,9 +1698,9 @@ fn emit_expr_x86_64_with_strings(
                 if args.len() != 2 {
                     panic!("__mem_store8 expects 2 arguments (address, value)");
                 }
-                emit_expr_x86_64_with_strings(&args[0], locals, var_types, _struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
                 out.push_str("  push rax\n");
-                emit_expr_x86_64_with_strings(&args[1], locals, var_types, _struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, strings, out);
                 out.push_str("  pop rcx\n");
                 // rcx has address, rax has value
                 out.push_str("  mov BYTE PTR [rcx], al\n");
@@ -1302,24 +1719,66 @@ fn emit_expr_x86_64_with_strings(
             if callee == "__fd_close" {
                 panic!("__fd_close is not supported in the x86_64 backend yet");
             }
+            let flat_args: Vec<Expr> = if let Some(sig) = fn_sigs.get(callee) {
+                if matches!(sig.ret, Type::Struct(_)) {
+                    panic!("struct-return call is not valid in scalar expression context: {}", callee);
+                }
+                let mut out_args: Vec<Expr> = Vec::new();
+                for (arg, pty) in args.iter().zip(sig.params.iter()) {
+                    match pty {
+                        Type::Struct(sname) => {
+                            let fields = struct_fields(struct_defs, sname);
+                            match arg {
+                                Expr::Ident(vname) => {
+                                    for f in fields {
+                                        out_args.push(Expr::FieldAccess {
+                                            expr: Box::new(Expr::Ident(vname.clone())),
+                                            field: f.name.clone(),
+                                        });
+                                    }
+                                }
+                                Expr::StructInit { name, fields: vals } => {
+                                    if name != sname {
+                                        panic!("struct call arg type mismatch: {} vs {}", name, sname);
+                                    }
+                                    for f in fields {
+                                        let val = vals
+                                            .iter()
+                                            .find(|(fname, _)| fname == &f.name)
+                                            .unwrap_or_else(|| panic!("missing field {} in arg init", f.name))
+                                            .1
+                                            .clone();
+                                        out_args.push(val);
+                                    }
+                                }
+                                _ => panic!("unsupported struct argument expression"),
+                            }
+                        }
+                        _ => out_args.push(arg.clone()),
+                    }
+                }
+                out_args
+            } else {
+                args.clone()
+            };
             let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
-            let reg_count = if args.len() < arg_regs.len() { args.len() } else { arg_regs.len() };
-            let stack_count = args.len().saturating_sub(arg_regs.len());
+            let reg_count = if flat_args.len() < arg_regs.len() { flat_args.len() } else { arg_regs.len() };
+            let stack_count = flat_args.len().saturating_sub(arg_regs.len());
             let needs_pad = stack_count % 2 == 1;
 
             if needs_pad {
                 out.push_str("  sub rsp, 8\n");
             }
 
-            if args.len() > arg_regs.len() {
-                for i in (arg_regs.len()..args.len()).rev() {
-                    emit_expr_x86_64_with_strings(&args[i], locals, var_types, _struct_defs, strings, out);
+            if flat_args.len() > arg_regs.len() {
+                for i in (arg_regs.len()..flat_args.len()).rev() {
+                    emit_expr_x86_64_with_strings(&flat_args[i], locals, var_types, struct_defs, fn_sigs, strings, out);
                     out.push_str("  push rax\n");
                 }
             }
 
             for i in (0..reg_count).rev() {
-                emit_expr_x86_64_with_strings(&args[i], locals, var_types, _struct_defs, strings, out);
+                emit_expr_x86_64_with_strings(&flat_args[i], locals, var_types, struct_defs, fn_sigs, strings, out);
                 out.push_str(&format!("  mov {}, rax\n", arg_regs[i]));
             }
 
