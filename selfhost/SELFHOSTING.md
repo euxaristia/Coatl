@@ -188,6 +188,7 @@ Compiler stub with hardcoded input, validates full pipeline.
 
 ### Stage 5: WAT Text Output (current)
 **Goal**: Generate WAT text output.
+Note: file output test is gated by `state_emit_file_flag` (state_base+72) and requires a preopened dir (`wasmtime --dir .`).
 **Rust compiler work**:
 - [x] WASI `path_open`, `fd_read`, `fd_write`, `fd_close` imports
 - [x] Add intrinsic(s) for output: `__fd_write`, `__fd_read`, `__path_open`, `__fd_close`
@@ -206,7 +207,7 @@ Compiler stub with hardcoded input, validates full pipeline.
 - [x] Test: multi-function WAT generation
 - [x] Add `out_flush` to write buffer via `__fd_write`
 - [x] Add file output wrapper (`compile_program_to_file`)
-- [ ] Test: compile sample program and verify written WAT file
+- [ ] Test: verify written WAT file contents (smoke test via `test_wat_file` only)
 
 ### Stage 6: Self-Compile
 **Goal**: Bootstrap compiler can compile itself.

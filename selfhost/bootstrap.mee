@@ -94,6 +94,10 @@ fn main() -> i32 {
     return 20;
   }
 
+  // Stage 5e: test WAT output to file (skips if disabled)
+  let wat_file_ok: i32 = test_wat_file();
+  if (wat_file_ok != 1) { return 23; }
+
   // Emit WAT to stdout (simple return program) if enabled
   if (emit_stdout == 1) {
     init_src_buffer();
@@ -131,6 +135,11 @@ fn test_token_constants() -> i32 {
 // Set to 1 to emit WAT text to stdout from main()
 fn emit_wat_stdout_enabled() -> i32 {
   return __mem_load(state_emit_stdout_flag());
+}
+
+// Set to 1 to enable WAT file output tests
+fn emit_wat_file_enabled() -> i32 {
+  return __mem_load(state_emit_file_flag());
 }
 
 // Set to 1 to compile from stdin and write WAT to stdout
@@ -3483,6 +3492,7 @@ fn state_err_pos() -> i32 { return state_base() + 56; }
 fn state_err_tok() -> i32 { return state_base() + 60; }
 fn state_current_fn() -> i32 { return state_base() + 64; }
 fn state_out_fd() -> i32 { return state_base() + 68; }
+fn state_emit_file_flag() -> i32 { return state_base() + 72; }
 fn get_out_pos() -> i32 { return __mem_load(state_out_pos()); }
 fn set_out_pos(p: i32) -> i32 { __mem_store(state_out_pos(), p); return 0; }
 fn get_current_fn() -> i32 { return __mem_load(state_current_fn()); }
@@ -4971,6 +4981,21 @@ fn test_wat_stdout() -> i32 {
   return 1;
 }
 
+// Test WAT output to file (via path_open/fd_write)
+fn test_wat_file() -> i32 {
+  if (emit_wat_file_enabled() != 1) { return 1; }
+  // Program: fn main() -> i32 { return 42; }
+  init_src_buffer();
+  load_simple_return();
+  write_output_path();
+
+  let rc: i32 = compile_program_to_file(file_path_addr(), file_path_len());
+  if (rc != 1) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
 // Test stdin -> stdout compile path (skips if disabled)
 fn test_wat_stdin() -> i32 {
   if (compile_stdin_enabled() != 1) { return 1; }
@@ -4999,6 +5024,20 @@ fn count_str_from(c0: i32, c1: i32, c2: i32, c3: i32, pos: i32, len: i32, count:
     }
   }
   return count_str_from(c0, c1, c2, c3, pos + 1, len, count + found);
+}
+
+// Write "out.wat" to the fixed file path buffer
+fn write_output_path() -> i32 {
+  let base: i32 = file_path_addr();
+  __mem_store8(base + 0, 111); // o
+  __mem_store8(base + 1, 117); // u
+  __mem_store8(base + 2, 116); // t
+  __mem_store8(base + 3, 46);  // .
+  __mem_store8(base + 4, 119); // w
+  __mem_store8(base + 5, 97);  // a
+  __mem_store8(base + 6, 116); // t
+  __mem_store8(base + 7, 0);   // null
+  return 0;
 }
 
 // Load: "fn main() -> i32 { return 42; }"
@@ -5858,6 +5897,10 @@ fn state_ast() -> i32 { return state_base() + 4; }
 fn state_locals() -> i32 { return state_base() + 8; }
 fn state_ir_count() -> i32 { return state_base() + 16; }
 fn sym_base() -> i32 { return state_base() + 256; }
+
+// File output path storage (fixed buffer under state_base)
+fn file_path_addr() -> i32 { return state_base() + 128; }
+fn file_path_len() -> i32 { return 7; } // "out.wat"
 fn sym_entry_size() -> i32 { return 8; }
 
 fn get_pos() -> i32 { return __mem_load(state_pos()); }
