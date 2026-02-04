@@ -184,8 +184,8 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 - [x] Unary `!` operator
 - [x] `break` / `continue` in loops
 - [x] Extended string escapes (`\\n`, `\\r`, `\\t`, `\\0`, `\\xNN`, `\\u{...}`)
-- [ ] Deterministic output (stable ordering, stable formatting)
-- [ ] Verification: `mee build bootstrap.mee` produces identical WAT
+- [x] Deterministic output (stable ordering, stable formatting)
+- [x] Verification: convergence check script (`selfhost/check_self_compile.sh`)
 - [ ] Round-trip check: bootstrap compiles itself and runs test suite
 
 ## Milestones
