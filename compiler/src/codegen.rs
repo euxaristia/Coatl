@@ -59,6 +59,7 @@ fn collect_strings_from_expr(expr: &Expr, strings: &mut Vec<String>) {
             collect_strings_from_expr(left, strings);
             collect_strings_from_expr(right, strings);
         }
+        Expr::Unary { expr, .. } => collect_strings_from_expr(expr, strings),
         Expr::Call { args, .. } => {
             for arg in args {
                 collect_strings_from_expr(arg, strings);
@@ -226,6 +227,7 @@ fn expr_uses_fd_write(expr: &Expr) -> bool {
             args.iter().any(expr_uses_fd_write)
         }
         Expr::Binary { left, right, .. } => expr_uses_fd_write(left) || expr_uses_fd_write(right),
+        Expr::Unary { expr, .. } => expr_uses_fd_write(expr),
         Expr::FieldAccess { expr, .. } => expr_uses_fd_write(expr),
         Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_write(e)),
         _ => false,
@@ -241,6 +243,7 @@ fn expr_uses_fd_read(expr: &Expr) -> bool {
             args.iter().any(expr_uses_fd_read)
         }
         Expr::Binary { left, right, .. } => expr_uses_fd_read(left) || expr_uses_fd_read(right),
+        Expr::Unary { expr, .. } => expr_uses_fd_read(expr),
         Expr::FieldAccess { expr, .. } => expr_uses_fd_read(expr),
         Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_read(e)),
         _ => false,
@@ -256,6 +259,7 @@ fn expr_uses_path_open(expr: &Expr) -> bool {
             args.iter().any(expr_uses_path_open)
         }
         Expr::Binary { left, right, .. } => expr_uses_path_open(left) || expr_uses_path_open(right),
+        Expr::Unary { expr, .. } => expr_uses_path_open(expr),
         Expr::FieldAccess { expr, .. } => expr_uses_path_open(expr),
         Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_path_open(e)),
         _ => false,
@@ -271,6 +275,7 @@ fn expr_uses_fd_close(expr: &Expr) -> bool {
             args.iter().any(expr_uses_fd_close)
         }
         Expr::Binary { left, right, .. } => expr_uses_fd_close(left) || expr_uses_fd_close(right),
+        Expr::Unary { expr, .. } => expr_uses_fd_close(expr),
         Expr::FieldAccess { expr, .. } => expr_uses_fd_close(expr),
         Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_fd_close(e)),
         _ => false,
@@ -312,6 +317,7 @@ fn expr_uses_memory(expr: &Expr) -> bool {
             args.iter().any(expr_uses_memory)
         }
         Expr::Binary { left, right, .. } => expr_uses_memory(left) || expr_uses_memory(right),
+        Expr::Unary { expr, .. } => expr_uses_memory(expr),
         Expr::FieldAccess { expr, .. } => expr_uses_memory(expr),
         Expr::StructInit { fields, .. } => fields.iter().any(|(_, e)| expr_uses_memory(e)),
         _ => false,
@@ -982,8 +988,30 @@ fn emit_expr_wat_with_strings(
                 BinOp::GtEq => "i32.ge_s",
                 BinOp::Eq => "i32.eq",
                 BinOp::NotEq => "i32.ne",
+                BinOp::And => {
+                    // (left != 0) * (right != 0)
+                    out.push_str("  i32.const 0\n  i32.ne\n");
+                    out.push_str("  i32.const 0\n  i32.ne\n");
+                    out.push_str("  i32.mul\n");
+                    return;
+                }
+                BinOp::Or => {
+                    // (left != 0) + (right != 0) != 0
+                    out.push_str("  i32.const 0\n  i32.ne\n");
+                    out.push_str("  i32.const 0\n  i32.ne\n");
+                    out.push_str("  i32.add\n  i32.const 0\n  i32.ne\n");
+                    return;
+                }
             };
             out.push_str(&format!("  {}\n", instr));
+        }
+        Expr::Unary { op, expr } => {
+            match op {
+                crate::ast::UnOp::Not => {
+                    emit_expr_wat_with_strings(expr, locals, var_types, _struct_defs, string_offsets, out);
+                    out.push_str("  i32.const 0\n  i32.eq\n");
+                }
+            }
         }
         Expr::Call { callee, args } => {
             // Handle memory intrinsics
@@ -1165,6 +1193,25 @@ fn emit_expr_x86_64_with_strings(
                 }
                 BinOp::NotEq => {
                     out.push_str("  cmp rcx, rax\n  setne al\n  movzx rax, al\n");
+                }
+                BinOp::And => {
+                    out.push_str("  cmp rcx, 0\n  setne cl\n  movzx rcx, cl\n");
+                    out.push_str("  cmp rax, 0\n  setne al\n  movzx rax, al\n");
+                    out.push_str("  imul rax, rcx\n");
+                }
+                BinOp::Or => {
+                    out.push_str("  cmp rcx, 0\n  setne cl\n  movzx rcx, cl\n");
+                    out.push_str("  cmp rax, 0\n  setne al\n  movzx rax, al\n");
+                    out.push_str("  add rax, rcx\n");
+                    out.push_str("  cmp rax, 0\n  setne al\n  movzx rax, al\n");
+                }
+            }
+        }
+        Expr::Unary { op, expr } => {
+            match op {
+                crate::ast::UnOp::Not => {
+                    emit_expr_x86_64_with_strings(expr, locals, var_types, _struct_defs, strings, out);
+                    out.push_str("  cmp rax, 0\n  sete al\n  movzx rax, al\n");
                 }
             }
         }

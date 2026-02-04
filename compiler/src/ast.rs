@@ -70,6 +70,10 @@ pub enum Expr {
     Bool(bool),
     StringLit(String),
     Ident(String),
+    Unary {
+        op: UnOp,
+        expr: Box<Expr>,
+    },
     Binary {
         op: BinOp,
         left: Box<Expr>,
@@ -90,6 +94,11 @@ pub enum Expr {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnOp {
+    Not,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinOp {
     Add,
     Sub,
@@ -101,4 +110,6 @@ pub enum BinOp {
     GtEq,
     Eq,
     NotEq,
+    And,
+    Or,
 }

@@ -38,6 +38,8 @@ pub enum TokenKind {
     EqEq,
     NotEq,
     Bang,
+    And,
+    Or,
     Eof,
 }
 
@@ -252,6 +254,24 @@ impl<'a> Lexer<'a> {
                     TokenKind::NotEq
                 } else {
                     TokenKind::Bang
+                }
+            }
+            Some('&') => {
+                self.bump();
+                if self.peek() == Some('&') {
+                    self.bump();
+                    TokenKind::And
+                } else {
+                    TokenKind::Eof
+                }
+            }
+            Some('|') => {
+                self.bump();
+                if self.peek() == Some('|') {
+                    self.bump();
+                    TokenKind::Or
+                } else {
+                    TokenKind::Eof
                 }
             }
             Some('\'') => TokenKind::Char(self.read_char_literal()),

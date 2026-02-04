@@ -110,11 +110,30 @@ fn type_of_expr(
         Expr::Bool(_) => Ok(Type::Bool),
         Expr::StringLit(_) => Ok(Type::Str),
         Expr::Ident(name) => vars.get(name).cloned().ok_or_else(|| TypeError { message: format!("unknown variable {}", name) }),
+        Expr::Unary { op, expr } => {
+            let ety = type_of_expr(expr, vars, fn_sigs, struct_defs)?;
+            match op {
+                crate::ast::UnOp::Not => {
+                    if ety != Type::Bool && ety != Type::I32 && ety != Type::Char {
+                        return Err(TypeError { message: "unary ! requires bool or integer".to_string() });
+                    }
+                    Ok(Type::Bool)
+                }
+            }
+        }
         Expr::Binary { op, left, right } => {
             let l = type_of_expr(left, vars, fn_sigs, struct_defs)?;
             let r = type_of_expr(right, vars, fn_sigs, struct_defs)?;
             let l_numeric = l == Type::I32 || l == Type::Char;
             let r_numeric = r == Type::I32 || r == Type::Char;
+            if matches!(op, BinOp::And | BinOp::Or) {
+                let l_ok = l == Type::Bool || l_numeric;
+                let r_ok = r == Type::Bool || r_numeric;
+                if !l_ok || !r_ok {
+                    return Err(TypeError { message: "logical ops require bool or integer".to_string() });
+                }
+                return Ok(Type::Bool);
+            }
             if !l_numeric || !r_numeric {
                 return Err(TypeError { message: "binary ops require i32 or char".to_string() });
             }
@@ -122,6 +141,7 @@ fn type_of_expr(
                 BinOp::Lt | BinOp::Gt | BinOp::LtEq | BinOp::GtEq | BinOp::Eq | BinOp::NotEq => {
                     Ok(Type::Bool)
                 }
+                BinOp::And | BinOp::Or => Ok(Type::Bool),
                 _ => Ok(Type::I32),
             }
         }

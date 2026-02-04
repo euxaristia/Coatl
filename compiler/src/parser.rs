@@ -1,4 +1,4 @@
-use crate::ast::{BinOp, Block, Expr, Function, Param, Program, StructDecl, Stmt, Type};
+use crate::ast::{BinOp, Block, Expr, Function, Param, Program, StructDecl, Stmt, Type, UnOp};
 use crate::lexer::{Lexer, Token, TokenKind};
 
 #[derive(Debug)]
@@ -260,12 +260,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, ParseError> {
-        self.parse_comparison()
+        self.parse_or()
     }
 
     fn parse_expr_rest(&mut self, left: Expr) -> Result<Expr, ParseError> {
         let node = self.parse_additive_rest(left)?;
-        self.parse_comparison_rest(node)
+        let node = self.parse_comparison_rest(node)?;
+        let node = self.parse_and_rest(node)?;
+        self.parse_or_rest(node)
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
@@ -357,7 +359,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_factor(&mut self) -> Result<Expr, ParseError> {
-        let mut node = self.parse_primary()?;
+        let mut node = self.parse_unary()?;
         loop {
             if self.curr.kind == TokenKind::Dot {
                 self.bump();
@@ -368,6 +370,15 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(node)
+    }
+
+    fn parse_unary(&mut self) -> Result<Expr, ParseError> {
+        if self.curr.kind == TokenKind::Bang {
+            self.bump();
+            let expr = self.parse_unary()?;
+            return Ok(Expr::Unary { op: UnOp::Not, expr: Box::new(expr) });
+        }
+        self.parse_primary()
     }
 
     fn parse_primary(&mut self) -> Result<Expr, ParseError> {
@@ -441,5 +452,41 @@ impl<'a> Parser<'a> {
             }
             _ => Err(ParseError { message: "unexpected token".to_string(), pos: self.curr.pos }),
         }
+    }
+
+    fn parse_and(&mut self) -> Result<Expr, ParseError> {
+        let node = self.parse_comparison()?;
+        self.parse_and_rest(node)
+    }
+
+    fn parse_and_rest(&mut self, mut node: Expr) -> Result<Expr, ParseError> {
+        loop {
+            if self.curr.kind == TokenKind::And {
+                self.bump();
+                let rhs = self.parse_comparison()?;
+                node = Expr::Binary { op: BinOp::And, left: Box::new(node), right: Box::new(rhs) };
+            } else {
+                break;
+            }
+        }
+        Ok(node)
+    }
+
+    fn parse_or(&mut self) -> Result<Expr, ParseError> {
+        let node = self.parse_and()?;
+        self.parse_or_rest(node)
+    }
+
+    fn parse_or_rest(&mut self, mut node: Expr) -> Result<Expr, ParseError> {
+        loop {
+            if self.curr.kind == TokenKind::Or {
+                self.bump();
+                let rhs = self.parse_and()?;
+                node = Expr::Binary { op: BinOp::Or, left: Box::new(node), right: Box::new(rhs) };
+            } else {
+                break;
+            }
+        }
+        Ok(node)
     }
 }
