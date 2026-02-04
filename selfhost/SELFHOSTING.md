@@ -215,7 +215,7 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 - [x] Basic name checking (undefined locals error)
 - [x] Basic call arity checking (non-intrinsics)
 - [ ] Implement all constructs used by `bootstrap.mee`
-- [ ] Minimal type checker (i32 only, no inference)
+- [x] Minimal type checker (i32 only, no inference)
 - [ ] Error reporting with line/column spans
 - [ ] Deterministic output (stable ordering, stable formatting)
 - [ ] Verification: `mee build bootstrap.mee` produces identical WAT
