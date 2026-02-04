@@ -25,8 +25,11 @@ fn main() -> i32 {
   if (codegen_ok != 1) { return 5; }
 
   // Stage1.7: test general compile pipeline.
-  // Temporarily skip general compile test (dynamic pipeline is used for self-hosting).
-  let compile_ok: i32 = 1;
+  let compile_ok: i32 = test_general_compile();
+  if (compile_ok != 1) {
+    if (debug_enabled() == 1) { return compile_ok; }
+    return 6;
+  }
 
   // Stage1.7b: test control flow codegen.
   let if_ok: i32 = test_if_codegen();
