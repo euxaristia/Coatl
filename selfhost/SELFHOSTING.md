@@ -20,6 +20,58 @@ This repo doesn't yet have a Mee-written compiler. This directory will host a ti
 - `bootstrap2_clean.wat` == `bootstrap3_clean.wat`
 - `bootstrap2_clean.wat` and `bootstrap3_clean.wat` both run `main` and return `0`
 
+Command sequence used:
+
+```bash
+# Stage 0 (Rust compiler) → bootstrap.wat
+cargo run --quiet -- build ../selfhost/bootstrap.mee --emit=wat > /tmp/bootstrap.wat
+
+# Enable stdin in the stage0 output
+python3 - <<'PY'
+from pathlib import Path
+src = Path('/tmp/bootstrap.wat').read_text(errors='ignore')
+flag_stdin = 18874412  # state_base + 44
+patched = src.replace('(memory', f'(data (i32.const {flag_stdin}) "\\01")\n(memory', 1)
+Path('/tmp/bootstrap-stdin.wat').write_text(patched)
+PY
+
+# Stage 1 → bootstrap2.wat
+wasmtime --invoke main /tmp/bootstrap-stdin.wat < ../selfhost/bootstrap.mee > /tmp/bootstrap2.wat
+
+# Strip trailing null and normalize to text
+python3 - <<'PY'
+from pathlib import Path
+raw = Path('/tmp/bootstrap2.wat').read_bytes()
+if b'\x00' in raw:
+    raw = raw.split(b'\x00', 1)[0]
+Path('/tmp/bootstrap2_clean.wat').write_bytes(raw)
+PY
+
+# Stage 2 → bootstrap3.wat
+python3 - <<'PY'
+from pathlib import Path
+src = Path('/tmp/bootstrap2_clean.wat').read_text(errors='ignore')
+flag_stdin = 18874412
+patched = src.replace('(memory', f'(data (i32.const {flag_stdin}) "\\01")\n(memory', 1)
+Path('/tmp/bootstrap2-stdin.wat').write_text(patched)
+PY
+wasmtime --invoke main /tmp/bootstrap2-stdin.wat < ../selfhost/bootstrap.mee > /tmp/bootstrap3.wat
+
+# Clean bootstrap3 and compare fixed point
+python3 - <<'PY'
+from pathlib import Path
+raw = Path('/tmp/bootstrap3.wat').read_bytes()
+if b'\x00' in raw:
+    raw = raw.split(b'\x00', 1)[0]
+Path('/tmp/bootstrap3_clean.wat').write_bytes(raw)
+PY
+cmp /tmp/bootstrap2_clean.wat /tmp/bootstrap3_clean.wat
+
+# Sanity: both return 0
+wasmtime --invoke main /tmp/bootstrap2_clean.wat
+wasmtime --invoke main /tmp/bootstrap3_clean.wat
+```
+
 The bootstrap compiler (4800+ lines of Mee) implements a nearly complete compiler:
 - **Lexer**: tokenizes Mee source from memory buffer (supports comments)
 - **Parser**: recursive descent with operator precedence, builds AST in memory
