@@ -1922,8 +1922,10 @@ fn string_unescaped_len(start: i32, len: i32) -> i32 {
     let c: i32 = char_at_dyn(start + i);
     if (c == 92) {
       if (i + 1 < len) {
+        let pack: i32 = parse_escape_dyn(start + i + 1, len - i - 1);
+        let consumed: i32 = pack - (pack / 1000) * 1000;
         count = count + 1;
-        i = i + 2;
+        i = i + 1 + consumed;
       } else {
         count = count + 1;
         i = i + 1;
@@ -4852,6 +4854,55 @@ fn out_hex_byte(n: i32) -> i32 {
   return 0;
 }
 
+fn hex_val(c: i32) -> i32 {
+  if (c >= 48 && c <= 57) { return c - 48; }
+  if (c >= 97 && c <= 102) { return 10 + (c - 97); }
+  if (c >= 65 && c <= 70) { return 10 + (c - 65); }
+  return 0 - 1;
+}
+
+// Parse escape starting at given position (char after backslash).
+// Returns packed value: value*1000 + consumed (consumed >= 1).
+fn parse_escape_dyn(pos: i32, rem: i32) -> i32 {
+  if (rem <= 0) { return 92 * 1000 + 1; }
+  let e: i32 = char_at_dyn(pos);
+  if (e == 110) { return 10 * 1000 + 1; } // n
+  if (e == 114) { return 13 * 1000 + 1; } // r
+  if (e == 116) { return 9 * 1000 + 1; }  // t
+  if (e == 48) { return 0 * 1000 + 1; }   // 0
+  if (e == 34) { return 34 * 1000 + 1; }  // "
+  if (e == 92) { return 92 * 1000 + 1; }  // \
+  if (e == 120 && rem >= 3) { // xNN
+    let h1: i32 = hex_val(char_at_dyn(pos + 1));
+    let h2: i32 = hex_val(char_at_dyn(pos + 2));
+    if (h1 >= 0 && h2 >= 0) {
+      return (h1 * 16 + h2) * 1000 + 3;
+    }
+  }
+  if (e == 117 && rem >= 3) { // u{...}
+    if (char_at_dyn(pos + 1) == 123) {
+      let i: i32 = 0;
+      let val: i32 = 0;
+      let seen: i32 = 0;
+      while (i + 2 < rem) {
+        let c: i32 = char_at_dyn(pos + 2 + i);
+        if (c == 125) { // }
+          if (seen == 0) { return 63 * 1000 + (i + 3); }
+          if (val > 255) { return 63 * 1000 + (i + 3); }
+          return val * 1000 + (i + 3);
+        }
+        let h: i32 = hex_val(c);
+        if (h < 0) { return 63 * 1000 + (i + 3); }
+        val = val * 16 + h;
+        seen = 1;
+        i = i + 1;
+      }
+      return 63 * 1000 + (i + 2);
+    }
+  }
+  return e * 1000 + 1;
+}
+
 // Output a decimal number
 fn out_num(n: i32) -> i32 {
   if (n < 0) {
@@ -5417,15 +5468,11 @@ fn emit_wat_data_segment(start: i32, raw_len: i32, offset: i32) -> i32 {
     let c: i32 = char_at_dyn(start + i);
     if (c == 92) {
       if (i + 1 < raw_len) {
-        let e: i32 = char_at_dyn(start + i + 1);
-        if (e == 110) { out_hex_byte(10); }
-        else if (e == 114) { out_hex_byte(13); }
-        else if (e == 116) { out_hex_byte(9); }
-        else if (e == 48) { out_hex_byte(0); }
-        else if (e == 34) { out_hex_byte(34); }
-        else if (e == 92) { out_hex_byte(92); }
-        else { out_hex_byte(e); }
-        i = i + 2;
+        let pack: i32 = parse_escape_dyn(start + i + 1, raw_len - i - 1);
+        let val: i32 = pack / 1000;
+        let consumed: i32 = pack - val * 1000;
+        out_hex_byte(val);
+        i = i + 1 + consumed;
       } else {
         out_hex_byte(92);
         i = i + 1;
