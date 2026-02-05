@@ -43,6 +43,10 @@ Run the x86_64 runtime suite (Linux):
 ```bash
 ./tests/run_x86_runtime_suite.sh
 ```
+Run the same x86_64 runtime suite through strict no-Rust `toolchain=ir`:
+```bash
+./tests/run_x86_runtime_suite_ir_no_rust.sh
+```
 
 Run the IR seam smoke suite:
 ```bash

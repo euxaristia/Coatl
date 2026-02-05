@@ -4,12 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-x86-suite.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+TOOLCHAIN="${MEE_X86_TOOLCHAIN:-rust}"
 
 build_bin() {
   local src="$1"
   local out="$2"
   local asm="$TMP_DIR/$(basename "$out").s"
-  "$ROOT_DIR/mee" build "$src" --emit=asm --toolchain=rust -o "$asm"
+  "$ROOT_DIR/mee" build "$src" --emit=asm --toolchain="$TOOLCHAIN" -o "$asm"
   gcc -no-pie "$asm" -o "$out"
 }
 
