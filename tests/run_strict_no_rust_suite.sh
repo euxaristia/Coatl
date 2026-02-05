@@ -168,6 +168,9 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_full_ir_emit_coverage.sh"
 echo "[strict-no-rust] full no-rust default-cli emit=asm coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_full_asm_compile_coverage.sh"
 
+echo "[strict-no-rust] default-cli no-rust backend parity (wat vs asm)"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_backend_parity_suite.sh"
+
 echo "[strict-no-rust] centralized Rust entrypoint guard"
 "$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
 
