@@ -3,7 +3,7 @@ import argparse
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 class ParseError(Exception):
@@ -34,7 +34,7 @@ def tokenize(src: str) -> List[Tok]:
             toks.append(Tok('sym', '->'))
             i += 2
             continue
-        if c in '(){}:,;=+-':
+        if c in '(){}:,;=+-*/':
             toks.append(Tok('sym', c))
             i += 1
             continue
@@ -100,29 +100,50 @@ class Parser:
         return t
 
     def parse_program_ir(self) -> str:
+        fns: List[str] = []
+        saw_main = False
+        while self.peek().kind != 'eof':
+            fn_name, fn_ir = self.parse_fn_ir()
+            if fn_name == 'main':
+                saw_main = True
+            fns.append(fn_ir)
+        if not saw_main:
+            raise ParseError('expected fn main')
+        return '(mee_ir v0\n  (structs)\n  (functions\n' + ''.join(fns) + '  )\n)\n'
+
+    def parse_fn_ir(self) -> Tuple[str, str]:
         self.expect_ident('fn')
         name = self.expect_ident().text
-        if name != 'main':
-            raise ParseError('subset frontend only supports fn main')
         self.expect('sym', '(')
+        params_ir = self.parse_params_ir()
         self.expect('sym', ')')
         self.expect('sym', '->')
         self.expect_ident('i32')
         block = self.parse_block_ir()
-        if self.peek().kind != 'eof':
-            raise ParseError('unexpected trailing input')
-        return (
-            '(mee_ir v0\n'
-            '  (structs)\n'
-            '  (functions\n'
-            '    (fn main\n'
-            '      (params)\n'
+        fn_ir = (
+            f'    (fn {name}\n'
+            f'{params_ir}'
             '      (ret i32)\n'
             f'{block}'
             '    )\n'
-            '  )\n'
-            ')\n'
         )
+        return name, fn_ir
+
+    def parse_params_ir(self) -> str:
+        if self.peek().kind == 'sym' and self.peek().text == ')':
+            return '      (params)\n'
+        params: List[str] = []
+        while True:
+            name = self.expect_ident().text
+            self.expect('sym', ':')
+            self.expect_ident('i32')
+            params.append(name)
+            if self.peek().kind == 'sym' and self.peek().text == ',':
+                self.next()
+                continue
+            break
+        body = ''.join(f'        (param {p} i32)\n' for p in params)
+        return '      (params\n' + body + '      )\n'
 
     def parse_block_ir(self) -> str:
         self.expect('sym', '{')

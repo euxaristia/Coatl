@@ -83,6 +83,7 @@ In strict no-Rust mode, `--toolchain=ir` uses a non-Rust subset frontend for sup
 ```bash
 MEE_NO_RUST=1 ./mee build ./examples/hello.mee --emit=wat --toolchain=ir -o /tmp/hello-ir-norust.wat
 ```
+Current strict subset coverage includes `hello`, `mem_test`, `byte_test`, and `array_sim` via `./tests/run_ir_subset_backend_suite.sh`.
 
 ## Hello World (Mee)
 
