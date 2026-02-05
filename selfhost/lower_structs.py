@@ -86,81 +86,6 @@ def restore_struct_defs(src: str, chunks: list[str]) -> str:
     return out
 
 
-def split_top_level_commas(s: str) -> list[str]:
-    parts = []
-    cur = []
-    pdepth = 0
-    bdepth = 0
-    for ch in s:
-        if ch == "(":
-            pdepth += 1
-        elif ch == ")":
-            pdepth -= 1
-        elif ch == "{":
-            bdepth += 1
-        elif ch == "}":
-            bdepth -= 1
-        if ch == "," and pdepth == 0 and bdepth == 0:
-            parts.append("".join(cur).strip())
-            cur = []
-        else:
-            cur.append(ch)
-    tail = "".join(cur).strip()
-    if tail:
-        parts.append(tail)
-    return parts
-
-
-def replace_struct_literals(src: str, sdefs: list[StructDef]) -> str:
-    i = 0
-    out = []
-    while i < len(src):
-        matched = None
-        for sd in sdefs:
-            m = re.match(rf"{re.escape(sd.name)}\s*\{{", src[i:])
-            if m:
-                j = i - 1
-                while j >= 0 and src[j].isspace():
-                    j -= 1
-                if j >= 0 and src[j] == ">":
-                    continue
-                matched = sd
-                break
-        if not matched:
-            out.append(src[i])
-            i += 1
-            continue
-        sd = matched
-        m = re.match(rf"{re.escape(sd.name)}\s*\{{", src[i:])
-        assert m is not None
-        out.append("")  # marker for alignment simplicity
-        i += m.end()
-        depth = 1
-        start = i
-        while i < len(src) and depth > 0:
-            if src[i] == "{":
-                depth += 1
-            elif src[i] == "}":
-                depth -= 1
-            i += 1
-        body = src[start : i - 1]
-        entries = {}
-        for part in split_top_level_commas(body):
-            if not part:
-                continue
-            if ":" not in part:
-                raise SystemExit(f"invalid struct literal entry: {part}")
-            k, v = [x.strip() for x in part.split(":", 1)]
-            entries[k] = v
-        args = []
-        for f in sd.fields:
-            if f not in entries:
-                raise SystemExit(f"missing field '{f}' in {sd.name} literal")
-            args.append(entries[f])
-        out.append(f"__mk_{sd.name}({', '.join(args)})")
-    return "".join(out)
-
-
 def gen_helpers(sdefs: list[StructDef]) -> str:
     if not sdefs:
         return ""
@@ -203,8 +128,7 @@ def lower(src: str) -> str:
     if not sdefs:
         return src
     masked, defs = protect_struct_defs(src)
-    src2 = replace_struct_literals(masked, sdefs)
-    src2 = restore_struct_defs(src2, defs)
+    src2 = restore_struct_defs(masked, defs)
     helpers = gen_helpers(sdefs)
     return helpers + "\n" + src2.lstrip()
 
