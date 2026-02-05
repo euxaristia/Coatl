@@ -13,6 +13,7 @@ usage() {
 usage:
   ./mee build <input.mee> [--emit=wat|asm|ir] [-o <output>] [--toolchain=auto|selfhost|rust|ir] [--compiler <seed.wat>]
   ./mee lower-ir <input.ir> -o <output.wat>
+  ./mee --version
 
 notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
@@ -23,6 +24,32 @@ notes:
   - set MEE_NO_RUST_BUILD=1 to force no-Rust behavior for branch-mode development
 EOF
 }
+
+print_version() {
+  local version
+  if version="$(git -C "$ROOT_DIR" describe --always --dirty --tags 2>/dev/null)"; then
+    :
+  else
+    version="${MEE_VERSION:-dev}"
+  fi
+  echo "mee $version"
+}
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 1
+fi
+
+case "${1:-}" in
+  --version|-V)
+    print_version
+    exit 0
+    ;;
+  --help|-h)
+    usage
+    exit 0
+    ;;
+esac
 
 if [[ $# -lt 2 ]]; then
   usage
