@@ -40,4 +40,7 @@ if ! grep -Fq "rust-disabled mode" "$TMP_DIR/ir.err"; then
   exit 1
 fi
 
+echo "[strict-no-rust] centralized Rust entrypoint guard"
+"$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
+
 echo "strict no-rust suite passed"

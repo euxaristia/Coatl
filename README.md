@@ -54,6 +54,11 @@ Run strict no-Rust mode checks:
 ./tests/run_strict_no_rust_suite.sh
 ```
 
+Check Rust compile-entrypoint centralization:
+```bash
+./tests/check_rust_entrypoint_centralization.sh
+```
+
 ## Hello World (Mee)
 
 ```mee
