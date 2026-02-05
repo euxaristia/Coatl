@@ -30,6 +30,11 @@ Build x86_64 assembly:
 cargo run --quiet -- build ../examples/hello.mee --emit=asm
 ```
 
+Emit backend-neutral IR (S-expression form):
+```bash
+cargo run --quiet -- build ../examples/hello.mee --emit=ir
+```
+
 Write output to a file:
 ```bash
 cargo run --quiet -- build ../examples/hello.mee --emit=wat -o /tmp/hello.wat
@@ -75,6 +80,7 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 ## Limitations (Current)
 
 - No binary WASM emitter yet (WAT only).
+- `--emit=ir` is a typed AST/IR seam intended for external (non-Rust) backend work; native backend production flow is still Rust-owned today.
 - x86_64 backend supports Mee I/O intrinsics (`__fd_write`, `__fd_read`, `__path_open`, `__fd_close`) via Linux syscalls.
 - x86_64 runtime suite covers scalar, memory, I/O, and struct ABI cases.
 - x86_64 runtime helper path is Linux-oriented today; AArch64 backend is not implemented yet.

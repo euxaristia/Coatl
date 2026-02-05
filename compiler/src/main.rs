@@ -1,5 +1,6 @@
 mod ast;
 mod codegen;
+mod ir;
 mod lexer;
 mod parser;
 mod typecheck;
@@ -8,13 +9,14 @@ use std::env;
 use std::fs;
 
 use codegen::{emit_wat, emit_x86_64_asm};
+use ir::emit_ir;
 use parser::Parser;
 use typecheck::typecheck_program;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 || args[1] != "build" {
-        eprintln!("usage: mee build <file> [--emit=wat|asm] [-o <output>]");
+        eprintln!("usage: mee build <file> [--emit=wat|asm|ir] [-o <output>]");
         std::process::exit(1);
     }
 
@@ -78,6 +80,17 @@ fn main() {
                 }
             } else {
                 print!("{}", asm);
+            }
+        }
+        "--emit=ir" => {
+            let ir = emit_ir(&program);
+            if let Some(path) = output {
+                if let Err(err) = fs::write(&path, ir) {
+                    eprintln!("failed to write {}: {}", path, err);
+                    std::process::exit(1);
+                }
+            } else {
+                print!("{}", ir);
             }
         }
         _ => {
