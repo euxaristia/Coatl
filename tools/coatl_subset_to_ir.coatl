@@ -1,0 +1,2020 @@
+fn input_buffer_addr() -> i32 { return 0; }
+fn input_buffer_size() -> i32 { return 327680; }
+
+fn literal_base() -> i32 { return 440000; }
+fn literal_area_size() -> i32 { return 4096; }
+fn literal_inited_addr() -> i32 { return state_base() + 112; }
+
+fn literal_struct_ptr() -> i32 { return literal_base() + 0; }
+fn literal_struct_len() -> i32 { return 6; }
+fn literal_fn_ptr() -> i32 { return literal_base() + 7; }
+fn literal_fn_len() -> i32 { return 2; }
+fn literal_return_ptr() -> i32 { return literal_base() + 10; }
+fn literal_return_len() -> i32 { return 6; }
+fn literal_if_ptr() -> i32 { return literal_base() + 17; }
+fn literal_if_len() -> i32 { return 2; }
+fn literal_else_ptr() -> i32 { return literal_base() + 20; }
+fn literal_else_len() -> i32 { return 4; }
+fn literal_while_ptr() -> i32 { return literal_base() + 25; }
+fn literal_while_len() -> i32 { return 5; }
+fn literal_i32_ptr() -> i32 { return literal_base() + 31; }
+fn literal_i32_len() -> i32 { return 3; }
+fn literal_true_ptr() -> i32 { return literal_base() + 35; }
+fn literal_true_len() -> i32 { return 4; }
+fn literal_false_ptr() -> i32 { return literal_base() + 40; }
+fn literal_false_len() -> i32 { return 5; }
+fn literal_let_ptr() -> i32 { return literal_base() + 46; }
+fn literal_let_len() -> i32 { return 3; }
+fn literal_coatl_ir_ptr() -> i32 { return literal_base() + 50; }
+fn literal_coatl_ir_len() -> i32 { return 8; }
+fn literal_structs_ptr() -> i32 { return literal_base() + 59; }
+fn literal_structs_len() -> i32 { return 7; }
+fn literal_functions_ptr() -> i32 { return literal_base() + 67; }
+fn literal_functions_len() -> i32 { return 9; }
+fn literal_params_ptr() -> i32 { return literal_base() + 77; }
+fn literal_params_len() -> i32 { return 6; }
+fn literal_param_ptr() -> i32 { return literal_base() + 84; }
+fn literal_param_len() -> i32 { return 5; }
+fn literal_block_ptr() -> i32 { return literal_base() + 90; }
+fn literal_block_len() -> i32 { return 5; }
+fn literal_assign_ptr() -> i32 { return literal_base() + 96; }
+fn literal_assign_len() -> i32 { return 6; }
+fn literal_expr_ptr() -> i32 { return literal_base() + 103; }
+fn literal_expr_len() -> i32 { return 4; }
+fn literal_binary_ptr() -> i32 { return literal_base() + 108; }
+fn literal_binary_len() -> i32 { return 6; }
+fn literal_int_ptr() -> i32 { return literal_base() + 115; }
+fn literal_int_len() -> i32 { return 3; }
+fn literal_string_ptr() -> i32 { return literal_base() + 119; }
+fn literal_string_len() -> i32 { return 6; }
+fn literal_bool_ptr() -> i32 { return literal_base() + 126; }
+fn literal_bool_len() -> i32 { return 4; }
+fn literal_ident_ptr() -> i32 { return literal_base() + 131; }
+fn literal_ident_len() -> i32 { return 5; }
+fn literal_call_ptr() -> i32 { return literal_base() + 137; }
+fn literal_call_len() -> i32 { return 4; }
+fn literal_add_ptr() -> i32 { return literal_base() + 142; }
+fn literal_add_len() -> i32 { return 3; }
+fn literal_sub_ptr() -> i32 { return literal_base() + 146; }
+fn literal_sub_len() -> i32 { return 3; }
+fn literal_mul_ptr() -> i32 { return literal_base() + 150; }
+fn literal_mul_len() -> i32 { return 3; }
+fn literal_div_ptr() -> i32 { return literal_base() + 154; }
+fn literal_div_len() -> i32 { return 3; }
+fn literal_lt_ptr() -> i32 { return literal_base() + 158; }
+fn literal_lt_len() -> i32 { return 2; }
+fn literal_gt_ptr() -> i32 { return literal_base() + 161; }
+fn literal_gt_len() -> i32 { return 2; }
+fn literal_le_ptr() -> i32 { return literal_base() + 164; }
+fn literal_le_len() -> i32 { return 2; }
+fn literal_ge_ptr() -> i32 { return literal_base() + 167; }
+fn literal_ge_len() -> i32 { return 2; }
+fn literal_eq_ptr() -> i32 { return literal_base() + 170; }
+fn literal_eq_len() -> i32 { return 2; }
+fn literal_ne_ptr() -> i32 { return literal_base() + 173; }
+fn literal_ne_len() -> i32 { return 2; }
+fn literal_and_ptr() -> i32 { return literal_base() + 176; }
+fn literal_and_len() -> i32 { return 3; }
+fn literal_or_ptr() -> i32 { return literal_base() + 180; }
+fn literal_or_len() -> i32 { return 2; }
+fn literal_spaces2_ptr() -> i32 { return literal_base() + 183; }
+fn literal_spaces2_len() -> i32 { return 2; }
+fn literal_spaces4_ptr() -> i32 { return literal_base() + 186; }
+fn literal_spaces4_len() -> i32 { return 4; }
+fn literal_spaces6_ptr() -> i32 { return literal_base() + 191; }
+fn literal_spaces6_len() -> i32 { return 6; }
+fn literal_spaces8_ptr() -> i32 { return literal_base() + 198; }
+fn literal_spaces8_len() -> i32 { return 8; }
+fn literal_spaces10_ptr() -> i32 { return literal_base() + 206; }
+fn literal_spaces10_len() -> i32 { return 10; }
+fn literal_paren_open_ptr() -> i32 { return literal_base() + 216; }
+fn literal_paren_open_len() -> i32 { return 1; }
+fn literal_paren_close_ptr() -> i32 { return literal_base() + 218; }
+fn literal_paren_close_len() -> i32 { return 1; }
+fn literal_space_ptr() -> i32 { return literal_base() + 220; }
+fn literal_space_len() -> i32 { return 1; }
+fn literal_newline_ptr() -> i32 { return literal_base() + 222; }
+fn literal_newline_len() -> i32 { return 1; }
+fn literal_v0_ptr() -> i32 { return literal_base() + 224; }
+fn literal_v0_len() -> i32 { return 2; }
+fn literal_main_ptr() -> i32 { return literal_base() + 227; }
+fn literal_main_len() -> i32 { return 4; }
+
+fn init_literals() -> i32 {
+  if (__mem_load(literal_inited_addr()) != 0) { return 0; }
+  let base: i32 = literal_base();
+  __mem_store8(base + 0, 115);  // 's'
+  __mem_store8(base + 1, 116);  // 't'
+  __mem_store8(base + 2, 114);  // 'r'
+  __mem_store8(base + 3, 117);  // 'u'
+  __mem_store8(base + 4, 99);  // 'c'
+  __mem_store8(base + 5, 116);  // 't'
+  __mem_store8(base + 6, 0);
+
+  __mem_store8(base + 7, 102);  // 'f'
+  __mem_store8(base + 8, 110);  // 'n'
+  __mem_store8(base + 9, 0);
+
+  __mem_store8(base + 10, 114);  // 'r'
+  __mem_store8(base + 11, 101);  // 'e'
+  __mem_store8(base + 12, 116);  // 't'
+  __mem_store8(base + 13, 117);  // 'u'
+  __mem_store8(base + 14, 114);  // 'r'
+  __mem_store8(base + 15, 110);  // 'n'
+  __mem_store8(base + 16, 0);
+
+  __mem_store8(base + 17, 105);  // 'i'
+  __mem_store8(base + 18, 102);  // 'f'
+  __mem_store8(base + 19, 0);
+
+  __mem_store8(base + 20, 101);  // 'e'
+  __mem_store8(base + 21, 108);  // 'l'
+  __mem_store8(base + 22, 115);  // 's'
+  __mem_store8(base + 23, 101);  // 'e'
+  __mem_store8(base + 24, 0);
+
+  __mem_store8(base + 25, 119);  // 'w'
+  __mem_store8(base + 26, 104);  // 'h'
+  __mem_store8(base + 27, 105);  // 'i'
+  __mem_store8(base + 28, 108);  // 'l'
+  __mem_store8(base + 29, 101);  // 'e'
+  __mem_store8(base + 30, 0);
+
+  __mem_store8(base + 31, 105);  // 'i'
+  __mem_store8(base + 32, 51);  // '3'
+  __mem_store8(base + 33, 50);  // '2'
+  __mem_store8(base + 34, 0);
+
+  __mem_store8(base + 35, 116);  // 't'
+  __mem_store8(base + 36, 114);  // 'r'
+  __mem_store8(base + 37, 117);  // 'u'
+  __mem_store8(base + 38, 101);  // 'e'
+  __mem_store8(base + 39, 0);
+
+  __mem_store8(base + 40, 102);  // 'f'
+  __mem_store8(base + 41, 97);  // 'a'
+  __mem_store8(base + 42, 108);  // 'l'
+  __mem_store8(base + 43, 115);  // 's'
+  __mem_store8(base + 44, 101);  // 'e'
+  __mem_store8(base + 45, 0);
+
+  __mem_store8(base + 46, 108);  // 'l'
+  __mem_store8(base + 47, 101);  // 'e'
+  __mem_store8(base + 48, 116);  // 't'
+  __mem_store8(base + 49, 0);
+
+  __mem_store8(base + 50, 99);  // 'c'
+  __mem_store8(base + 51, 111);  // 'o'
+  __mem_store8(base + 52, 97);  // 'a'
+  __mem_store8(base + 53, 116);  // 't'
+  __mem_store8(base + 54, 108);  // 'l'
+  __mem_store8(base + 55, 95);  // '_'
+  __mem_store8(base + 56, 105);  // 'i'
+  __mem_store8(base + 57, 114);  // 'r'
+  __mem_store8(base + 58, 0);
+
+  __mem_store8(base + 59, 115);  // 's'
+  __mem_store8(base + 60, 116);  // 't'
+  __mem_store8(base + 61, 114);  // 'r'
+  __mem_store8(base + 62, 117);  // 'u'
+  __mem_store8(base + 63, 99);  // 'c'
+  __mem_store8(base + 64, 116);  // 't'
+  __mem_store8(base + 65, 115);  // 's'
+  __mem_store8(base + 66, 0);
+
+  __mem_store8(base + 67, 102);  // 'f'
+  __mem_store8(base + 68, 117);  // 'u'
+  __mem_store8(base + 69, 110);  // 'n'
+  __mem_store8(base + 70, 99);  // 'c'
+  __mem_store8(base + 71, 116);  // 't'
+  __mem_store8(base + 72, 105);  // 'i'
+  __mem_store8(base + 73, 111);  // 'o'
+  __mem_store8(base + 74, 110);  // 'n'
+  __mem_store8(base + 75, 115);  // 's'
+  __mem_store8(base + 76, 0);
+
+  __mem_store8(base + 77, 112);  // 'p'
+  __mem_store8(base + 78, 97);  // 'a'
+  __mem_store8(base + 79, 114);  // 'r'
+  __mem_store8(base + 80, 97);  // 'a'
+  __mem_store8(base + 81, 109);  // 'm'
+  __mem_store8(base + 82, 115);  // 's'
+  __mem_store8(base + 83, 0);
+
+  __mem_store8(base + 84, 112);  // 'p'
+  __mem_store8(base + 85, 97);  // 'a'
+  __mem_store8(base + 86, 114);  // 'r'
+  __mem_store8(base + 87, 97);  // 'a'
+  __mem_store8(base + 88, 109);  // 'm'
+  __mem_store8(base + 89, 0);
+
+  __mem_store8(base + 90, 98);  // 'b'
+  __mem_store8(base + 91, 108);  // 'l'
+  __mem_store8(base + 92, 111);  // 'o'
+  __mem_store8(base + 93, 99);  // 'c'
+  __mem_store8(base + 94, 107);  // 'k'
+  __mem_store8(base + 95, 0);
+
+  __mem_store8(base + 96, 97);  // 'a'
+  __mem_store8(base + 97, 115);  // 's'
+  __mem_store8(base + 98, 115);  // 's'
+  __mem_store8(base + 99, 105);  // 'i'
+  __mem_store8(base + 100, 103);  // 'g'
+  __mem_store8(base + 101, 110);  // 'n'
+  __mem_store8(base + 102, 0);
+
+  __mem_store8(base + 103, 101);  // 'e'
+  __mem_store8(base + 104, 120);  // 'x'
+  __mem_store8(base + 105, 112);  // 'p'
+  __mem_store8(base + 106, 114);  // 'r'
+  __mem_store8(base + 107, 0);
+
+  __mem_store8(base + 108, 98);  // 'b'
+  __mem_store8(base + 109, 105);  // 'i'
+  __mem_store8(base + 110, 110);  // 'n'
+  __mem_store8(base + 111, 97);  // 'a'
+  __mem_store8(base + 112, 114);  // 'r'
+  __mem_store8(base + 113, 121);  // 'y'
+  __mem_store8(base + 114, 0);
+
+  __mem_store8(base + 115, 105);  // 'i'
+  __mem_store8(base + 116, 110);  // 'n'
+  __mem_store8(base + 117, 116);  // 't'
+  __mem_store8(base + 118, 0);
+
+  __mem_store8(base + 119, 115);  // 's'
+  __mem_store8(base + 120, 116);  // 't'
+  __mem_store8(base + 121, 114);  // 'r'
+  __mem_store8(base + 122, 105);  // 'i'
+  __mem_store8(base + 123, 110);  // 'n'
+  __mem_store8(base + 124, 103);  // 'g'
+  __mem_store8(base + 125, 0);
+
+  __mem_store8(base + 126, 98);  // 'b'
+  __mem_store8(base + 127, 111);  // 'o'
+  __mem_store8(base + 128, 111);  // 'o'
+  __mem_store8(base + 129, 108);  // 'l'
+  __mem_store8(base + 130, 0);
+
+  __mem_store8(base + 131, 105);  // 'i'
+  __mem_store8(base + 132, 100);  // 'd'
+  __mem_store8(base + 133, 101);  // 'e'
+  __mem_store8(base + 134, 110);  // 'n'
+  __mem_store8(base + 135, 116);  // 't'
+  __mem_store8(base + 136, 0);
+
+  __mem_store8(base + 137, 99);  // 'c'
+  __mem_store8(base + 138, 97);  // 'a'
+  __mem_store8(base + 139, 108);  // 'l'
+  __mem_store8(base + 140, 108);  // 'l'
+  __mem_store8(base + 141, 0);
+
+  __mem_store8(base + 142, 97);  // 'a'
+  __mem_store8(base + 143, 100);  // 'd'
+  __mem_store8(base + 144, 100);  // 'd'
+  __mem_store8(base + 145, 0);
+
+  __mem_store8(base + 146, 115);  // 's'
+  __mem_store8(base + 147, 117);  // 'u'
+  __mem_store8(base + 148, 98);  // 'b'
+  __mem_store8(base + 149, 0);
+
+  __mem_store8(base + 150, 109);  // 'm'
+  __mem_store8(base + 151, 117);  // 'u'
+  __mem_store8(base + 152, 108);  // 'l'
+  __mem_store8(base + 153, 0);
+
+  __mem_store8(base + 154, 100);  // 'd'
+  __mem_store8(base + 155, 105);  // 'i'
+  __mem_store8(base + 156, 118);  // 'v'
+  __mem_store8(base + 157, 0);
+
+  __mem_store8(base + 158, 108);  // 'l'
+  __mem_store8(base + 159, 116);  // 't'
+  __mem_store8(base + 160, 0);
+
+  __mem_store8(base + 161, 103);  // 'g'
+  __mem_store8(base + 162, 116);  // 't'
+  __mem_store8(base + 163, 0);
+
+  __mem_store8(base + 164, 108);  // 'l'
+  __mem_store8(base + 165, 101);  // 'e'
+  __mem_store8(base + 166, 0);
+
+  __mem_store8(base + 167, 103);  // 'g'
+  __mem_store8(base + 168, 101);  // 'e'
+  __mem_store8(base + 169, 0);
+
+  __mem_store8(base + 170, 101);  // 'e'
+  __mem_store8(base + 171, 113);  // 'q'
+  __mem_store8(base + 172, 0);
+
+  __mem_store8(base + 173, 110);  // 'n'
+  __mem_store8(base + 174, 101);  // 'e'
+  __mem_store8(base + 175, 0);
+
+  __mem_store8(base + 176, 97);  // 'a'
+  __mem_store8(base + 177, 110);  // 'n'
+  __mem_store8(base + 178, 100);  // 'd'
+  __mem_store8(base + 179, 0);
+
+  __mem_store8(base + 180, 111);  // 'o'
+  __mem_store8(base + 181, 114);  // 'r'
+  __mem_store8(base + 182, 0);
+
+  __mem_store8(base + 183, 32);  // ' '
+  __mem_store8(base + 184, 32);  // ' '
+  __mem_store8(base + 185, 0);
+  __mem_store8(base + 186, 32);  // ' '
+  __mem_store8(base + 187, 32);  // ' '
+  __mem_store8(base + 188, 32);  // ' '
+  __mem_store8(base + 189, 32);  // ' '
+  __mem_store8(base + 190, 0);
+  __mem_store8(base + 191, 32);  // ' '
+  __mem_store8(base + 192, 32);  // ' '
+  __mem_store8(base + 193, 32);  // ' '
+  __mem_store8(base + 194, 32);  // ' '
+  __mem_store8(base + 195, 32);  // ' '
+  __mem_store8(base + 196, 32);  // ' '
+  __mem_store8(base + 197, 0);
+  __mem_store8(base + 198, 32);  // ' '
+  __mem_store8(base + 199, 32);  // ' '
+  __mem_store8(base + 200, 32);  // ' '
+  __mem_store8(base + 201, 32);  // ' '
+  __mem_store8(base + 202, 32);  // ' '
+  __mem_store8(base + 203, 32);  // ' '
+  __mem_store8(base + 204, 32);  // ' '
+  __mem_store8(base + 205, 0);
+  __mem_store8(base + 206, 32);  // ' '
+  __mem_store8(base + 207, 32);  // ' '
+  __mem_store8(base + 208, 32);  // ' '
+  __mem_store8(base + 209, 32);  // ' '
+  __mem_store8(base + 210, 32);  // ' '
+  __mem_store8(base + 211, 32);  // ' '
+  __mem_store8(base + 212, 32);  // ' '
+  __mem_store8(base + 213, 32);  // ' '
+  __mem_store8(base + 214, 32);  // ' '
+  __mem_store8(base + 215, 0);
+  __mem_store8(base + 216, 40);  // '('
+  __mem_store8(base + 217, 0);
+  __mem_store8(base + 218, 41);  // ')'
+  __mem_store8(base + 219, 0);
+  __mem_store8(base + 220, 32);  // ' '
+  __mem_store8(base + 221, 0);
+  __mem_store8(base + 222, 10);  // '\n'
+  __mem_store8(base + 223, 0);
+  __mem_store8(base + 224, 118);  // 'v'
+  __mem_store8(base + 225, 48);  // '0'
+  __mem_store8(base + 226, 0);
+  __mem_store8(base + 227, 109);  // 'm'
+  __mem_store8(base + 228, 97);  // 'a'
+  __mem_store8(base + 229, 105);  // 'i'
+  __mem_store8(base + 230, 110);  // 'n'
+  __mem_store8(base + 231, 0);
+
+  __mem_store(literal_inited_addr(), 1);
+  return 0;
+}
+
+fn is_space(c: i32) -> i32 {
+  if (c == 9) { return 1; }
+  if (c == 10) { return 1; }
+  if (c == 11) { return 1; }
+  if (c == 12) { return 1; }
+  if (c == 13) { return 1; }
+  if (c == 32) { return 1; }
+  return 0;
+}
+
+fn read_args_from_stdin() -> i32 {
+  let buf: i32 = args_buffer_addr();
+  let max_len: i32 = args_buffer_size() - 1;
+  let total: i32 = 0;
+  let done: i32 = 0;
+  while (done == 0) {
+    if (total >= max_len) {
+      done = 1;
+    } else {
+      __mem_store(iov_addr(), buf + total);
+      __mem_store(iov_addr() + 4, max_len - total);
+      __mem_store(io_nread_addr(), 0);
+      let rc: i32 = __fd_read(0, iov_addr(), 1, io_nread_addr());
+      if (rc != 0) { return rc; }
+      let nread: i32 = __mem_load(io_nread_addr());
+      if (nread <= 0) {
+        done = 1;
+      } else {
+        total = total + nread;
+        if (total >= max_len) {
+          done = 1;
+        }
+      }
+    }
+  }
+  __mem_store(args_len_addr(), total);
+  __mem_store8(buf + total, 0);
+  __mem_store(args_read_done_addr(), 1);
+  return 0;
+}
+
+fn parse_args_tokens() -> i32 {
+  let len: i32 = __mem_load(args_len_addr());
+  if (len <= 0) { return -1; }
+  let buf: i32 = args_buffer_addr();
+  let i: i32 = 0;
+  while (i < len && is_space(__mem_load8(buf + i)) == 1) {
+    i = i + 1;
+  }
+  if (i >= len) { return -2; }
+  let start: i32 = i;
+  while (i < len && is_space(__mem_load8(buf + i)) == 0) {
+    i = i + 1;
+  }
+  __mem_store(args_in_ptr_addr(), buf + start);
+  __mem_store(args_in_len_addr(), i - start);
+  while (i < len && is_space(__mem_load8(buf + i)) == 1) {
+    i = i + 1;
+  }
+  if (i >= len) { return -3; }
+  let start2: i32 = i;
+  while (i < len && is_space(__mem_load8(buf + i)) == 0) {
+    i = i + 1;
+  }
+  __mem_store(args_out_ptr_addr(), buf + start2);
+  __mem_store(args_out_len_addr(), i - start2);
+  return 0;
+}
+
+fn tok_ident() -> i32 { return 1; }
+fn tok_num() -> i32 { return 2; }
+fn tok_str() -> i32 { return 3; }
+fn tok_sym() -> i32 { return 4; }
+fn tok_eof() -> i32 { return 5; }
+
+fn token_kind_addr(idx: i32) -> i32 { return token_meta_base() + idx * token_record_size(); }
+fn token_start_ptr(idx: i32) -> i32 { return token_meta_base() + idx * token_record_size() + 4; }
+fn token_len_ptr(idx: i32) -> i32 { return token_meta_base() + idx * token_record_size() + 8; }
+
+fn set_token(idx: i32, kind: i32, start: i32, len: i32) -> i32 {
+  let base: i32 = token_meta_base() + idx * token_record_size();
+  __mem_store(base, kind);
+  __mem_store(base + 4, start);
+  __mem_store(base + 8, len);
+  return 0;
+}
+
+fn add_token(kind: i32, start: i32, len: i32) -> i32 {
+  let cnt: i32 = __mem_load(token_count_addr());
+  if (cnt >= token_max()) { return -1; }
+  set_token(cnt, kind, start, len);
+  __mem_store(token_count_addr(), cnt + 1);
+  return cnt;
+}
+
+fn reset_tokens() -> i32 {
+  __mem_store(token_count_addr(), 0);
+  __mem_store(parser_token_idx_addr(), 0);
+  return 0;
+}
+
+fn token_count() -> i32 {
+  return __mem_load(token_count_addr());
+}
+
+fn parser_token_idx() -> i32 {
+  return __mem_load(parser_token_idx_addr());
+}
+
+fn set_parser_token_idx(idx: i32) -> i32 {
+  __mem_store(parser_token_idx_addr(), idx);
+  return 0;
+}
+
+fn peek_token_kind() -> i32 {
+  let idx: i32 = parser_token_idx();
+  let kind_ptr: i32 = token_kind_addr(idx);
+  return __mem_load(kind_ptr);
+}
+
+fn peek_token_start() -> i32 {
+  let idx: i32 = parser_token_idx();
+  return __mem_load(token_start_ptr(idx));
+}
+
+fn peek_token_len() -> i32 {
+  let idx: i32 = parser_token_idx();
+  return __mem_load(token_len_ptr(idx));
+}
+
+fn token_kind(idx: i32) -> i32 {
+  return __mem_load(token_kind_addr(idx));
+}
+
+fn token_start(idx: i32) -> i32 {
+  return __mem_load(token_start_ptr(idx));
+}
+
+fn token_len(idx: i32) -> i32 {
+  return __mem_load(token_len_ptr(idx));
+}
+
+fn token_text_addr(idx: i32) -> i32 {
+  return input_buffer_addr() + token_start(idx);
+}
+
+fn token_text_equal(idx: i32, cmp_ptr: i32, cmp_len: i32) -> i32 {
+  let len: i32 = token_len(idx);
+  if (len != cmp_len) { return 0; }
+  let addr: i32 = token_text_addr(idx);
+  let i: i32 = 0;
+  while (i < len) {
+    let a: i32 = __mem_load8(addr + i);
+    let b: i32 = __mem_load8(cmp_ptr + i);
+    if (a != b) { return 0; }
+    i = i + 1;
+  }
+  return 1;
+}
+
+fn advance_token() -> i32 {
+  let idx: i32 = parser_token_idx();
+  set_parser_token_idx(idx + 1);
+  return idx;
+}
+
+fn expect_token(kind: i32) -> i32 {
+  let idx: i32 = parser_token_idx();
+  let current: i32 = token_kind(idx);
+  if (current != kind) { return -1; }
+  advance_token();
+  return idx;
+}
+
+fn expect_sym(text_ptr: i32, text_len: i32) -> i32 {
+  let idx: i32 = parser_token_idx();
+  if (token_kind(idx) != tok_sym()) { return -2; }
+  if (token_len(idx) != text_len) { return -3; }
+  let addr: i32 = token_text_addr(idx);
+  let i: i32 = 0;
+  while (i < text_len) {
+    if (__mem_load8(addr + i) != __mem_load8(text_ptr + i)) { return -4; }
+    i = i + 1;
+  }
+  advance_token();
+  return idx;
+}
+
+fn expect_ident() -> i32 {
+  let idx: i32 = parser_token_idx();
+  if (token_kind(idx) != tok_ident()) { return -5; }
+  advance_token();
+  return idx;
+}
+
+fn token_matches_literal(lit_ptr: i32, lit_len: i32) -> i32 {
+  let idx: i32 = parser_token_idx();
+  if (token_kind(idx) != tok_ident()) { return 0; }
+  return token_text_equal(idx, lit_ptr, lit_len);
+}
+
+fn match_keyword(lit_ptr: i32, lit_len: i32) -> i32 {
+  return token_matches_literal(lit_ptr, lit_len);
+}
+
+fn expect_keyword(lit_ptr: i32, lit_len: i32) -> i32 {
+  if (match_keyword(lit_ptr, lit_len) == 1) {
+    let idx: i32 = parser_token_idx();
+    advance_token();
+    return idx;
+  }
+  return -6;
+}
+
+fn expect_sym_char(ch: i32) -> i32 {
+  let idx: i32 = parser_token_idx();
+  if (token_kind(idx) != tok_sym()) { return -7; }
+  if (token_len(idx) != 1) { return -8; }
+  if (__mem_load8(token_text_addr(idx)) != ch) { return -9; }
+  advance_token();
+  return idx;
+}
+
+fn args_buffer_addr() -> i32 { return 600000; }
+fn args_buffer_size() -> i32 { return 16384; }
+fn args_len_addr() -> i32 { return state_base() + 16; }
+fn args_read_done_addr() -> i32 { return state_base() + 20; }
+fn args_in_ptr_addr() -> i32 { return state_base() + 24; }
+fn args_in_len_addr() -> i32 { return state_base() + 28; }
+fn args_out_ptr_addr() -> i32 { return state_base() + 32; }
+fn args_out_len_addr() -> i32 { return state_base() + 36; }
+
+fn cli_input_path_ptr_addr() -> i32 { return state_base() + 5000; }
+fn cli_input_path_len_addr() -> i32 { return state_base() + 5004; }
+fn cli_output_path_ptr_addr() -> i32 { return state_base() + 5008; }
+fn cli_output_path_len_addr() -> i32 { return state_base() + 5012; }
+
+fn token_is_dash_o(ptr: i32, len: i32) -> i32 {
+  if (len != 2) { return 0; }
+  if (__mem_load8(ptr) != 45) { return 0; }
+  if (__mem_load8(ptr + 1) != 111) { return 0; }
+  return 1;
+}
+
+fn ensure_coatl_ext(ptr: i32, len: i32) -> i32 {
+  let ext_len: i32 = 6;
+  if (len < ext_len) { return -30; }
+  let base: i32 = ptr + len - ext_len;
+  if (__mem_load8(base + 0) != 46) { return -31; }
+  if (__mem_load8(base + 1) != 99) { return -32; }
+  if (__mem_load8(base + 2) != 111) { return -33; }
+  if (__mem_load8(base + 3) != 97) { return -34; }
+  if (__mem_load8(base + 4) != 116) { return -35; }
+  if (__mem_load8(base + 5) != 108) { return -36; }
+  return 0;
+}
+
+fn parse_subset_args() -> i32 {
+  let len: i32 = __mem_load(args_len_addr());
+  if (len <= 0) { return -40; }
+  let buf: i32 = args_buffer_addr();
+  let mut pos: i32 = 0;
+  while (pos < len && is_space(__mem_load8(buf + pos)) == 1) {
+    pos = pos + 1;
+  }
+  if (pos >= len) { return -41; }
+  let start: i32 = pos;
+  while (pos < len && is_space(__mem_load8(buf + pos)) == 0) {
+    pos = pos + 1;
+  }
+  let in_len: i32 = pos - start;
+  if (in_len <= 0) { return -42; }
+  let in_ptr: i32 = buf + start;
+  let rc_ext: i32 = ensure_coatl_ext(in_ptr, in_len);
+  if (rc_ext != 0) { return rc_ext; }
+  __mem_store(cli_input_path_ptr_addr(), in_ptr);
+  __mem_store(cli_input_path_len_addr(), in_len);
+  let mut expect_out: i32 = 0;
+  let mut out_ptr: i32 = 0;
+  let mut out_len: i32 = 0;
+  while (pos < len) {
+    while (pos < len && is_space(__mem_load8(buf + pos)) == 1) {
+      pos = pos + 1;
+    }
+    if (pos >= len) { break; }
+    let tok_start: i32 = pos;
+    while (pos < len && is_space(__mem_load8(buf + pos)) == 0) {
+      pos = pos + 1;
+    }
+    let tok_len: i32 = pos - tok_start;
+    if (tok_len == 0) { continue; }
+    if (expect_out == 1) {
+      out_ptr = buf + tok_start;
+      out_len = tok_len;
+      expect_out = 0;
+      continue;
+    }
+    if (token_is_dash_o(buf + tok_start, tok_len) == 1) {
+      expect_out = 1;
+      continue;
+    }
+    return -43;
+  }
+  if (expect_out == 1) { return -44; }
+  if (out_len == 0) { return -45; }
+  __mem_store(cli_output_path_ptr_addr(), out_ptr);
+  __mem_store(cli_output_path_len_addr(), out_len);
+  return 0;
+}
+
+fn out_buffer_addr() -> i32 { return 620000; }
+fn out_buffer_size() -> i32 { return 131072; }
+fn state_base() -> i32 { return 760000; }
+fn input_len_addr() -> i32 { return state_base() + 120; }
+
+fn input_len() -> i32 { return __mem_load(input_len_addr()); }
+fn input_char(pos: i32) -> i32 { return __mem_load8(input_buffer_addr() + pos); }
+
+fn token_meta_base() -> i32 { return state_base() + 256; }
+fn token_record_size() -> i32 { return 12; }
+fn token_max() -> i32 { return 8192; }
+fn token_count_addr() -> i32 { return state_base() + 64; }
+fn parser_token_idx_addr() -> i32 { return state_base() + 68; }
+
+fn struct_table_base() -> i32 { return state_base() + 256 + token_max() * token_record_size(); }
+fn struct_entry_stride() -> i32 { return 16; }
+fn struct_max() -> i32 { return 64; }
+fn struct_field_pool_base() -> i32 { return struct_table_base() + struct_max() * struct_entry_stride(); }
+fn struct_field_pool_capacity() -> i32 { return 512; }
+fn struct_field_pool_byte_size() -> i32 { return struct_field_pool_capacity() * 4; }
+fn struct_field_pool_next_addr() -> i32 { return state_base() + 72; }
+
+fn local_struct_base() -> i32 { return struct_field_pool_base() + struct_field_pool_byte_size(); }
+fn local_struct_entry_size() -> i32 { return 8; }
+fn local_struct_max() -> i32 { return 512; }
+fn local_struct_count_addr() -> i32 { return state_base() + 76; }
+
+fn reset_local_structs() -> i32 {
+  __mem_store(local_struct_count_addr(), 0);
+  return 0;
+}
+
+fn param_struct_base() -> i32 { return local_struct_base() + local_struct_max() * local_struct_entry_size(); }
+fn param_struct_entry_size() -> i32 { return 8; }
+fn param_struct_max() -> i32 { return 256; }
+fn param_struct_count_addr() -> i32 { return state_base() + 80; }
+
+fn reset_param_structs() -> i32 {
+  __mem_store(param_struct_count_addr(), 0);
+  return 0;
+}
+
+fn expr_buf_addr() -> i32 { return 840000; }
+fn expr_buf_size() -> i32 { return 131072; }
+fn expr_buf_pos_addr() -> i32 { return state_base() + 84; }
+
+fn expr_buf_pos() -> i32 {
+  return __mem_load(expr_buf_pos_addr());
+}
+
+fn set_expr_buf_pos(val: i32) -> i32 {
+  __mem_store(expr_buf_pos_addr(), val);
+  return 0;
+}
+
+fn expr_buf_reset() -> i32 {
+  return set_expr_buf_pos(0);
+}
+
+fn expr_buf_alloc(len: i32) -> i32 {
+  let pos: i32 = expr_buf_pos();
+  let next: i32 = pos + len;
+  if (next > expr_buf_size()) { return -1; }
+  __mem_store(expr_buf_pos_addr(), next);
+  return expr_buf_addr() + pos;
+}
+
+fn expr_buf_copy(src_ptr: i32, src_len: i32) -> i32 {
+  let dest: i32 = expr_buf_alloc(src_len);
+  if (dest < 0) { return dest; }
+  let mut i: i32 = 0;
+  while (i < src_len) {
+    __mem_store8(dest + i, __mem_load8(src_ptr + i));
+    i = i + 1;
+  }
+  return dest;
+}
+
+fn expr_buf_append_literal(ptr: i32, len: i32) -> i32 {
+  return expr_buf_copy(ptr, len);
+}
+
+fn expr_buf_append_fragment(src_ptr: i32, src_len: i32) -> i32 {
+  return expr_buf_copy(src_ptr, src_len);
+}
+
+fn expr_buf_append_byte(value: i32) -> i32 {
+  let dest: i32 = expr_buf_alloc(1);
+  if (dest < 0) { return dest; }
+  __mem_store8(dest, value);
+  return dest;
+}
+
+fn expr_last_ptr_addr() -> i32 { return state_base() + 1104; }
+fn set_expr_last_ptr(val: i32) -> i32 {
+  __mem_store(expr_last_ptr_addr(), val);
+  return 0;
+}
+fn expr_last_ptr() -> i32 {
+  return __mem_load(expr_last_ptr_addr());
+}
+
+fn expr_write(dst: i32, src: i32, len: i32) -> i32 {
+  if (len == 0) { return dst; }
+  copy_bytes(dst, src, len);
+  return dst + len;
+}
+
+fn expr_write_token(dst: i32, token_idx: i32) -> i32 {
+  let ptr: i32 = token_text_addr(token_idx);
+  let len: i32 = token_len(token_idx);
+  if (len == 0) { return dst; }
+  copy_bytes(dst, ptr, len);
+  return dst + len;
+}
+
+fn expr_write_two_underscores(dst: i32) -> i32 {
+  __mem_store8(dst, 95);
+  __mem_store8(dst + 1, 95);
+  return dst + 2;
+}
+
+fn expr_indent(count: i32, dst: i32) -> i32 {
+  let mut rem: i32 = count;
+  let mut cur: i32 = dst;
+  while (rem >= literal_spaces10_len()) {
+    cur = expr_write(cur, literal_spaces10_ptr(), literal_spaces10_len());
+    rem = rem - literal_spaces10_len();
+  }
+  if (rem == 8) {
+    cur = expr_write(cur, literal_spaces8_ptr(), literal_spaces8_len());
+    return cur;
+  }
+  if (rem == 6) {
+    cur = expr_write(cur, literal_spaces6_ptr(), literal_spaces6_len());
+    return cur;
+  }
+  if (rem == 4) {
+    cur = expr_write(cur, literal_spaces4_ptr(), literal_spaces4_len());
+    return cur;
+  }
+  if (rem == 2) {
+    cur = expr_write(cur, literal_spaces2_ptr(), literal_spaces2_len());
+    return cur;
+  }
+  if (rem == 0) {
+    return cur;
+  }
+  return cur;
+}
+
+fn expr_fragment_start() -> i32 {
+  return expr_buf_pos();
+}
+
+fn expr_fragment_finish(start: i32) -> i32 {
+  let end: i32 = expr_buf_pos();
+  let len: i32 = end - start;
+  set_expr_last_len(len);
+  set_expr_last_ptr(expr_buf_addr() + start);
+  return expr_buf_addr() + start;
+}
+
+fn expr_append_spaces(count: i32) -> i32 {
+  let mut i: i32 = 0;
+  while (i < count) {
+    let rc: i32 = expr_buf_append_byte(32);
+    if (rc < 0) { return rc; }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn expr_append_newline() -> i32 {
+  return expr_buf_append_byte(10);
+}
+
+fn expr_emit_line(indent: i32, text_ptr: i32, text_len: i32) -> i32 {
+  let total: i32 = indent + text_len + 1;
+  let dest: i32 = expr_buf_alloc(total);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(indent, cur);
+  cur = expr_write(cur, text_ptr, text_len);
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  return dest;
+}
+
+fn expr_emit_paren_line(indent: i32, text_ptr: i32, text_len: i32) -> i32 {
+  let total: i32 = indent + literal_paren_open_len() + text_len + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(indent, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, text_ptr, text_len);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  return dest;
+}
+
+fn expr_emit_open_paren_line(indent: i32, text_ptr: i32, text_len: i32) -> i32 {
+  let total: i32 = indent + literal_paren_open_len() + text_len + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(indent, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, text_ptr, text_len);
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  return dest;
+}
+
+fn expr_emit_close_paren_line(indent: i32) -> i32 {
+  let total: i32 = indent + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(indent, cur);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  return dest;
+}
+
+fn expr_emit_coatl_header() -> i32 {
+  let total: i32 = literal_paren_open_len() + literal_coatl_ir_len() + literal_space_len() + literal_v0_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_coatl_ir_ptr(), literal_coatl_ir_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write(cur, literal_v0_ptr(), literal_v0_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  return dest;
+}
+
+fn literal_ret_len() -> i32 { return 3; }
+
+fn expr_emit_fn_header(name_token: i32) -> i32 {
+  let mut total: i32 = 4 + literal_paren_open_len() + literal_fn_len() + literal_space_len() + token_len(name_token) + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(4, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_fn_ptr(), literal_fn_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write_token(cur, name_token);
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  return dest;
+}
+
+fn expr_emit_ret_line() -> i32 {
+  let total: i32 = 6 + literal_paren_open_len() + literal_ret_len() + literal_space_len() + literal_i32_len() + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(6, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_return_ptr(), literal_ret_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write(cur, literal_i32_ptr(), literal_i32_len());
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  return dest;
+}
+
+fn expr_emit_block_open() -> i32 {
+  if (expr_emit_open_paren_line(6, literal_block_ptr(), literal_block_len()) < 0) { return -1; }
+  return 0;
+}
+
+fn expect_sym_arrow() -> i32 {
+  let idx: i32 = parser_token_idx();
+  if (token_kind(idx) != tok_sym()) { return -31; }
+  if (token_len(idx) != 2) { return -32; }
+  let ptr: i32 = token_text_addr(idx);
+  let first: i32 = __mem_load8(ptr);
+  let second: i32 = __mem_load8(ptr + 1);
+  if (first != 45 || second != 62) { return -33; }
+  advance_token();
+  return idx;
+}
+
+fn expr_append_token(token_idx: i32) -> i32 {
+  let ptr: i32 = token_text_addr(token_idx);
+  let len: i32 = token_len(token_idx);
+  if (len <= 0) { return 0; }
+  return expr_buf_append_fragment(ptr, len);
+}
+
+fn expr_append_int(value: i32) -> i32 {
+  let mut v: i32 = value;
+  let mut neg: i32 = 0;
+  if (v < 0) {
+    neg = 1;
+    v = -v;
+  }
+  let digits_ptr: i32 = args_buffer_addr();
+  let mut digits_len: i32 = 0;
+  if (v == 0) {
+    __mem_store8(digits_ptr, 48);
+    digits_len = 1;
+  } else {
+    while (v > 0) {
+      let digit: i32 = v % 10;
+      __mem_store8(digits_ptr + digits_len, 48 + digit);
+      digits_len = digits_len + 1;
+      v = v / 10;
+    }
+  }
+  if (neg == 1) {
+    let rc_neg: i32 = expr_buf_append_byte(45);
+    if (rc_neg < 0) { return rc_neg; }
+  }
+  let mut i: i32 = digits_len - 1;
+  while (i >= 0) {
+    let byte_val: i32 = __mem_load8(digits_ptr + i);
+    let rc: i32 = expr_buf_append_byte(byte_val);
+    if (rc < 0) { return rc; }
+    i = i - 1;
+  }
+  return 0;
+}
+
+fn copy_bytes(dst: i32, src: i32, len: i32) -> i32 {
+  let mut i: i32 = 0;
+  while (i < len) {
+    __mem_store8(dst + i, __mem_load8(src + i));
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn copy_token_text(dst: i32, token_idx: i32) -> i32 {
+  let len: i32 = token_len(token_idx);
+  let ptr: i32 = token_text_addr(token_idx);
+  copy_bytes(dst, ptr, len);
+  return len;
+}
+
+fn fd_slot_addr() -> i32 { return state_base() + 92; }
+fn iov_addr() -> i32 { return state_base() + 96; }
+fn io_nread_addr() -> i32 { return state_base() + 104; }
+
+fn out_pos_addr() -> i32 { return state_base() + 88; }
+
+fn main() -> i32 {
+  let rc_args: i32 = read_args_from_stdin();
+  if (rc_args != 0) { return rc_args; }
+  let rc_cli: i32 = parse_subset_args();
+  if (rc_cli != 0) { return rc_cli; }
+
+  let in_ptr: i32 = __mem_load(cli_input_path_ptr_addr());
+  let in_len: i32 = __mem_load(cli_input_path_len_addr());
+  let rc_read: i32 = read_file_into_input(in_ptr, in_len);
+  if (rc_read < 0) { return rc_read; }
+
+  let rc_tok: i32 = tokenize();
+  if (rc_tok < 0) { return rc_tok; }
+
+  expr_buf_reset();
+  let rc_prog: i32 = parse_program_ir();
+  if (rc_prog < 0) { return rc_prog; }
+
+  let ir_ptr: i32 = expr_last_ptr();
+  let ir_len: i32 = expr_last_len();
+  if (ir_len <= 0) { return -50; }
+
+  out_reset();
+  let rc_out: i32 = out_str(ir_ptr, ir_len);
+  if (rc_out != 0) { return -60; }
+
+  let out_ptr: i32 = __mem_load(cli_output_path_ptr_addr());
+  let out_len: i32 = __mem_load(cli_output_path_len_addr());
+  let rc_write: i32 = write_output_file(out_ptr, out_len, ir_len);
+  if (rc_write != 0) { return rc_write; }
+
+  return 0;
+}
+
+fn struct_count_addr() -> i32 { return state_base() + 124; }
+
+fn fn_return_count_addr() -> i32 { return state_base() + 1016; }
+fn fn_return_entry_size() -> i32 { return 8; }
+fn fn_return_max() -> i32 { return 128; }
+fn fn_return_table_base() -> i32 { return state_base() + 1024; }
+fn fn_return_entry_name_slot(idx: i32) -> i32 {
+  return fn_return_table_base() + idx * fn_return_entry_size();
+}
+fn fn_return_entry_struct_slot(idx: i32) -> i32 {
+  return fn_return_entry_name_slot(idx) + 4;
+}
+
+fn param_entry_count_addr() -> i32 {
+  return fn_return_table_base() + fn_return_max() * fn_return_entry_size();
+}
+fn param_entry_stride() -> i32 { return 8; }
+fn param_entry_max() -> i32 { return 256; }
+fn param_entry_base() -> i32 {
+  return param_entry_count_addr() + 4;
+}
+fn param_entry_base_slot(idx: i32) -> i32 {
+  return param_entry_base() + idx * param_entry_stride();
+}
+fn param_entry_field_slot(idx: i32) -> i32 {
+  return param_entry_base_slot(idx) + 4;
+}
+
+fn struct_name_slot(struct_id: i32) -> i32 {
+  return struct_table_base() + struct_id * struct_entry_stride();
+}
+
+fn struct_field_count_slot(struct_id: i32) -> i32 {
+  return struct_name_slot(struct_id) + 4;
+}
+
+fn struct_field_start_slot(struct_id: i32) -> i32 {
+  return struct_name_slot(struct_id) + 8;
+}
+
+fn struct_add(name_token: i32, field_start: i32, field_count: i32) -> i32 {
+  let count: i32 = __mem_load(struct_count_addr());
+  if (count >= struct_max()) { return -1; }
+  __mem_store(struct_name_slot(count), name_token);
+  __mem_store(struct_field_count_slot(count), field_count);
+  __mem_store(struct_field_start_slot(count), field_start);
+  __mem_store(struct_count_addr(), count + 1);
+  return count;
+}
+
+fn struct_count() -> i32 {
+  return __mem_load(struct_count_addr());
+}
+
+fn struct_field_pool_slot(idx: i32) -> i32 {
+  return struct_field_pool_base() + idx * 4;
+}
+
+fn struct_field_pool_alloc(token_idx: i32) -> i32 {
+  let next: i32 = __mem_load(struct_field_pool_next_addr());
+  if (next >= struct_field_pool_capacity()) { return -2; }
+  __mem_store(struct_field_pool_slot(next), token_idx);
+  __mem_store(struct_field_pool_next_addr(), next + 1);
+  return next;
+}
+
+fn struct_field_pool_reset() -> i32 {
+  __mem_store(struct_field_pool_next_addr(), 0);
+  return 0;
+}
+
+fn struct_field_token(struct_id: i32, idx: i32) -> i32 {
+  let start: i32 = __mem_load(struct_field_start_slot(struct_id));
+  return __mem_load(struct_field_pool_slot(start + idx));
+}
+
+fn struct_field_index(struct_id: i32, field_token: i32) -> i32 {
+  let count: i32 = struct_field_count(struct_id);
+  let mut i: i32 = 0;
+  while (i < count) {
+    let tok: i32 = struct_field_token(struct_id, i);
+    if (token_text_equal_tokens(tok, field_token) == 1) {
+      return i;
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+fn struct_field_count(struct_id: i32) -> i32 {
+  return __mem_load(struct_field_count_slot(struct_id));
+}
+
+fn struct_name_token(struct_id: i32) -> i32 {
+  return __mem_load(struct_name_slot(struct_id));
+}
+
+fn find_struct_id_by_token(name_token: i32) -> i32 {
+  let count: i32 = struct_count();
+  let mut i: i32 = 0;
+  while (i < count) {
+    let candidate: i32 = struct_name_token(i);
+    if (token_text_equal_tokens(candidate, name_token) == 1) {
+      return i;
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+fn reset_structs() -> i32 {
+  __mem_store(struct_count_addr(), 0);
+  struct_field_pool_reset();
+  return 0;
+}
+
+fn token_text_equal_tokens(a: i32, b: i32) -> i32 {
+  let len_a: i32 = token_len(a);
+  let len_b: i32 = token_len(b);
+  if (len_a != len_b) { return 0; }
+  let ptr_a: i32 = token_text_addr(a);
+  let ptr_b: i32 = token_text_addr(b);
+  let mut i: i32 = 0;
+  while (i < len_a) {
+    if (__mem_load8(ptr_a + i) != __mem_load8(ptr_b + i)) { return 0; }
+    i = i + 1;
+  }
+  return 1;
+}
+
+fn reset_fn_return_structs() -> i32 {
+  __mem_store(fn_return_count_addr(), 0);
+  return 0;
+}
+
+fn fn_return_add(name_token: i32, struct_id: i32) -> i32 {
+  let count: i32 = __mem_load(fn_return_count_addr());
+  if (count >= fn_return_max()) { return -1; }
+  if (token_kind(name_token) != tok_ident()) { return -2; }
+  __mem_store(fn_return_entry_name_slot(count), name_token);
+  __mem_store(fn_return_entry_struct_slot(count), struct_id);
+  __mem_store(fn_return_count_addr(), count + 1);
+  return 0;
+}
+
+fn fn_return_find(name_token: i32) -> i32 {
+  let count: i32 = __mem_load(fn_return_count_addr());
+  let mut i: i32 = 0;
+  while (i < count) {
+    let entry_name: i32 = __mem_load(fn_return_entry_name_slot(i));
+    if (token_text_equal_tokens(entry_name, name_token) == 1) {
+      return __mem_load(fn_return_entry_struct_slot(i));
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+fn reset_param_entries() -> i32 {
+  __mem_store(param_entry_count_addr(), 0);
+  return 0;
+}
+
+fn add_param_entry(base_token: i32, field_token: i32) -> i32 {
+  let count: i32 = __mem_load(param_entry_count_addr());
+  if (count >= param_entry_max()) { return -3; }
+  __mem_store(param_entry_base_slot(count), base_token);
+  __mem_store(param_entry_field_slot(count), field_token);
+  __mem_store(param_entry_count_addr(), count + 1);
+  return 0;
+}
+
+fn emit_params_section() -> i32 {
+  let count: i32 = param_temp_count();
+  if (count == 0) {
+    let total_len: i32 = literal_spaces6_len() + 1 + literal_params_len() + 1 + literal_paren_close_len() + literal_newline_len();
+    let dest: i32 = expr_buf_alloc(total_len);
+    if (dest < 0) { return dest; }
+    let mut cur: i32 = dest;
+    cur = expr_indent(6, cur);
+    cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+    cur = expr_write(cur, literal_params_ptr(), literal_params_len());
+    cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+    cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+    set_expr_last_ptr(dest);
+    set_expr_last_len(total_len);
+    return dest;
+  }
+  let mut total_len: i32 = 0;
+  total_len = total_len + literal_spaces6_len() + 1 + literal_params_len() + literal_newline_len();
+  let mut i: i32 = 0;
+  while (i < count) {
+    let base_token: i32 = param_temp_base(i);
+    let field_token: i32 = param_temp_field(i);
+    let mut name_len: i32 = token_len(base_token);
+    if (field_token >= 0) {
+      name_len = name_len + 2 + token_len(field_token);
+    }
+    total_len = total_len + literal_spaces8_len() + 1 + literal_param_len() + 1 + name_len + 1 + literal_i32_len() + literal_paren_close_len() + literal_newline_len();
+    i = i + 1;
+  }
+  total_len = total_len + literal_spaces6_len() + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(6, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_params_ptr(), literal_params_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  i = 0;
+  while (i < count) {
+    let base_token: i32 = param_temp_base(i);
+    let field_token: i32 = param_temp_field(i);
+    cur = expr_indent(8, cur);
+    cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+    cur = expr_write(cur, literal_param_ptr(), literal_param_len());
+    cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+    cur = expr_write_token(cur, base_token);
+    if (field_token >= 0) {
+      cur = expr_write_two_underscores(cur);
+      cur = expr_write_token(cur, field_token);
+    }
+    cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+    cur = expr_write(cur, literal_i32_ptr(), literal_i32_len());
+    cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+    cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+    i = i + 1;
+  }
+  cur = expr_indent(6, cur);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return dest;
+}
+
+fn int_digit_len(value: i32) -> i32 {
+  let mut v: i32 = value;
+  if (v < 0) { v = -v; }
+  if (v == 0) { return 1; }
+  let mut len: i32 = 0;
+  while (v > 0) {
+    v = v / 10;
+    len = len + 1;
+  }
+  return len;
+}
+
+fn append_int_digits(dest: i32, value: i32) -> i32 {
+  let mut v: i32 = value;
+  let mut neg: i32 = 0;
+  if (v < 0) {
+    neg = 1;
+    v = -v;
+  }
+  let digits_ptr: i32 = args_buffer_addr();
+  let mut digits_len: i32 = 0;
+  if (v == 0) {
+    __mem_store8(digits_ptr, 48);
+    digits_len = 1;
+  } else {
+    while (v > 0) {
+      let digit: i32 = v % 10;
+      __mem_store8(digits_ptr + digits_len, 48 + digit);
+      digits_len = digits_len + 1;
+      v = v / 10;
+    }
+  }
+  let mut cur: i32 = dest;
+  if (neg == 1) {
+    __mem_store8(cur, 45);
+    cur = cur + 1;
+  }
+  let mut i: i32 = digits_len - 1;
+  while (i >= 0) {
+    __mem_store8(cur, __mem_load8(digits_ptr + i));
+    cur = cur + 1;
+    i = i - 1;
+  }
+  return cur;
+}
+
+fn expr_emit_literal_line(indent: i32, keyword_ptr: i32, keyword_len: i32, value_ptr: i32, value_len: i32) -> i32 {
+  let total_len: i32 = indent + literal_paren_open_len() + keyword_len + literal_space_len() + value_len + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(indent, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, keyword_ptr, keyword_len);
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write(cur, value_ptr, value_len);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return 0;
+}
+
+fn expr_emit_literal_int(value: i32) -> i32 {
+  let mut len: i32 = int_digit_len(value);
+  let mut total_len: i32 = 10 + literal_paren_open_len() + literal_int_len() + literal_space_len() + len + literal_paren_close_len() + literal_newline_len();
+  if (value < 0) { len = len + 1; total_len = total_len + 1; }
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_int_ptr(), literal_int_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = append_int_digits(cur, value);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return 0;
+}
+
+fn expr_emit_literal_bool(value: i32) -> i32 {
+  let total_len: i32 = 10 + literal_paren_open_len() + literal_bool_len() + literal_space_len() + 1 + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_bool_ptr(), literal_bool_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  let digit: i32 = if (value != 0) { 49 } else { 48 }; // '1' or '0'
+  __mem_store8(cur, digit);
+  cur = cur + 1;
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return 0;
+}
+
+fn expr_emit_ident(token_idx: i32) -> i32 {
+  let total_len: i32 = 10 + literal_paren_open_len() + literal_ident_len() + literal_space_len() + token_len(token_idx) + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_ident_ptr(), literal_ident_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write_token(cur, token_idx);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return 0;
+}
+
+fn expr_emit_ident_field(base_token: i32, field_token: i32) -> i32 {
+  let name_len: i32 = token_len(base_token) + 2 + token_len(field_token);
+  let total_len: i32 = 10 + literal_paren_open_len() + literal_ident_len() + literal_space_len() + name_len + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_ident_ptr(), literal_ident_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write_token(cur, base_token);
+  cur = expr_write_two_underscores(cur);
+  cur = expr_write_token(cur, field_token);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return 0;
+}
+
+fn expr_emit_binary(op_ptr: i32, op_len: i32, left_ptr: i32, left_len: i32, right_ptr: i32, right_len: i32) -> i32 {
+  let total_len: i32 = 10 + literal_paren_open_len() + literal_binary_len() + literal_space_len() + op_len + literal_newline_len() + left_len + right_len + 10 + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_binary_ptr(), literal_binary_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write(cur, op_ptr, op_len);
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  cur = expr_write(cur, left_ptr, left_len);
+  cur = expr_write(cur, right_ptr, right_len);
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return 0;
+}
+
+fn expr_emit_call(name_token: i32, args_ptr: i32, args_len: i32) -> i32 {
+  if (args_len == 0) {
+    let total_len: i32 = 10 + literal_paren_open_len() + literal_call_len() + literal_space_len() + token_len(name_token) + literal_paren_close_len() + literal_newline_len();
+    let dest: i32 = expr_buf_alloc(total_len);
+    if (dest < 0) { return dest; }
+    let mut cur: i32 = dest;
+    cur = expr_indent(10, cur);
+    cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+    cur = expr_write(cur, literal_call_ptr(), literal_call_len());
+    cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+    cur = expr_write_token(cur, name_token);
+    cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+    cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+    set_expr_last_ptr(dest);
+    set_expr_last_len(total_len);
+    return 0;
+  }
+  let total_len: i32 = 10 + literal_paren_open_len() + literal_call_len() + literal_space_len() + token_len(name_token) + literal_newline_len() + args_len + 10 + literal_paren_close_len() + literal_newline_len();
+  let dest: i32 = expr_buf_alloc(total_len);
+  if (dest < 0) { return dest; }
+  let mut cur: i32 = dest;
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
+  cur = expr_write(cur, literal_call_ptr(), literal_call_len());
+  cur = expr_write(cur, literal_space_ptr(), literal_space_len());
+  cur = expr_write_token(cur, name_token);
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  cur = expr_write(cur, args_ptr, args_len);
+  cur = expr_indent(10, cur);
+  cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
+  cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
+  set_expr_last_ptr(dest);
+  set_expr_last_len(total_len);
+  return 0;
+}
+
+fn param_entry_count() -> i32 {
+  return __mem_load(param_entry_count_addr());
+}
+
+fn param_entry_base_name(idx: i32) -> i32 {
+  return __mem_load(param_entry_base_slot(idx));
+}
+
+fn param_entry_field_name(idx: i32) -> i32 {
+  return __mem_load(param_entry_field_slot(idx));
+}
+
+fn expr_last_len_addr() -> i32 { return state_base() + 1100; }
+fn set_expr_last_len(val: i32) -> i32 {
+  __mem_store(expr_last_len_addr(), val);
+  return 0;
+}
+fn expr_last_len() -> i32 {
+  return __mem_load(expr_last_len_addr());
+}
+
+fn main_seen_addr() -> i32 { return state_base() + 1112; }
+fn set_main_seen(val: i32) -> i32 {
+  __mem_store(main_seen_addr(), val);
+  return 0;
+}
+fn main_seen() -> i32 {
+  return __mem_load(main_seen_addr());
+}
+
+fn param_temp_count_addr() -> i32 { return state_base() + 1116; }
+fn param_temp_entry_base() -> i32 { return state_base() + 1120; }
+fn param_temp_entry_stride() -> i32 { return 8; }
+fn param_temp_entry_max() -> i32 { return 256; }
+
+fn param_temp_count() -> i32 {
+  return __mem_load(param_temp_count_addr());
+}
+
+fn param_temp_reset() -> i32 {
+  __mem_store(param_temp_count_addr(), 0);
+  return 0;
+}
+
+fn param_temp_entry_slot(idx: i32) -> i32 {
+  return param_temp_entry_base() + idx * param_temp_entry_stride();
+}
+
+fn param_temp_add(base_token: i32, field_token: i32) -> i32 {
+  let count: i32 = param_temp_count();
+  if (count >= param_temp_entry_max()) { return -1; }
+  __mem_store(param_temp_entry_slot(count), base_token);
+  __mem_store(param_temp_entry_slot(count) + 4, field_token);
+  __mem_store(param_temp_count_addr(), count + 1);
+  return 0;
+}
+
+fn param_temp_base(idx: i32) -> i32 {
+  return __mem_load(param_temp_entry_slot(idx));
+}
+
+fn param_temp_field(idx: i32) -> i32 {
+  return __mem_load(param_temp_entry_slot(idx) + 4);
+}
+
+fn local_struct_entry_name_slot(idx: i32) -> i32 {
+  return local_struct_base() + idx * local_struct_entry_size();
+}
+
+fn local_struct_entry_type_slot(idx: i32) -> i32 {
+  return local_struct_entry_name_slot(idx) + 4;
+}
+
+fn local_struct_add(name_token: i32, struct_id: i32) -> i32 {
+  let count: i32 = __mem_load(local_struct_count_addr());
+  if (count >= local_struct_max()) { return -3; }
+  __mem_store(local_struct_entry_name_slot(count), name_token);
+  __mem_store(local_struct_entry_type_slot(count), struct_id);
+  __mem_store(local_struct_count_addr(), count + 1);
+  return 0;
+}
+
+fn local_struct_find(name_token: i32) -> i32 {
+  let count: i32 = __mem_load(local_struct_count_addr());
+  let i: i32 = 0;
+  let name_ptr: i32 = token_text_addr(name_token);
+  let name_len: i32 = token_len(name_token);
+  while (i < count) {
+    let nt: i32 = __mem_load(local_struct_entry_name_slot(i));
+    let nt_len: i32 = token_len(nt);
+    if (nt_len == name_len) {
+      let ptr: i32 = token_text_addr(nt);
+      let j: i32 = 0;
+      let matched: i32 = 1;
+      while (j < name_len) {
+        if (__mem_load8(name_ptr + j) != __mem_load8(ptr + j)) {
+          matched = 0;
+          break;
+        }
+        j = j + 1;
+      }
+      if (matched == 1) {
+        return __mem_load(local_struct_entry_type_slot(i));
+      }
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+fn param_struct_entry_name_slot(idx: i32) -> i32 {
+  return param_struct_base() + idx * param_struct_entry_size();
+}
+
+fn param_struct_entry_type_slot(idx: i32) -> i32 {
+  return param_struct_entry_name_slot(idx) + 4;
+}
+
+fn param_struct_add(name_token: i32, struct_id: i32) -> i32 {
+  let count: i32 = __mem_load(param_struct_count_addr());
+  if (count >= param_struct_max()) { return -4; }
+  __mem_store(param_struct_entry_name_slot(count), name_token);
+  __mem_store(param_struct_entry_type_slot(count), struct_id);
+  __mem_store(param_struct_count_addr(), count + 1);
+  return 0;
+}
+
+fn param_struct_find(name_token: i32) -> i32 {
+  let count: i32 = __mem_load(param_struct_count_addr());
+  let i: i32 = 0;
+  let name_ptr: i32 = token_text_addr(name_token);
+  let name_len: i32 = token_len(name_token);
+  while (i < count) {
+    let nt: i32 = __mem_load(param_struct_entry_name_slot(i));
+    let nt_len: i32 = token_len(nt);
+    if (nt_len == name_len) {
+      let ptr: i32 = token_text_addr(nt);
+      let j: i32 = 0;
+      let matched: i32 = 1;
+      while (j < name_len) {
+        if (__mem_load8(name_ptr + j) != __mem_load8(ptr + j)) {
+          matched = 0;
+          break;
+        }
+        j = j + 1;
+      }
+      if (matched == 1) {
+        return __mem_load(param_struct_entry_type_slot(i));
+      }
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+fn struct_var_type(name_token: i32) -> i32 {
+  let local: i32 = local_struct_find(name_token);
+  if (local >= 0) { return local; }
+  let param: i32 = param_struct_find(name_token);
+  if (param >= 0) { return param; }
+  return -1;
+}
+
+fn read_file_into_input(path_ptr: i32, path_len: i32) -> i32 {
+  let fd_slot: i32 = fd_slot_addr();
+  __mem_store(fd_slot, 0);
+  let rc_open: i32 = __path_open(3, 0, path_ptr, path_len, 0, 1, 0, 0, fd_slot);
+  if (rc_open != 0) { return rc_open; }
+  let fd: i32 = __mem_load(fd_slot);
+
+  let total: i32 = 0;
+  let done: i32 = 0;
+  while (done == 0) {
+    if (total >= input_buffer_size() - 1) {
+      done = 1;
+    } else {
+      __mem_store(iov_addr(), input_buffer_addr() + total);
+      __mem_store(iov_addr() + 4, input_buffer_size() - 1 - total);
+      __mem_store(io_nread_addr(), 0);
+      let rc: i32 = __fd_read(fd, iov_addr(), 1, io_nread_addr());
+      if (rc != 0) {
+        __fd_close(fd);
+        return rc;
+      }
+      let nread: i32 = __mem_load(io_nread_addr());
+      if (nread <= 0) {
+        done = 1;
+      } else {
+        total = total + nread;
+        if (total >= input_buffer_size() - 1) {
+          done = 1;
+        }
+      }
+    }
+  }
+
+  let rc_close: i32 = __fd_close(fd);
+  if (rc_close != 0) { return rc_close; }
+
+  __mem_store8(input_buffer_addr() + total, 0);
+  __mem_store(input_len_addr(), total);
+  return total;
+}
+
+fn write_output_file(path_ptr: i32, path_len: i32, size: i32) -> i32 {
+  let fd_slot: i32 = fd_slot_addr();
+  __mem_store(fd_slot, 0);
+  let rc_open: i32 = __path_open(3, 0, path_ptr, path_len, 9, 64, 0, 0, fd_slot);
+  if (rc_open != 0) { return rc_open; }
+  let fd: i32 = __mem_load(fd_slot);
+
+  __mem_store(iov_addr(), out_buffer_addr());
+  __mem_store(iov_addr() + 4, size);
+  __mem_store(io_nread_addr(), 0);
+  let rc_write: i32 = __fd_write(fd, iov_addr(), 1, io_nread_addr());
+  if (rc_write != 0) {
+    __fd_close(fd);
+    return rc_write;
+  }
+  let rc_close: i32 = __fd_close(fd);
+  if (rc_close != 0) { return rc_close; }
+  return 0;
+}
+
+fn out_reset() -> i32 {
+  __mem_store(out_pos_addr(), 0);
+  return 0;
+}
+
+fn out_len() -> i32 {
+  return __mem_load(out_pos_addr());
+}
+
+fn out_char(c: i32) -> i32 {
+  let pos: i32 = out_len();
+  if (pos >= out_buffer_size()) { return -1; }
+  __mem_store8(out_buffer_addr() + pos, c);
+  __mem_store(out_pos_addr(), pos + 1);
+  return 0;
+}
+
+fn out_str(ptr: i32, len: i32) -> i32 {
+  let mut i: i32 = 0;
+  while (i < len) {
+    let c: i32 = __mem_load8(ptr + i);
+    let rc: i32 = out_char(c);
+    if (rc != 0) { return rc; }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn out_spaces(count: i32) -> i32 {
+  let mut i: i32 = 0;
+  while (i < count) {
+    let rc: i32 = out_char(32);
+    if (rc != 0) { return rc; }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn out_nl() -> i32 {
+  return out_char(10);
+}
+
+fn emit_line(indent: i32, text_ptr: i32, text_len: i32) -> i32 {
+  let rc1: i32 = out_spaces(indent);
+  if (rc1 != 0) { return rc1; }
+  let rc2: i32 = out_str(text_ptr, text_len);
+  if (rc2 != 0) { return rc2; }
+  return out_nl();
+}
+
+fn emit_const_line(indent: i32, ptr: i32, len: i32) -> i32 {
+  return emit_line(indent, ptr, len);
+}
+
+fn tokenize() -> i32 {
+  init_literals();
+  reset_tokens();
+  let len: i32 = input_len();
+  let mut idx: i32 = 0;
+  while (idx < len) {
+    let c: i32 = input_char(idx);
+    if (is_space(c) == 1) {
+      idx = idx + 1;
+      continue;
+    }
+    if (c == 47 && idx + 1 < len && input_char(idx + 1) == 47) {
+      idx = idx + 2;
+      while (idx < len && input_char(idx) != 10) {
+        idx = idx + 1;
+      }
+      continue;
+    }
+    if (c == 45 && idx + 1 < len && input_char(idx + 1) == 62) {
+      add_token(tok_sym(), idx, 2);
+      idx = idx + 2;
+      continue;
+    }
+    if (idx + 1 < len) {
+      let c2: i32 = input_char(idx + 1);
+      if ((c == 60 && c2 == 61) || (c == 62 && c2 == 61) || (c == 61 && c2 == 61) || (c == 33 && c2 == 61) || (c == 38 && c2 == 38) || (c == 124 && c2 == 124)) {
+        add_token(tok_sym(), idx, 2);
+        idx = idx + 2;
+        continue;
+      }
+    }
+    if (c == '(' || c == ')' || c == '{' || c == '}' || c == ',' || c == ':' || c == ';' || c == '+' || c == '-' || c == '*' || c == '/' || c == '<' || c == '>' || c == '=' || c == '!' || c == '.' ) {
+      add_token(tok_sym(), idx, 1);
+      idx = idx + 1;
+      continue;
+    }
+    if (c == 34) {
+      let start: i32 = idx;
+      idx = idx + 1;
+      let esc: i32 = 0;
+      while (idx < len) {
+        let ch: i32 = input_char(idx);
+        if (esc == 1) {
+          esc = 0;
+          idx = idx + 1;
+          continue;
+        }
+        if (ch == 92) {
+          esc = 1;
+          idx = idx + 1;
+          continue;
+        }
+        if (ch == 34) {
+          break;
+        }
+        idx = idx + 1;
+      }
+      if (idx >= len) { return -1; }
+      let token_len: i32 = idx - start + 1;
+      add_token(tok_str(), start, token_len);
+      idx = idx + 1;
+      continue;
+    }
+    if (c >= 48 && c <= 57) {
+      let start: i32 = idx;
+      while (idx < len) {
+        let ch: i32 = input_char(idx);
+        if (!(ch >= 48 && ch <= 57)) { break; }
+        idx = idx + 1;
+      }
+      add_token(tok_num(), start, idx - start);
+      continue;
+    }
+    if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95) {
+      let start: i32 = idx;
+      while (idx < len) {
+        let ch: i32 = input_char(idx);
+        if (!((ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122) || (ch >= 48 && ch <= 57) || ch == 95)) { break; }
+        idx = idx + 1;
+      }
+      add_token(tok_ident(), start, idx - start);
+      continue;
+    }
+    return -2;
+  }
+  add_token(tok_eof(), len, 0);
+  return 0;
+}
+
+fn parse_struct_decl() -> i32 {
+  let rc: i32 = expect_keyword(literal_struct_ptr(), literal_struct_len());
+  if (rc < 0) { return rc; }
+  let name_token: i32 = expect_ident();
+  if (name_token < 0) { return name_token; }
+  if (expect_sym_char(123) < 0) { return -10; }
+  let field_start: i32 = __mem_load(struct_field_pool_next_addr());
+  let mut field_count: i32 = 0;
+  while (token_kind(parser_token_idx()) != tok_sym() || __mem_load8(token_text_addr(parser_token_idx())) != 125) {
+    let field_token: i32 = expect_ident();
+    if (field_token < 0) { return field_token; }
+    if (expect_sym_char(58) < 0) { return -11; }
+    let ty: i32 = expect_ident();
+    if (ty < 0) { return ty; }
+    if (token_text_equal(ty, literal_i32_ptr(), literal_i32_len()) != 1) { return -12; }
+    let rc_field: i32 = struct_field_pool_alloc(field_token);
+    if (rc_field < 0) { return rc_field; }
+    field_count = field_count + 1;
+    if (token_kind(parser_token_idx()) == tok_sym() && __mem_load8(token_text_addr(parser_token_idx())) == 44) {
+      advance_token();
+      continue;
+    }
+  }
+  if (expect_sym_char(125) < 0) { return -13; }
+  let rc_add: i32 = struct_add(name_token, field_start, field_count);
+  return rc_add;
+}
+
+fn parse_program_ir() -> i32 {
+  reset_structs();
+  reset_fn_return_structs();
+  reset_param_entries();
+  reset_local_structs();
+  reset_param_structs();
+  param_temp_reset();
+  set_main_seen(0);
+
+  let prog_start: i32 = expr_fragment_start();
+  let _ = expr_emit_coatl_header();
+  if (expr_emit_paren_line(2, literal_structs_ptr(), literal_structs_len()) < 0) { return -20; }
+  if (expr_emit_open_paren_line(2, literal_functions_ptr(), literal_functions_len()) < 0) { return -21; }
+
+  while (token_kind(parser_token_idx()) != tok_eof()) {
+    if (match_keyword(literal_struct_ptr(), literal_struct_len()) == 1) {
+      let rc = parse_struct_decl();
+      if (rc < 0) { return rc; }
+      continue;
+    }
+    let rc_fn = parse_fn_ir();
+    if (rc_fn < 0) { return rc_fn; }
+  }
+
+  if (main_seen() == 0) { return -22; }
+
+  if (expr_emit_close_paren_line(2) < 0) { return -23; }
+  if (expr_emit_close_paren_line(0) < 0) { return -24; }
+
+  let _ = expr_fragment_finish(prog_start);
+  return 0;
+}
+
+fn token_is_main(token_idx: i32) -> i32 {
+  return token_text_equal(token_idx, literal_main_ptr(), literal_main_len());
+}
+
+fn parse_params_ir() -> i32 {
+  param_temp_reset();
+  reset_param_entries();
+  reset_param_structs();
+  if (token_kind(parser_token_idx()) == tok_sym() && __mem_load8(token_text_addr(parser_token_idx())) == 41) {
+    return 0;
+  }
+  loop {
+    let name_token: i32 = expect_ident();
+    if (name_token < 0) { return name_token; }
+    if (expect_sym_char(58) < 0) { return -20; }
+    let ty_token: i32 = expect_ident();
+    if (ty_token < 0) { return ty_token; }
+    let struct_id: i32 = find_struct_id_by_token(ty_token);
+    if (struct_id >= 0) {
+      let rc_param: i32 = param_struct_add(name_token, struct_id);
+      if (rc_param < 0) { return rc_param; }
+      let mut field_idx: i32 = 0;
+      let field_count: i32 = struct_field_count(struct_id);
+      while (field_idx < field_count) {
+        let field_token: i32 = struct_field_token(struct_id, field_idx);
+        let rc_entry: i32 = param_temp_add(name_token, field_token);
+        if (rc_entry < 0) { return rc_entry; }
+        let rc_store: i32 = add_param_entry(name_token, field_token);
+        if (rc_store < 0) { return rc_store; }
+        field_idx = field_idx + 1;
+      }
+    } else {
+      if (token_text_equal(ty_token, literal_i32_ptr(), literal_i32_len()) != 1) { return -21; }
+      let rc_entry: i32 = param_temp_add(name_token, -1);
+      if (rc_entry < 0) { return rc_entry; }
+    }
+    if (token_kind(parser_token_idx()) == tok_sym() && __mem_load8(token_text_addr(parser_token_idx())) == 44) {
+      advance_token();
+      continue;
+    }
+    break;
+  }
+  return 0;
+}
+
+fn find_block_end(start_idx: i32) -> i32 {
+  let mut depth: i32 = 1;
+  let mut idx: i32 = start_idx;
+  while (idx < token_count()) {
+    if (token_kind(idx) == tok_sym()) {
+      let ch: i32 = __mem_load8(token_text_addr(idx));
+      if (ch == 123) {
+        depth = depth + 1;
+      }
+      if (ch == 125) {
+        depth = depth - 1;
+        if (depth == 0) {
+          return idx;
+        }
+      }
+    }
+    idx = idx + 1;
+  }
+  return -30;
+}
+
+fn parse_block_range_ir(stop_idx: i32, ret_struct_id: i32, ret_struct_field: i32) -> i32 {
+  let start: i32 = expr_fragment_start();
+  if (expr_emit_block_open() < 0) { return -31; }
+  while (parser_token_idx() < stop_idx) {
+    let rc: i32 = parse_stmt_ir(ret_struct_id, ret_struct_field);
+    if (rc < 0) { return rc; }
+  }
+  if (expr_emit_close_paren_line(6) < 0) { return -32; }
+  let _ = expr_fragment_finish(start);
+  return 0;
+}
+
+fn parse_block_ir(ret_struct_id: i32, ret_struct_field: i32) -> i32 {
+  if (expect_sym_char(123) < 0) { return -34; }
+  let stop_idx: i32 = find_block_end(parser_token_idx());
+  if (stop_idx < 0) { return stop_idx; }
+  let rc: i32 = parse_block_range_ir(stop_idx, ret_struct_id, ret_struct_field);
+  if (rc < 0) { return rc; }
+  if (expect_sym_char(125) < 0) { return -35; }
+  return 0;
+}
+
+fn emit_stmt_indent(indent: i32) -> i32 {
+  return expr_append_spaces(indent);
+}

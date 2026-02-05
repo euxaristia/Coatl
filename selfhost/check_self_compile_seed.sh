@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOOTSTRAP_SRC="$ROOT_DIR/selfhost/bootstrap.coatl"
 SEED_WAT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
+source "$ROOT_DIR/selfhost/wat_utils.sh"
 SEED_STDIN_WAT="/tmp/coatl-bootstrap-seed-stdin.wat"
 STAGE1_RAW="/tmp/coatl-bootstrap-seed-stage1.raw"
 STAGE1_WAT="/tmp/coatl-bootstrap-seed-stage1.wat"
@@ -19,37 +20,6 @@ if ! command -v wasmtime >/dev/null 2>&1; then
   echo "wasmtime is required but not found in PATH"
   exit 1
 fi
-
-patch_stdin_flag() {
-  local in_wat="$1"
-  local out_wat="$2"
-  python3 - "$in_wat" "$out_wat" <<'PY'
-from pathlib import Path
-import sys
-src_path = Path(sys.argv[1])
-out_path = Path(sys.argv[2])
-state_stdin_flag = 18874412  # state_base + 44
-src = src_path.read_text(errors='ignore')
-needle = f'(data (i32.const {state_stdin_flag}) "\\01")'
-if needle not in src:
-    src = src.replace('(memory', f'  {needle}\n  (memory', 1)
-out_path.write_text(src)
-PY
-}
-
-clean_wat_output() {
-  local in_raw="$1"
-  local out_wat="$2"
-  python3 - "$in_raw" "$out_wat" <<'PY'
-from pathlib import Path
-import sys
-raw = Path(sys.argv[1]).read_bytes()
-if b'\x00' in raw:
-    raw = raw.split(b'\x00', 1)[0]
-raw = raw.rstrip(b'\r\n\t ') + b'\n'
-Path(sys.argv[2]).write_bytes(raw)
-PY
-}
 
 echo "[1/5] Running seed -> stage1"
 patch_stdin_flag "$SEED_WAT" "$SEED_STDIN_WAT"
