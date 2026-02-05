@@ -201,6 +201,10 @@ def collect_features_expr(expr: Node, out: Dict[str, bool]) -> None:
         callee = as_atom(e[1])
         if callee == "__fd_write":
             out["fd_write"] = True
+        if callee == "__fd_read":
+            out["fd_read"] = True
+        if callee == "__fd_close":
+            out["fd_close"] = True
         for arg in e[2:]:
             collect_features_expr(arg, out)
     elif tag == "binary":
@@ -212,7 +216,7 @@ def collect_features_expr(expr: Node, out: Dict[str, bool]) -> None:
 
 def collect_features(block: Node) -> Dict[str, bool]:
     b = as_list(block)
-    out = {"fd_write": False}
+    out = {"fd_write": False, "fd_read": False, "fd_close": False}
     for stmt in b[1:]:
         s = as_list(stmt)
         tag = as_atom(s[0])
@@ -228,15 +232,21 @@ def collect_features(block: Node) -> Dict[str, bool]:
             collect_features_expr(s[1], out)
             fb = collect_features(s[2])
             out["fd_write"] = out["fd_write"] or fb["fd_write"]
+            out["fd_read"] = out["fd_read"] or fb["fd_read"]
+            out["fd_close"] = out["fd_close"] or fb["fd_close"]
             if len(s) > 3:
                 eb = as_list(s[3])
                 if as_atom(eb[0]) == "else":
                     fe = collect_features(eb[1])
                     out["fd_write"] = out["fd_write"] or fe["fd_write"]
+                    out["fd_read"] = out["fd_read"] or fe["fd_read"]
+                    out["fd_close"] = out["fd_close"] or fe["fd_close"]
         elif tag == "while":
             collect_features_expr(s[1], out)
             fw = collect_features(s[2])
             out["fd_write"] = out["fd_write"] or fw["fd_write"]
+            out["fd_read"] = out["fd_read"] or fw["fd_read"]
+            out["fd_close"] = out["fd_close"] or fw["fd_close"]
     return out
 
 
@@ -312,6 +322,19 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
             for arg in args:
                 emit_expr(arg, ctx, out)
             out.append("    call $fd_write")
+            return
+        if callee == "__fd_read":
+            if len(args) != 4:
+                raise LowerError("__fd_read expects 4 args")
+            for arg in args:
+                emit_expr(arg, ctx, out)
+            out.append("    call $fd_read")
+            return
+        if callee == "__fd_close":
+            if len(args) != 1:
+                raise LowerError("__fd_close expects 1 arg")
+            emit_expr(args[0], ctx, out)
+            out.append("    call $fd_close")
             return
         if callee not in ctx.fn_names:
             raise LowerError(f"unsupported call: {callee}")
@@ -459,11 +482,13 @@ def lower_ir(root: Node) -> str:
     if len(mains) != 1:
         raise LowerError("expected exactly one main function")
 
-    features = {"fd_write": False}
+    features = {"fd_write": False, "fd_read": False, "fd_close": False}
     string_tokens: Dict[str, None] = {}
     for _, _, block in parsed:
         fb = collect_features(block)
         features["fd_write"] = features["fd_write"] or fb["fd_write"]
+        features["fd_read"] = features["fd_read"] or fb["fd_read"]
+        features["fd_close"] = features["fd_close"] or fb["fd_close"]
         for tok in collect_string_literals(block):
             string_tokens[tok] = None
 
@@ -485,6 +510,12 @@ def lower_ir(root: Node) -> str:
     if features["fd_write"]:
         lines.append("  (import \"wasi_snapshot_preview1\" \"fd_write\"")
         lines.append("    (func $fd_write (param i32 i32 i32 i32) (result i32)))")
+    if features["fd_read"]:
+        lines.append("  (import \"wasi_snapshot_preview1\" \"fd_read\"")
+        lines.append("    (func $fd_read (param i32 i32 i32 i32) (result i32)))")
+    if features["fd_close"]:
+        lines.append("  (import \"wasi_snapshot_preview1\" \"fd_close\"")
+        lines.append("    (func $fd_close (param i32) (result i32)))")
     lines.append("  (memory (export \"memory\") 2)")
     for addr, data in data_segments:
         lines.append(f"  (data (i32.const {addr}) \"{wat_escape_bytes(data)}\")")

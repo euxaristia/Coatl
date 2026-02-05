@@ -63,6 +63,10 @@ Run no-Rust subset frontend + external backend suite:
 ```bash
 ./tests/run_ir_subset_backend_suite.sh
 ```
+Run no-Rust subset I/O smoke (`__fd_read`):
+```bash
+./tests/run_ir_subset_io_smoke.sh
+```
 
 Run no-Rust subset frontend IR emission smoke:
 ```bash
@@ -93,7 +97,7 @@ And for IR output itself:
 MEE_NO_RUST=1 ./mee build ./examples/hello.mee --emit=ir --toolchain=ir -o /tmp/hello.ir
 ```
 Current strict subset coverage includes `hello`, `mem_test`, `byte_test`, and `array_sim` via `./tests/run_ir_subset_backend_suite.sh`.
-It also includes control flow (`if`/`while`) and boolean/comparison operators via `tests/ir_subset_control_flow.mee`.
+It also includes control flow (`if`/`while`) and boolean/comparison operators via `tests/ir_subset_control_flow.mee`, plus `__fd_read` via `tests/run_ir_subset_io_smoke.sh`.
 
 ## Hello World (Mee)
 

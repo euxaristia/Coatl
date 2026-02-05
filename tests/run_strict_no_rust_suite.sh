@@ -46,6 +46,9 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_frontend_smoke.sh"
 echo "[strict-no-rust] toolchain=ir via non-Rust subset frontend"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_backend_suite.sh"
 
+echo "[strict-no-rust] toolchain=ir subset I/O (fd_read)"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_io_smoke.sh"
+
 echo "[strict-no-rust] non-Rust IR lowerer lane"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
 
