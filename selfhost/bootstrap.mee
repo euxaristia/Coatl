@@ -4064,7 +4064,7 @@ fn parse_program_dyn() -> i32 {
 fn parse_fns_dyn(count: i32) -> i32 {
   let tok: i32 = peek_tok_dyn();
   if (lex_kind(tok) == tok_eof()) { return count; }
-  if (lex_kind(tok) != tok_fn()) { return count; }
+  if (lex_kind(tok) != tok_fn()) { return set_parse_error(0 - 611); }
 
   let fn_idx: i32 = parse_fn_def_dyn();
   if (fn_idx < 0) { return fn_idx; }

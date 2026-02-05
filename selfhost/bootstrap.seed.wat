@@ -17565,7 +17565,10 @@
   i32.const 0
   i32.eq
   br_if 0
-  local.get $l0
+  i32.const 0
+  i32.const 611
+  i32.sub
+  call $f11
   return
   end
   call $f349
