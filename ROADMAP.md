@@ -51,6 +51,7 @@ Last updated: 2026-02-05
 - Strict no-Rust asm smoke coverage now includes scalar/memory/control-flow, struct subset paths, and Linux I/O intrinsics via `tests/run_ir_x86_subset_asm_smoke.sh`
 - Strict no-Rust now also verifies the same asm subset matrix through `--toolchain=auto` via `tests/run_auto_no_rust_asm_suite.sh`
 - x86 runtime suite (`tests/run_x86_runtime_suite.sh`) now runs with selectable asm toolchain, and strict no-Rust exercises it via `tests/run_x86_runtime_suite_ir_no_rust.sh`
+- strict no-Rust also exercises x86 runtime suite through `--toolchain=auto` via `tests/run_x86_runtime_suite_auto_no_rust.sh`
 - Strict no-Rust subset coverage now includes basic struct params/locals/returns paths in `--toolchain=ir` (`tests/struct_param_pass.mee`, `tests/struct_return_basic.mee`, `tests/struct_chain_calls.mee`)
 - Strict no-Rust subset coverage now includes struct field mutation lowering (`tests/struct_field_mutation_subset.mee`)
 - Strict no-Rust subset coverage now includes nested struct-return calls in arg position (`tests/struct_nested_arg_subset.mee`)

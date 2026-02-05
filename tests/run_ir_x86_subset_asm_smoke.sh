@@ -169,6 +169,29 @@ if ! printf "OK\n" | cmp -s - /tmp/mee_x86_io_test.txt; then
 fi
 rm -f /tmp/mee_x86_io_test.txt
 
+echo "[ir-x86-subset-asm] subset path_open/write/close"
+SUBSET_IO_BIN="$TMP_DIR/subset-write"
+build_bin "$ROOT_DIR/tests/ir_subset_path_open_write_close.mee" "$SUBSET_IO_BIN"
+subset_dir="$TMP_DIR/subset-io"
+mkdir -p "$subset_dir"
+set +e
+(
+  cd "$subset_dir"
+  "$SUBSET_IO_BIN"
+)
+subset_io_rc=$?
+set -e
+assert_rc 3 "$subset_io_rc" "ir_subset_path_open_write_close"
+if [[ ! -f "$subset_dir/probe_out.txt" ]]; then
+  echo "[FAIL] ir_subset_path_open_write_close missing probe_out.txt"
+  exit 1
+fi
+if ! printf "OK\n" | cmp -s - "$subset_dir/probe_out.txt"; then
+  echo "[FAIL] ir_subset_path_open_write_close file contents mismatch"
+  cat "$subset_dir/probe_out.txt"
+  exit 1
+fi
+
 echo "[ir-x86-subset-asm] path_open probe"
 PROBE_BIN="$TMP_DIR/path-probe"
 build_bin "$ROOT_DIR/tests/ir_subset_path_open_probe.mee" "$PROBE_BIN"
