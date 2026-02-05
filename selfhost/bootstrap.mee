@@ -1974,6 +1974,12 @@ fn emit_ir_binop(node: i32, op: i32) -> i32 {
 // ============================================================================
 fn type_i32() -> i32 { return 1; }
 fn type_bool() -> i32 { return 2; }
+fn type_struct(sidx: i32) -> i32 { return 100 + sidx; }
+fn type_is_i32ish(t: i32) -> i32 {
+  if (t == type_i32()) { return 1; }
+  if (t >= 100) { return 1; }
+  return 0;
+}
 
 fn typecheck_call(node: i32) -> i32 {
   let fn_id: i32 = ast_a(node);
@@ -1987,6 +1993,19 @@ fn typecheck_call(node: i32) -> i32 {
     let fn_idx: i32 = lookup_fn(fn_id);
     if (fn_idx < 0) { return set_semantic_error_node(0 - 7201, node); }
     if (arg_count != fn_params(fn_idx)) { return set_semantic_error_node(0 - 7202, node); }
+    let ncheck: i32 = arg_count;
+    let ccheck: i32 = first_arg;
+    let pi: i32 = 0;
+    while (pi < ncheck) {
+      let exprp: i32 = ast_a(ccheck);
+      let texp: i32 = typecheck_expr(exprp);
+      if (texp < 0) { return texp; }
+      // Params are currently lowered/passed as i32 pointers or scalars.
+      // Keep runtime model permissive until full typed ABI lands.
+      ccheck = ast_c(ccheck);
+      pi = pi + 1;
+    }
+    return fn_ret_type(fn_idx);
   }
 
   let n: i32 = arg_count;
@@ -2007,18 +2026,29 @@ fn typecheck_expr(node: i32) -> i32 {
   if (kind == nk_int()) { return type_i32(); }
   if (kind == nk_bool()) { return type_bool(); }
   if (kind == nk_string()) { return type_i32(); }
-  if (kind == nk_ident()) { return type_i32(); }
+  if (kind == nk_ident()) { return lookup_local_type(ast_a(node)); }
   if (kind == nk_call()) { return typecheck_call(node); }
-  if (kind == nk_struct_lit()) { return type_i32(); }
+  if (kind == nk_struct_lit()) { return type_struct(ast_a(node)); }
 
-  if (kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()) {
+  if (kind == nk_add() || kind == nk_sub()) {
     let left: i32 = ast_a(node);
     let right: i32 = ast_b(node);
     let l: i32 = typecheck_expr(left);
     if (l < 0) { return l; }
     let r: i32 = typecheck_expr(right);
     if (r < 0) { return r; }
-    if (l != type_i32() || r != type_i32()) { return set_semantic_error_node(0 - 7210 - kind, node); }
+    if (!type_is_i32ish(l) || !type_is_i32ish(r)) { return set_semantic_error_node(0 - 7210 - kind, node); }
+    return type_i32();
+  }
+
+  if (kind == nk_mul() || kind == nk_div()) {
+    let leftm: i32 = ast_a(node);
+    let rightm: i32 = ast_b(node);
+    let lm: i32 = typecheck_expr(leftm);
+    if (lm < 0) { return lm; }
+    let rm: i32 = typecheck_expr(rightm);
+    if (rm < 0) { return rm; }
+    if (lm != type_i32() || rm != type_i32()) { return set_semantic_error_node(0 - 7210 - kind, node); }
     return type_i32();
   }
 
@@ -2029,7 +2059,7 @@ fn typecheck_expr(node: i32) -> i32 {
     if (l2 < 0) { return l2; }
     let r2: i32 = typecheck_expr(right2);
     if (r2 < 0) { return r2; }
-    if (l2 != type_i32() || r2 != type_i32()) { return set_semantic_error_node(0 - 7220 - kind, node); }
+    if (!type_is_i32ish(l2) || !type_is_i32ish(r2)) { return set_semantic_error_node(0 - 7220 - kind, node); }
     return type_bool();
   }
 
@@ -2189,18 +2219,31 @@ fn assign_string_offsets_program(count: i32) -> i32 {
 
 fn typecheck_stmt(node: i32) -> i32 {
   let kind: i32 = ast_kind(node);
-  if (kind == nk_let() || kind == nk_assign()) {
+  if (kind == nk_let()) {
+    let ident: i32 = ast_a(node);
+    let expected_ty: i32 = lookup_local_type(ident);
     let expr: i32 = ast_b(node);
     let ty: i32 = typecheck_expr(expr);
     if (ty < 0) { return ty; }
-    if (ty != type_i32()) { return set_semantic_error_node(0 - 7230 - kind, expr); }
+    if (ty != expected_ty) { return set_semantic_error_node(0 - 7230 - kind, expr); }
+    return 1;
+  }
+  if (kind == nk_assign()) {
+    let ident2: i32 = ast_a(node);
+    let expected_ty2: i32 = lookup_local_type(ident2);
+    let expr: i32 = ast_b(node);
+    let ty: i32 = typecheck_expr(expr);
+    if (ty < 0) { return ty; }
+    if (ty != expected_ty2) { return set_semantic_error_node(0 - 7230 - kind, expr); }
     return 1;
   }
   if (kind == nk_return()) {
     let expr2: i32 = ast_a(node);
     let ty2: i32 = typecheck_expr(expr2);
     if (ty2 < 0) { return ty2; }
-    if (ty2 != type_i32()) { return set_semantic_error_node(0 - 7231, expr2); }
+    let cur_fn: i32 = get_current_fn();
+    if (cur_fn < 0) { return set_semantic_error_node(0 - 7231, expr2); }
+    if (ty2 != fn_ret_type(cur_fn)) { return set_semantic_error_node(0 - 7231, expr2); }
     return 1;
   }
   if (kind == nk_if()) {
@@ -2604,7 +2647,7 @@ fn src_buffer_size() -> i32 { return 524288; }
 // Function table at 0x684000 (24KB reserved)
 // Each entry: 12 bytes (ident_id: i32, param_count: i32, local_count: i32)
 fn fn_table_addr() -> i32 { return 19660800; }
-fn fn_entry_size() -> i32 { return 12; }
+fn fn_entry_size() -> i32 { return 16; }
 fn fn_table_max() -> i32 { return 1024; }
 
 fn state_fn_count() -> i32 { return state_base() + 28; }
@@ -2615,25 +2658,31 @@ fn fn_entry_addr(idx: i32, field: i32) -> i32 {
   return fn_table_addr() + idx * fn_entry_size() + field;
 }
 
-fn fn_set(idx: i32, ident_id: i32, param_cnt: i32, local_cnt: i32) -> i32 {
+fn fn_set(idx: i32, ident_id: i32, param_cnt: i32, local_cnt: i32, ret_ty: i32) -> i32 {
   __mem_store(fn_entry_addr(idx, 0), ident_id);
   __mem_store(fn_entry_addr(idx, 4), param_cnt);
   __mem_store(fn_entry_addr(idx, 8), local_cnt);
+  __mem_store(fn_entry_addr(idx, 12), ret_ty);
   return 0;
 }
 
 fn fn_ident(idx: i32) -> i32 { return __mem_load(fn_entry_addr(idx, 0)); }
 fn fn_params(idx: i32) -> i32 { return __mem_load(fn_entry_addr(idx, 4)); }
 fn fn_locals(idx: i32) -> i32 { return __mem_load(fn_entry_addr(idx, 8)); }
+fn fn_ret_type(idx: i32) -> i32 { return __mem_load(fn_entry_addr(idx, 12)); }
 fn set_fn_param_count(idx: i32, count: i32) -> i32 {
   __mem_store(fn_entry_addr(idx, 4), count);
+  return 0;
+}
+fn set_fn_ret_type(idx: i32, ty: i32) -> i32 {
+  __mem_store(fn_entry_addr(idx, 12), ty);
   return 0;
 }
 
 // Register a function, returns its index
 fn register_fn(ident_id: i32, param_cnt: i32) -> i32 {
   let idx: i32 = get_fn_count();
-  fn_set(idx, ident_id, param_cnt, 0);
+  fn_set(idx, ident_id, param_cnt, 0, 1);
   set_fn_count(idx + 1);
   return idx;
 }
@@ -3271,8 +3320,8 @@ fn parse_postfix_field_dyn(base: i32) -> i32 {
       if (ast_kind(node) != nk_ident()) { return 0 - 838; }
       let base_id: i32 = ast_a(node);
       let lty: i32 = lookup_local_type(base_id);
-      if (lty <= 0) { return 0 - 839; }
-      let sidx: i32 = lty - 1;
+      if (lty < 100) { return 0 - 839; }
+      let sidx: i32 = lty - 100;
       let off: i32 = find_struct_field_offset(sidx, fid);
       if (off < 0) { return 0 - 840; }
 
@@ -4196,6 +4245,7 @@ fn parse_fn_def_dyn() -> i32 {
   // Parse -> type
   if (expect_dyn(tok_arrow()) != 1) { set_current_fn(0 - 1); return set_parse_error(0 - 606); }
   if (parse_type_dyn() != 1) { set_current_fn(0 - 1); return set_parse_error(0 - 607); }
+  set_fn_ret_type(fn_idx, get_last_type());
 
   // Parse { body }
   if (expect_dyn(tok_lbrace()) != 1) { set_current_fn(0 - 1); return set_parse_error(0 - 608); }
@@ -4335,7 +4385,7 @@ fn parse_type_dyn() -> i32 {
   let kind: i32 = lex_kind(tok);
   if (kind == tok_i32()) {
     next_tok_dyn();
-    set_last_type(0);
+    set_last_type(1);
     return 1;
   }
   if (kind == tok_ident()) {
@@ -4345,7 +4395,7 @@ fn parse_type_dyn() -> i32 {
     let tid: i32 = ident_id_dyn(start, end);
     let sidx: i32 = lookup_struct_name(tid);
     if (sidx < 0) { return 0 - 1; }
-    set_last_type(sidx + 1);
+    set_last_type(100 + sidx);
     return 1;
   }
   return 0 - 1;
@@ -7619,7 +7669,7 @@ fn add_local_typed(ident_id: i32, ty: i32) -> i32 {
 
 // i32 locals by default
 fn add_local(ident_id: i32) -> i32 {
-  return add_local_typed(ident_id, 0);
+  return add_local_typed(ident_id, 1);
 }
 
 fn lookup_local_type(ident_id: i32) -> i32 {
@@ -7629,7 +7679,7 @@ fn lookup_local_type(ident_id: i32) -> i32 {
     if (sym_ident(i) == ident_id) { return sym_type(i); }
     i = i + 1;
   }
-  return 0;
+  return 1;
 }
 
 // ============================================================================
@@ -7644,7 +7694,7 @@ fn parser_init(start_pos: i32) -> i32 {
   set_current_fn(0 - 1);
   set_str_data_pos(0);
   set_struct_count(0);
-  set_last_type(0);
+  set_last_type(1);
   return 0;
 }
 
