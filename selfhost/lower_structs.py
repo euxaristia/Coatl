@@ -86,17 +86,6 @@ def restore_struct_defs(src: str, chunks: list[str]) -> str:
     return out
 
 
-def replace_field_access(src: str, sdefs: list[StructDef]) -> str:
-    for sd in sdefs:
-        for f in sd.fields:
-            src = re.sub(
-                rf"\b([A-Za-z_][A-Za-z0-9_]*)\s*\.{re.escape(f)}\b",
-                rf"__get_{sd.name}_{f}(\1)",
-                src,
-            )
-    return src
-
-
 def split_top_level_commas(s: str) -> list[str]:
     parts = []
     cur = []
@@ -215,7 +204,6 @@ def lower(src: str) -> str:
         return src
     masked, defs = protect_struct_defs(src)
     src2 = replace_struct_literals(masked, sdefs)
-    src2 = replace_field_access(src2, sdefs)
     src2 = restore_struct_defs(src2, defs)
     helpers = gen_helpers(sdefs)
     return helpers + "\n" + src2.lstrip()
