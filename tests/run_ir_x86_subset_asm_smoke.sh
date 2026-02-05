@@ -86,6 +86,15 @@ struct_rc=$?
 set -e
 assert_rc 6 "$struct_rc" "struct_chain_calls"
 
+echo "[ir-x86-subset-asm] struct return basic"
+SRB_BIN="$TMP_DIR/struct-return-basic"
+build_bin "$ROOT_DIR/tests/struct_return_basic.mee" "$SRB_BIN"
+set +e
+"$SRB_BIN"
+srb_rc=$?
+set -e
+assert_rc 15 "$srb_rc" "struct_return_basic"
+
 echo "[ir-x86-subset-asm] struct param pass"
 SPP_BIN="$TMP_DIR/struct-param"
 build_bin "$ROOT_DIR/tests/struct_param_pass.mee" "$SPP_BIN"
@@ -159,5 +168,15 @@ if ! printf "OK\n" | cmp -s - /tmp/mee_x86_io_test.txt; then
   exit 1
 fi
 rm -f /tmp/mee_x86_io_test.txt
+
+echo "[ir-x86-subset-asm] path_open probe"
+PROBE_BIN="$TMP_DIR/path-probe"
+build_bin "$ROOT_DIR/tests/ir_subset_path_open_probe.mee" "$PROBE_BIN"
+set +e
+"$PROBE_BIN"
+probe_rc=$?
+set -e
+assert_rc 0 "$probe_rc" "ir_subset_path_open_probe"
+rm -f mee_probe.tmp
 
 echo "ir x86 subset asm smoke suite passed"
