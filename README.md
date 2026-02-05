@@ -34,6 +34,15 @@ Build x86_64 assembly via non-Rust IR subset backend:
 ./mee build ./examples/hello.mee --emit=asm --toolchain=ir -o /tmp/hello-ir.s
 ```
 
+Install `mee` to your `PATH`:
+```bash
+make install
+```
+By default this installs to `/usr/local/bin/mee`. Override prefix if needed:
+```bash
+make install PREFIX="$HOME/.local"
+```
+
 Emit backend-neutral IR (S-expression form, currently Rust-backed):
 ```bash
 ./mee build ./examples/hello.mee --emit=ir --toolchain=rust -o /tmp/hello.ir
