@@ -137,6 +137,10 @@ Run branch-mode check that temporarily disables `compiler/` and verifies no-rust
 ```bash
 ./tests/run_no_rust_build_without_compiler_dir.sh
 ```
+Run strongest pre-delete gate: strict no-rust suite with `compiler/` temporarily removed:
+```bash
+./tests/run_no_rust_build_strict_without_compiler_dir.sh
+```
 Run full no-Rust default CLI coverage (no explicit `--toolchain`) for WAT/IR/ASM:
 ```bash
 ./tests/run_no_rust_default_cli_full_wat_compile_coverage.sh

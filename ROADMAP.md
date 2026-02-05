@@ -73,6 +73,7 @@ Last updated: 2026-02-05
 - `./mee` now supports branch-mode no-Rust forcing via `MEE_NO_RUST_BUILD=1`; strict suite validates full default CLI corpus coverage and no Cargo invocation through `tests/run_no_rust_build_mode_full_coverage.sh`
 - in `MEE_NO_RUST_BUILD=1`, `auto` now skips selfhost-first WAT attempt and prefers IR pipeline directly, validated by `tests/run_no_rust_build_mode_prefers_ir.sh`
 - strict no-Rust now validates `MEE_NO_RUST_BUILD=1` behavior with `compiler/` temporarily removed via `tests/run_no_rust_build_without_compiler_dir.sh` (restored automatically)
+- strongest pre-delete gate now available via `tests/run_no_rust_build_strict_without_compiler_dir.sh` (runs full strict no-rust suite with `compiler/` temporarily removed, then restores it)
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler
