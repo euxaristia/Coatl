@@ -38,7 +38,7 @@ def tokenize(src: str) -> List[Tok]:
             toks.append(Tok('sym', src[i:i + 2]))
             i += 2
             continue
-        if c in '(){}:,;=+-*/<>!':
+        if c in '(){}:,;=+-*/<>!.':
             toks.append(Tok('sym', c))
             i += 1
             continue
@@ -80,6 +80,9 @@ class Parser:
     def __init__(self, toks: List[Tok]):
         self.toks = toks
         self.i = 0
+        self.struct_fields: dict[str, List[str]] = {}
+        self.local_structs: dict[str, str] = {}
+        self.param_structs: dict[str, str] = {}
 
     def peek(self) -> Tok:
         return self.toks[self.i]
@@ -107,6 +110,9 @@ class Parser:
         fns: List[str] = []
         saw_main = False
         while self.peek().kind != 'eof':
+            if self.peek().kind == 'ident' and self.peek().text == 'struct':
+                self.parse_struct_decl()
+                continue
             fn_name, fn_ir = self.parse_fn_ir()
             if fn_name == 'main':
                 saw_main = True
@@ -115,7 +121,24 @@ class Parser:
             raise ParseError('expected fn main')
         return '(mee_ir v0\n  (structs)\n  (functions\n' + ''.join(fns) + '  )\n)\n'
 
+    def parse_struct_decl(self) -> None:
+        self.expect_ident('struct')
+        name = self.expect_ident().text
+        self.expect('sym', '{')
+        fields: List[str] = []
+        while not (self.peek().kind == 'sym' and self.peek().text == '}'):
+            fld = self.expect_ident().text
+            self.expect('sym', ':')
+            self.expect_ident('i32')
+            fields.append(fld)
+            if self.peek().kind == 'sym' and self.peek().text == ',':
+                self.next()
+        self.expect('sym', '}')
+        self.struct_fields[name] = fields
+
     def parse_fn_ir(self) -> Tuple[str, str]:
+        self.local_structs = {}
+        self.param_structs = {}
         self.expect_ident('fn')
         name = self.expect_ident().text
         self.expect('sym', '(')
@@ -140,8 +163,15 @@ class Parser:
         while True:
             name = self.expect_ident().text
             self.expect('sym', ':')
-            self.expect_ident('i32')
-            params.append(name)
+            ty = self.expect_ident().text
+            if ty == 'i32':
+                params.append(name)
+            elif ty in self.struct_fields:
+                self.param_structs[name] = ty
+                for fld in self.struct_fields[ty]:
+                    params.append(f'{name}__{fld}')
+            else:
+                raise ParseError(f'unsupported parameter type: {ty}')
             if self.peek().kind == 'sym' and self.peek().text == ',':
                 self.next()
                 continue
@@ -165,8 +195,14 @@ class Parser:
             self.next()
             name = self.expect_ident().text
             self.expect('sym', ':')
-            self.expect_ident('i32')
+            ty = self.expect_ident().text
             self.expect('sym', '=')
+            if ty in self.struct_fields:
+                stmt = self.parse_struct_init_stmt_ir(name, ty)
+                self.expect('sym', ';')
+                return stmt
+            if ty != 'i32':
+                raise ParseError(f'unsupported let type: {ty}')
             expr = self.parse_expr_ir()
             self.expect('sym', ';')
             return f'        (let {name} i32\n{expr}        )\n'
@@ -197,6 +233,8 @@ class Parser:
             t1 = self.toks[self.i + 1]
             if t1.kind == 'sym' and t1.text == '=':
                 name = self.next().text
+                if name in self.local_structs or name in self.param_structs:
+                    raise ParseError('assigning entire struct values is not supported in subset frontend')
                 self.expect('sym', '=')
                 expr = self.parse_expr_ir()
                 self.expect('sym', ';')
@@ -204,6 +242,39 @@ class Parser:
         expr = self.parse_expr_ir()
         self.expect('sym', ';')
         return f'        (expr\n{expr}        )\n'
+
+    def parse_struct_init_stmt_ir(self, name: str, ty: str) -> str:
+        ctor = self.expect_ident().text
+        if ctor != ty:
+            raise ParseError(f'expected struct constructor {ty}, got {ctor}')
+        self.expect('sym', '{')
+        vals: dict[str, str] = {}
+        while not (self.peek().kind == 'sym' and self.peek().text == '}'):
+            fld = self.expect_ident().text
+            self.expect('sym', ':')
+            vals[fld] = self.parse_expr_ir()
+            if self.peek().kind == 'sym' and self.peek().text == ',':
+                self.next()
+        self.expect('sym', '}')
+        fields = self.struct_fields[ty]
+        for fld in vals.keys():
+            if fld not in fields:
+                raise ParseError(f'unknown field {fld} for struct {ty}')
+        for fld in fields:
+            if fld not in vals:
+                raise ParseError(f'missing field {fld} for struct {ty}')
+        self.local_structs[name] = ty
+        out = ''
+        for fld in fields:
+            out += f'        (let {name}__{fld} i32\n{vals[fld]}        )\n'
+        return out
+
+    def struct_var_fields(self, name: str) -> Optional[List[str]]:
+        if name in self.local_structs:
+            return self.struct_fields[self.local_structs[name]]
+        if name in self.param_structs:
+            return self.struct_fields[self.param_structs[name]]
+        return None
 
     def parse_expr_ir(self) -> str:
         left = self.parse_or_ir()
@@ -298,14 +369,36 @@ class Parser:
                 return '          (bool 1)\n'
             if name == 'false':
                 return '          (bool 0)\n'
+            if self.peek().kind == 'sym' and self.peek().text == '.':
+                self.next()
+                fld = self.expect_ident().text
+                fields = self.struct_var_fields(name)
+                if fields is None:
+                    raise ParseError(f'field access on non-struct value: {name}')
+                if fld not in fields:
+                    raise ParseError(f'unknown field {fld} on struct value: {name}')
+                return f'          (ident {name}__{fld})\n'
             if self.peek().kind == 'sym' and self.peek().text == '(':
                 self.next()
                 args: List[str] = []
                 if not (self.peek().kind == 'sym' and self.peek().text == ')'):
-                    args.append(self.parse_expr_ir())
-                    while self.peek().kind == 'sym' and self.peek().text == ',':
-                        self.next()
-                        args.append(self.parse_expr_ir())
+                    while True:
+                        if self.peek().kind == 'ident':
+                            arg_name = self.peek().text
+                            arg_fields = self.struct_var_fields(arg_name)
+                            next_tok = self.toks[self.i + 1]
+                            if arg_fields is not None and next_tok.kind == 'sym' and next_tok.text in (',', ')'):
+                                self.next()
+                                for fld in arg_fields:
+                                    args.append(f'          (ident {arg_name}__{fld})\n')
+                            else:
+                                args.append(self.parse_expr_ir())
+                        else:
+                            args.append(self.parse_expr_ir())
+                        if self.peek().kind == 'sym' and self.peek().text == ',':
+                            self.next()
+                            continue
+                        break
                 self.expect('sym', ')')
                 if not args:
                     return f'          (call {name})\n'

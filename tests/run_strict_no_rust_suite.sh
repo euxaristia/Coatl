@@ -60,7 +60,7 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_path_open_smoke.sh"
 echo "[strict-no-rust] toolchain=ir subset I/O (path_open + fd_write + fd_close)"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_path_open_write_close_smoke.sh"
 
-echo "[strict-no-rust] struct support: auto works, ir subset rejects (documented gap)"
+echo "[strict-no-rust] struct support in no-rust mode (auto + ir subset)"
 MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/tests/struct_param_pass.mee" --emit=wat --toolchain=auto -o "$TMP_DIR/struct-auto.wat"
 struct_auto_out="$(wasmtime --invoke main "$TMP_DIR/struct-auto.wat")"
 struct_auto_ret="$(printf '%s\n' "$struct_auto_out" | awk 'NF { line=$0 } END { print line }')"
@@ -69,17 +69,12 @@ if [[ "$struct_auto_ret" != "9" ]]; then
   printf '%s\n' "$struct_auto_out"
   exit 1
 fi
-set +e
-MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/tests/struct_param_pass.mee" --emit=wat --toolchain=ir -o "$TMP_DIR/struct-ir.wat" >"$TMP_DIR/struct-ir.out" 2>"$TMP_DIR/struct-ir.err"
-struct_ir_rc=$?
-set -e
-if [[ "$struct_ir_rc" -eq 0 ]]; then
-  echo "[FAIL] expected strict no-rust --toolchain=ir struct build to fail"
-  exit 1
-fi
-if ! grep -Fq "subset frontend failed for toolchain=ir and Rust is disabled" "$TMP_DIR/struct-ir.err"; then
-  echo "[FAIL] missing expected strict no-rust struct ir failure message"
-  cat "$TMP_DIR/struct-ir.err"
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/tests/struct_param_pass.mee" --emit=wat --toolchain=ir -o "$TMP_DIR/struct-ir.wat"
+struct_ir_out="$(wasmtime --invoke main "$TMP_DIR/struct-ir.wat")"
+struct_ir_ret="$(printf '%s\n' "$struct_ir_out" | awk 'NF { line=$0 } END { print line }')"
+if [[ "$struct_ir_ret" != "9" ]]; then
+  echo "[FAIL] expected struct ir no-rust return 9 got $struct_ir_ret"
+  printf '%s\n' "$struct_ir_out"
   exit 1
 fi
 

@@ -42,4 +42,7 @@ check_case "tests/array_sim.mee" "100"
 echo "[ir-subset] control_flow"
 check_case "tests/ir_subset_control_flow.mee" "77"
 
+echo "[ir-subset] struct_param_pass"
+check_case "tests/struct_param_pass.mee" "9"
+
 echo "ir subset backend suite passed"
