@@ -59,6 +59,11 @@ Run Rust-frontend + external-backend (`toolchain=ir`) smoke suite:
 ./tests/run_ir_backend_smoke.sh
 ```
 
+Run no-Rust subset frontend + external backend suite:
+```bash
+./tests/run_ir_subset_backend_suite.sh
+```
+
 Check Rust compile-entrypoint centralization:
 ```bash
 ./tests/check_rust_entrypoint_centralization.sh

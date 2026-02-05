@@ -41,23 +41,7 @@ if ! grep -Fq "rust-disabled mode" "$TMP_DIR/ir.err"; then
 fi
 
 echo "[strict-no-rust] toolchain=ir via non-Rust subset frontend"
-MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=wat --toolchain=ir -o "$TMP_DIR/hello-ir.wat"
-if [[ ! -s "$TMP_DIR/hello-ir.wat" ]]; then
-  echo "[FAIL] toolchain=ir did not produce WAT in strict mode"
-  exit 1
-fi
-ir_out="$(wasmtime --invoke main "$TMP_DIR/hello-ir.wat")"
-ir_ret="$(printf '%s\n' "$ir_out" | awk 'NF { line=$0 } END { print line }')"
-if [[ "$ir_ret" != "0" ]]; then
-  echo "[FAIL] strict toolchain=ir run expected return 0 got $ir_ret"
-  printf '%s\n' "$ir_out"
-  exit 1
-fi
-if ! printf '%s\n' "$ir_out" | grep -Fq "Hello, world!"; then
-  echo "[FAIL] strict toolchain=ir output missing Hello, world!"
-  printf '%s\n' "$ir_out"
-  exit 1
-fi
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_backend_suite.sh"
 
 echo "[strict-no-rust] non-Rust IR lowerer lane"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"

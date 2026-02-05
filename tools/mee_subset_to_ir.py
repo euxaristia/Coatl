@@ -150,16 +150,42 @@ class Parser:
             expr = self.parse_expr_ir()
             self.expect('sym', ';')
             return f'        (return\n{expr}        )\n'
+        if t.kind == 'ident':
+            t1 = self.toks[self.i + 1]
+            if t1.kind == 'sym' and t1.text == '=':
+                name = self.next().text
+                self.expect('sym', '=')
+                expr = self.parse_expr_ir()
+                self.expect('sym', ';')
+                return f'        (assign {name}\n{expr}        )\n'
         expr = self.parse_expr_ir()
         self.expect('sym', ';')
         return f'        (expr\n{expr}        )\n'
 
     def parse_expr_ir(self) -> str:
-        left = self.parse_term_ir()
+        left = self.parse_add_ir()
+        return left
+
+    def parse_add_ir(self) -> str:
+        left = self.parse_mul_ir()
         while self.peek().kind == 'sym' and self.peek().text in ('+', '-'):
             op = self.next().text
-            right = self.parse_term_ir()
+            right = self.parse_mul_ir()
             op_name = 'add' if op == '+' else 'sub'
+            left = (
+                f'          (binary {op_name}\n'
+                f'{left}'
+                f'{right}'
+                '          )\n'
+            )
+        return left
+
+    def parse_mul_ir(self) -> str:
+        left = self.parse_term_ir()
+        while self.peek().kind == 'sym' and self.peek().text in ('*', '/'):
+            op = self.next().text
+            right = self.parse_term_ir()
+            op_name = 'mul' if op == '*' else 'div'
             left = (
                 f'          (binary {op_name}\n'
                 f'{left}'

@@ -267,6 +267,26 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
             out.append("    i32.store")
             out.append("    i32.const 0")
             return
+        if callee == "__mem_store8":
+            if len(args) != 2:
+                raise LowerError("__mem_store8 expects 2 args")
+            emit_expr(args[0], ctx, out)
+            emit_expr(args[1], ctx, out)
+            out.append("    i32.store8")
+            out.append("    i32.const 0")
+            return
+        if callee == "__mem_load":
+            if len(args) != 1:
+                raise LowerError("__mem_load expects 1 arg")
+            emit_expr(args[0], ctx, out)
+            out.append("    i32.load")
+            return
+        if callee == "__mem_load8":
+            if len(args) != 1:
+                raise LowerError("__mem_load8 expects 1 arg")
+            emit_expr(args[0], ctx, out)
+            out.append("    i32.load8_u")
+            return
         if callee == "__fd_write":
             if len(args) != 4:
                 raise LowerError("__fd_write expects 4 args")
@@ -287,6 +307,12 @@ def emit_stmt(stmt: Node, ctx: Ctx, out: List[str]) -> None:
         if ty != "i32":
             raise LowerError(f"unsupported let type: {ty}")
         emit_expr(s[3], ctx, out)
+        idx = ctx.local_index(name)
+        out.append(f"    local.set {idx}")
+        return
+    if tag == "assign":
+        name = as_atom(s[1])
+        emit_expr(s[2], ctx, out)
         idx = ctx.local_index(name)
         out.append(f"    local.set {idx}")
         return
