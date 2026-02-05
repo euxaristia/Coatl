@@ -65,8 +65,8 @@ Memory intrinsics (`__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`) e
 ## Constraints (current Mee compiler)
 - ~~No memory ops~~ ✓ **DONE**: `__mem_load`/`__mem_store` intrinsics added
 - No array syntax `[T; N]` - use memory intrinsics as workaround
-- Bootstrap compiler still has no native struct parser/typechecker support.
-- No-Rust selfhost builds now include a non-Rust struct-lowering prepass (`selfhost/lower_structs.py`) so existing struct runtime tests run without Rust in the loop.
+- Bootstrap compiler now parses struct declarations/types/field access/literals in the selfhost WASM path.
+- Struct typechecking is still minimal, and native backend ownership remains in Rust.
 - No I/O - blocks reading source files
 
 ## Stages

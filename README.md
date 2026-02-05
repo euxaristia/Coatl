@@ -79,7 +79,7 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 - x86_64 runtime helper path is Linux-oriented today; AArch64 backend is not implemented yet.
 - No ownership/borrow checker, enums, or pattern matching yet.
 - Minimal type system (i32/bool/char + string literals as pointers).
-- Bootstrap (Mee-in-Mee) compiler does not yet parse/typecheck structs natively; no-Rust selfhost builds currently support struct tests via a Mee-to-Mee lowering prepass (`selfhost/lower_structs.py`).
+- Bootstrap (Mee-in-Mee) compiler now parses struct declarations/types/field access/literals natively for the selfhost WASM path; struct typechecking remains minimal.
 
 ## Self-Hosting
 

@@ -124,13 +124,7 @@ def gen_helpers(sdefs: list[StructDef]) -> str:
 
 
 def lower(src: str) -> str:
-    sdefs = parse_structs(src)
-    if not sdefs:
-        return src
-    masked, defs = protect_struct_defs(src)
-    src2 = restore_struct_defs(masked, defs)
-    helpers = gen_helpers(sdefs)
-    return helpers + "\n" + src2.lstrip()
+    return src
 
 
 def main() -> int:

@@ -307,6 +307,7 @@ fn nk_string() -> i32 { return 30; }
 fn nk_not() -> i32 { return 31; }
 fn nk_break() -> i32 { return 32; }
 fn nk_continue() -> i32 { return 33; }
+fn nk_struct_lit() -> i32 { return 34; }
 
 // Intrinsic call IDs (avoid collision with ident_id_dyn)
 fn intrin_mem_load_id() -> i32 { return 1000001; }
@@ -1622,6 +1623,9 @@ fn emit_ir_expr(node: i32) -> i32 {
   if (kind == nk_call()) {
     return emit_ir_call(node);
   }
+  if (kind == nk_struct_lit()) {
+    return emit_ir_struct_lit(node);
+  }
   if (kind == nk_add()) {
     return emit_ir_binop(node, op_add());
   }
@@ -1663,6 +1667,70 @@ fn emit_ir_expr(node: i32) -> i32 {
   }
 
   return 0 - 3000 - kind;
+}
+
+fn struct_tmp_addr() -> i32 { return state_base() + 16000; }
+
+fn emit_ir_struct_lit(node: i32) -> i32 {
+  let first_arg: i32 = ast_b(node);
+  let arg_count: i32 = ast_c(node);
+  let size_bytes: i32 = arg_count * 4;
+  let tmp_addr: i32 = struct_tmp_addr();
+
+  // __mem_store(tmp_addr, __mem_load(4096))
+  let a0: i32 = alloc_ir();
+  ir_set(a0, op_const(), tmp_addr);
+  let a1: i32 = alloc_ir();
+  ir_set(a1, op_const(), 4096);
+  let a2: i32 = alloc_ir();
+  ir_set(a2, op_mem_load(), 0);
+  let a3: i32 = alloc_ir();
+  ir_set(a3, op_mem_store(), 0);
+
+  // __mem_store(4096, __mem_load(tmp_addr) + size_bytes)
+  let a4: i32 = alloc_ir();
+  ir_set(a4, op_const(), 4096);
+  let a5: i32 = alloc_ir();
+  ir_set(a5, op_const(), tmp_addr);
+  let a6: i32 = alloc_ir();
+  ir_set(a6, op_mem_load(), 0);
+  let a7: i32 = alloc_ir();
+  ir_set(a7, op_const(), size_bytes);
+  let a8: i32 = alloc_ir();
+  ir_set(a8, op_add(), 0);
+  let a9: i32 = alloc_ir();
+  ir_set(a9, op_mem_store(), 0);
+
+  // Store fields: __mem_store(tmp + off, expr)
+  let cur: i32 = first_arg;
+  let i: i32 = 0;
+  let total: i32 = 10;
+  while (i < arg_count) {
+    if (cur < 0) { return 0 - 3351; }
+    let expr: i32 = ast_a(cur);
+    let b0: i32 = alloc_ir();
+    ir_set(b0, op_const(), tmp_addr);
+    let b1: i32 = alloc_ir();
+    ir_set(b1, op_mem_load(), 0);
+    let b2: i32 = alloc_ir();
+    ir_set(b2, op_const(), i * 4);
+    let b3: i32 = alloc_ir();
+    ir_set(b3, op_add(), 0);
+    let er: i32 = emit_ir_expr(expr);
+    if (er < 0) { return er; }
+    let b4: i32 = alloc_ir();
+    ir_set(b4, op_mem_store(), 0);
+    total = total + 5 + er;
+    cur = ast_c(cur);
+    i = i + 1;
+  }
+
+  // Result expression is __mem_load(tmp_addr)
+  let c0: i32 = alloc_ir();
+  ir_set(c0, op_const(), tmp_addr);
+  let c1: i32 = alloc_ir();
+  ir_set(c1, op_mem_load(), 0);
+  return total + 2;
 }
 
 fn emit_ir_and(node: i32) -> i32 {
@@ -1941,6 +2009,7 @@ fn typecheck_expr(node: i32) -> i32 {
   if (kind == nk_string()) { return type_i32(); }
   if (kind == nk_ident()) { return type_i32(); }
   if (kind == nk_call()) { return typecheck_call(node); }
+  if (kind == nk_struct_lit()) { return type_i32(); }
 
   if (kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()) {
     let left: i32 = ast_a(node);
@@ -2028,7 +2097,7 @@ fn assign_string_offsets_expr(node: i32) -> i32 {
     return 1;
   }
   if (kind == nk_int() || kind == nk_bool() || kind == nk_ident()) { return 1; }
-  if (kind == nk_call()) {
+  if (kind == nk_call() || kind == nk_struct_lit()) {
     let first: i32 = ast_b(node);
     let count: i32 = ast_c(node);
     let cur: i32 = first;
@@ -2163,7 +2232,7 @@ fn typecheck_stmt(node: i32) -> i32 {
     return 1;
   }
   // expression statement
-  if (kind == nk_call() || kind == nk_int() || kind == nk_bool() || kind == nk_string() || kind == nk_ident()
+  if (kind == nk_call() || kind == nk_struct_lit() || kind == nk_int() || kind == nk_bool() || kind == nk_string() || kind == nk_ident()
       || kind == nk_add() || kind == nk_sub() || kind == nk_mul() || kind == nk_div()
       || kind == nk_lt() || kind == nk_gt() || kind == nk_eq() || kind == nk_ne()
       || kind == nk_le() || kind == nk_ge()
@@ -2230,6 +2299,7 @@ fn emit_ir_stmt(node: i32) -> i32 {
   if (kind == nk_call()) {
     return emit_ir_call_stmt(node);
   }
+  if (kind == nk_struct_lit()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_int()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_bool()) { return emit_ir_expr_stmt(node); }
   if (kind == nk_string()) { return emit_ir_expr_stmt(node); }
@@ -2850,21 +2920,6 @@ fn ident_id_dyn(start: i32, end: i32) -> i32 {
   return h;
 }
 
-fn mk_helper_ident_id_dyn(start: i32, end: i32) -> i32 {
-  let h: i32 = 0;
-  h = h * 131 + 95;  // _
-  h = h * 131 + 95;  // _
-  h = h * 131 + 109; // m
-  h = h * 131 + 107; // k
-  h = h * 131 + 95;  // _
-  let i: i32 = start;
-  while (i < end) {
-    h = h * 131 + char_at_dyn(i);
-    i = i + 1;
-  }
-  return h;
-}
-
 fn intrinsic_id_dyn(start: i32, end: i32) -> i32 {
   let len: i32 = end - start;
   if (len == 10) {
@@ -3127,7 +3182,7 @@ fn parse_ident_or_call_dyn() -> i32 {
   }
   if (intr == 0) {
     if (lex_kind(tok) == tok_lbrace()) {
-      if (sidx >= 0) { return parse_struct_literal_dyn(start, end, sidx); }
+      if (sidx >= 0) { return parse_struct_literal_dyn(sidx); }
       return 0 - 841;
     }
   }
@@ -3140,7 +3195,7 @@ fn parse_ident_or_call_dyn() -> i32 {
   return parse_postfix_field_dyn(node);
 }
 
-fn parse_struct_literal_dyn(name_start: i32, name_end: i32, sidx: i32) -> i32 {
+fn parse_struct_literal_dyn(sidx: i32) -> i32 {
   if (expect_dyn(tok_lbrace()) != 1) { return 0 - 842; }
 
   let fcnt: i32 = struct_field_count(sidx);
@@ -3192,9 +3247,8 @@ fn parse_struct_literal_dyn(name_start: i32, name_end: i32, sidx: i32) -> i32 {
     j = j + 1;
   }
 
-  let mk_id: i32 = mk_helper_ident_id_dyn(name_start, name_end);
   let node: i32 = alloc_ast();
-  ast_set(node, nk_call(), mk_id, first_arg, count);
+  ast_set(node, nk_struct_lit(), sidx, first_arg, count);
   return node;
 }
 
