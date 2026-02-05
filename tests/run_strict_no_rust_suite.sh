@@ -40,17 +40,22 @@ if ! grep -Fq "rust-disabled mode" "$TMP_DIR/ir.err"; then
   exit 1
 fi
 
-set +e
-MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=wat --toolchain=ir -o "$TMP_DIR/hello-ir.wat" >"$TMP_DIR/irtool.out" 2>"$TMP_DIR/irtool.err"
-irtool_rc=$?
-set -e
-if [[ "$irtool_rc" -eq 0 ]]; then
-  echo "[FAIL] expected --toolchain=ir to fail in strict no-rust mode"
+echo "[strict-no-rust] toolchain=ir via non-Rust subset frontend"
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=wat --toolchain=ir -o "$TMP_DIR/hello-ir.wat"
+if [[ ! -s "$TMP_DIR/hello-ir.wat" ]]; then
+  echo "[FAIL] toolchain=ir did not produce WAT in strict mode"
   exit 1
 fi
-if ! grep -Fq "rust-disabled mode" "$TMP_DIR/irtool.err"; then
-  echo "[FAIL] missing rust-disabled error for --toolchain=ir"
-  cat "$TMP_DIR/irtool.err"
+ir_out="$(wasmtime --invoke main "$TMP_DIR/hello-ir.wat")"
+ir_ret="$(printf '%s\n' "$ir_out" | awk 'NF { line=$0 } END { print line }')"
+if [[ "$ir_ret" != "0" ]]; then
+  echo "[FAIL] strict toolchain=ir run expected return 0 got $ir_ret"
+  printf '%s\n' "$ir_out"
+  exit 1
+fi
+if ! printf '%s\n' "$ir_out" | grep -Fq "Hello, world!"; then
+  echo "[FAIL] strict toolchain=ir output missing Hello, world!"
+  printf '%s\n' "$ir_out"
   exit 1
 fi
 

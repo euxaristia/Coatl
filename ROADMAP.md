@@ -40,6 +40,7 @@ Last updated: 2026-02-05
 - Grow `--emit=ir` into a stable non-Rust backend interface (current extraction seam in place)
 - External non-Rust `lower-ir` -> WAT lane established (subset), expand coverage incrementally
 - `./mee --toolchain=ir` now exercises Rust frontend + non-Rust WAT backend path for supported programs
+- `./mee --toolchain=ir` can run in strict no-Rust mode via a non-Rust subset frontend (currently limited coverage)
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

@@ -74,6 +74,11 @@ Compile Mee source with Rust frontend + external non-Rust WAT backend:
 ./mee build ./examples/hello.mee --emit=wat --toolchain=ir -o /tmp/hello-ir-backend.wat
 ```
 
+In strict no-Rust mode, `--toolchain=ir` uses a non-Rust subset frontend for supported programs:
+```bash
+MEE_NO_RUST=1 ./mee build ./examples/hello.mee --emit=wat --toolchain=ir -o /tmp/hello-ir-norust.wat
+```
+
 ## Hello World (Mee)
 
 ```mee

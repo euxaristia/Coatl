@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
 RUST_COMPILER_DIR="$ROOT_DIR/compiler"
 SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
+SUBSET_FRONTEND="$ROOT_DIR/tools/mee_subset_to_ir.py"
 
 usage() {
   cat <<'EOF'
@@ -14,7 +15,7 @@ usage:
 
 notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
-  - toolchain=ir uses Rust frontend (--emit=ir) + external non-Rust lowerer (subset)
+  - toolchain=ir uses IR + external non-Rust lowerer; frontend is Rust by default, subset non-Rust in strict mode
   - --emit=asm and --emit=ir currently require the Rust compiler toolchain
   - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
 EOF
@@ -146,12 +147,31 @@ selfhost_build_wat() {
 }
 
 ir_pipeline_build_wat() {
-  ensure_rust_allowed
   local tmp_ir
   local tmp_wat
   tmp_ir="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.ir)"
   tmp_wat="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.wat)"
-  (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir")
+  if rust_disabled; then
+    if [[ ! -x "$SUBSET_FRONTEND" ]]; then
+      echo "subset frontend missing: $SUBSET_FRONTEND" >&2
+      return 1
+    fi
+    if ! "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"; then
+      echo "subset frontend failed for toolchain=ir" >&2
+      return 1
+    fi
+  else
+    if ! (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir"); then
+      if [[ -x "$SUBSET_FRONTEND" ]]; then
+        if ! "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"; then
+          echo "both rust and subset frontends failed for toolchain=ir" >&2
+          return 1
+        fi
+      else
+        return 1
+      fi
+    fi
+  fi
   "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat"
   if [[ -n "$out_abs" ]]; then
     cp "$tmp_wat" "$out_abs"
