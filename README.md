@@ -133,6 +133,10 @@ Run branch-mode check that `auto` prefers IR pipeline (skips selfhost-first atte
 ```bash
 ./tests/run_no_rust_build_mode_prefers_ir.sh
 ```
+Run branch-mode check that temporarily disables `compiler/` and verifies no-rust-build still works:
+```bash
+./tests/run_no_rust_build_without_compiler_dir.sh
+```
 Run full no-Rust default CLI coverage (no explicit `--toolchain`) for WAT/IR/ASM:
 ```bash
 ./tests/run_no_rust_default_cli_full_wat_compile_coverage.sh
@@ -205,6 +209,7 @@ Strict no-Rust also guards full default CLI (`./mee build ...` without explicit 
 Strict no-Rust also guards default-CLI no-Rust runtime parity between WAT and ASM via `tests/run_no_rust_default_cli_backend_parity_suite.sh`.
 Strict no-Rust also includes branch-mode coverage via `tests/run_no_rust_build_mode_full_coverage.sh`, which validates full default CLI corpus coverage under `MEE_NO_RUST_BUILD=1` and fails on any accidental Cargo invocation.
 In `MEE_NO_RUST_BUILD=1` mode, `auto` now skips selfhost-first WAT attempt and prefers the IR pipeline directly (checked by `tests/run_no_rust_build_mode_prefers_ir.sh`).
+Strict no-Rust also verifies `MEE_NO_RUST_BUILD=1` operation with `compiler/` temporarily removed via `tests/run_no_rust_build_without_compiler_dir.sh`.
 In `--toolchain=auto` WAT mode, `./mee` now validates selfhost output as a compilable module (`wasmtime compile`) and falls back to the IR pipeline if selfhost emits invalid WAT.
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 

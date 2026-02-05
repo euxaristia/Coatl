@@ -72,6 +72,7 @@ Last updated: 2026-02-05
 - `./mee --toolchain=auto --emit=wat` now validates selfhost output as a compilable module and falls back to IR pipeline when selfhost emits invalid WAT, closing default-path control-flow parity gap
 - `./mee` now supports branch-mode no-Rust forcing via `MEE_NO_RUST_BUILD=1`; strict suite validates full default CLI corpus coverage and no Cargo invocation through `tests/run_no_rust_build_mode_full_coverage.sh`
 - in `MEE_NO_RUST_BUILD=1`, `auto` now skips selfhost-first WAT attempt and prefers IR pipeline directly, validated by `tests/run_no_rust_build_mode_prefers_ir.sh`
+- strict no-Rust now validates `MEE_NO_RUST_BUILD=1` behavior with `compiler/` temporarily removed via `tests/run_no_rust_build_without_compiler_dir.sh` (restored automatically)
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

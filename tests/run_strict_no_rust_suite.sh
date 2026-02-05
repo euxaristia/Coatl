@@ -177,6 +177,9 @@ echo "[strict-no-rust] no-rust-build mode full coverage"
 echo "[strict-no-rust] no-rust-build mode prefers ir pipeline in auto"
 "$ROOT_DIR/tests/run_no_rust_build_mode_prefers_ir.sh"
 
+echo "[strict-no-rust] no-rust-build works without compiler directory"
+"$ROOT_DIR/tests/run_no_rust_build_without_compiler_dir.sh"
+
 echo "[strict-no-rust] centralized Rust entrypoint guard"
 "$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
 
