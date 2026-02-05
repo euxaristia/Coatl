@@ -27,21 +27,26 @@ if ! grep -Fq "rust-disabled mode" "$TMP_DIR/asm.err"; then
 fi
 
 set +e
-MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=ir -o "$TMP_DIR/hello.ir" >"$TMP_DIR/ir.out" 2>"$TMP_DIR/ir.err"
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=ir --toolchain=rust -o "$TMP_DIR/hello.ir" >"$TMP_DIR/ir.out" 2>"$TMP_DIR/ir.err"
 ir_rc=$?
 set -e
 if [[ "$ir_rc" -eq 0 ]]; then
-  echo "[FAIL] expected --emit=ir to fail in strict no-rust mode"
+  echo "[FAIL] expected --emit=ir --toolchain=rust to fail in strict no-rust mode"
   exit 1
 fi
 if ! grep -Fq "rust-disabled mode" "$TMP_DIR/ir.err"; then
-  echo "[FAIL] missing rust-disabled error for --emit=ir"
+  echo "[FAIL] missing rust-disabled error for --emit=ir --toolchain=rust"
   cat "$TMP_DIR/ir.err"
   exit 1
 fi
 
 echo "[strict-no-rust] emit=ir via toolchain=ir (subset frontend)"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_frontend_smoke.sh"
+
+echo "[strict-no-rust] emit=ir via toolchain=auto (subset frontend fallback)"
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=ir --toolchain=auto -o "$TMP_DIR/auto-ir.ir"
+grep -Fq "(mee_ir v0" "$TMP_DIR/auto-ir.ir"
+grep -Fq "(call __fd_write" "$TMP_DIR/auto-ir.ir"
 
 echo "[strict-no-rust] toolchain=ir via non-Rust subset frontend"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_backend_suite.sh"

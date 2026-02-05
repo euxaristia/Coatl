@@ -183,8 +183,7 @@ ir_pipeline_build_wat() {
 
 subset_emit_ir() {
   if [[ ! -x "$SUBSET_FRONTEND" ]]; then
-    echo "subset frontend missing: $SUBSET_FRONTEND" >&2
-    exit 1
+    return 1
   fi
   if [[ -n "$out_abs" ]]; then
     "$SUBSET_FRONTEND" "$input_abs" -o "$out_abs"
@@ -195,6 +194,7 @@ subset_emit_ir() {
     cat "$tmp_ir"
     rm -f "$tmp_ir"
   fi
+  return 0
 }
 
 if [[ "$emit" != "wat" ]]; then
@@ -209,7 +209,21 @@ if [[ "$emit" != "wat" ]]; then
 
   # emit=ir
   if [[ "$toolchain" == "ir" ]]; then
-    subset_emit_ir
+    if subset_emit_ir; then
+      exit 0
+    fi
+    echo "subset frontend failed for --emit=ir --toolchain=ir" >&2
+    exit 1
+  fi
+  if [[ "$toolchain" == "auto" ]]; then
+    if subset_emit_ir; then
+      exit 0
+    fi
+    if rust_disabled; then
+      echo "subset frontend failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
+      exit 1
+    fi
+    rust_build
     exit 0
   fi
   if [[ "$toolchain" == "selfhost" ]]; then
