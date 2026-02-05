@@ -29,6 +29,7 @@ Last updated: 2026-02-04
 - Strengthen bootstrap diagnostics (semantic/type errors with precise spans)
 - Stabilize self-hosted behavior on full test corpus by default
 - Add more negative tests (expected failures) for parser/type checker
+- Close selfhost struct support gap (current blocker to full Rust-independent language coverage)
 
 ### v0.3
 - WASM binary emitter (in addition to WAT)

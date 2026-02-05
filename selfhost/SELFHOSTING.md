@@ -27,12 +27,20 @@ Command sequence used:
 ./selfhost/build_with_selfhost.sh build ./examples/hello.mee -o /tmp/hello-self.wat
 wasmtime --invoke main /tmp/hello-self.wat
 
-# Full automated convergence check (recommended)
+# Rust-free maintenance path (default):
 ./selfhost/check_self_compile.sh
+./selfhost/run_roundtrip_suite.sh
+./selfhost/update_seed.sh
+
+# Single entrypoint for no-Rust CI-like checks:
+./selfhost/run_no_rust_ci.sh
+
+# Full automated convergence check (recommended)
+./selfhost/check_self_compile.sh --with-rust
 
 # Full round-trip suite (convergence + compile/run test programs with
 # self-hosted and Rust compilers, compare behavior)
-./selfhost/run_roundtrip_suite.sh
+./selfhost/run_roundtrip_suite.sh --with-rust
 
 # Manual entry point:
 # set state_stdin_flag (state_base + 44) to 1 in a WAT module, then run:
@@ -57,7 +65,7 @@ Memory intrinsics (`__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`) e
 ## Constraints (current Mee compiler)
 - ~~No memory ops~~ ✓ **DONE**: `__mem_load`/`__mem_store` intrinsics added
 - No array syntax `[T; N]` - use memory intrinsics as workaround
-- Bootstrap compiler still has no struct support
+- Bootstrap compiler still has no struct support (this is the primary blocker for 100% Rust-independent language coverage)
 - No I/O - blocks reading source files
 
 ## Stages
