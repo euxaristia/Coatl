@@ -144,6 +144,15 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_emit_full_coverage.sh"
 echo "[strict-no-rust] full no-rust toolchain=ir asm compile coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_asm_compile_coverage.sh"
 
+echo "[strict-no-rust] full no-rust auto wat compile coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_wat_compile_coverage.sh"
+
+echo "[strict-no-rust] full no-rust auto emit=ir coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_ir_emit_coverage.sh"
+
+echo "[strict-no-rust] full no-rust auto asm compile coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_asm_compile_coverage.sh"
+
 echo "[strict-no-rust] centralized Rust entrypoint guard"
 "$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
 

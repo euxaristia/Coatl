@@ -105,6 +105,18 @@ Run full no-Rust `--emit=asm --toolchain=ir` compile coverage (`tests/`, `exampl
 ```bash
 ./tests/run_no_rust_ir_full_asm_compile_coverage.sh
 ```
+Run full no-Rust `--toolchain=auto` WAT compile coverage (`tests/`, `examples/`, `selfhost/`):
+```bash
+./tests/run_no_rust_auto_full_wat_compile_coverage.sh
+```
+Run full no-Rust `--emit=ir --toolchain=auto` coverage:
+```bash
+./tests/run_no_rust_auto_full_ir_emit_coverage.sh
+```
+Run full no-Rust `--emit=asm --toolchain=auto` coverage:
+```bash
+./tests/run_no_rust_auto_full_asm_compile_coverage.sh
+```
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
 ./tests/run_ir_subset_io_smoke.sh
@@ -160,6 +172,7 @@ The non-Rust WAT lowerer now handles nested-block `let` locals correctly (covere
 Strict no-Rust also guards full `--toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_compile_coverage.sh`.
 Strict no-Rust also guards full `--emit=ir --toolchain=ir` coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_emit_full_coverage.sh`.
 Strict no-Rust also guards full `--emit=asm --toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_asm_compile_coverage.sh`.
+Strict no-Rust also guards full `--toolchain=auto` compile/emission coverage for WAT/IR/ASM via `tests/run_no_rust_auto_full_wat_compile_coverage.sh`, `tests/run_no_rust_auto_full_ir_emit_coverage.sh`, and `tests/run_no_rust_auto_full_asm_compile_coverage.sh`.
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
 ## Hello World (Mee)
