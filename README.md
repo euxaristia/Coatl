@@ -113,7 +113,7 @@ Current strict subset coverage includes `hello`, `mem_test`, `byte_test`, and `a
 It also includes control flow (`if`/`while`) and boolean/comparison operators via `tests/ir_subset_control_flow.mee`, plus `__fd_read` and `__path_open` probes via `tests/run_ir_subset_io_smoke.sh` and `tests/run_ir_subset_path_open_smoke.sh`, and write/close flow via `tests/run_ir_subset_path_open_write_close_smoke.sh`.
 In `--toolchain=auto`, if selfhost WAT compilation fails, `./mee` now tries the non-Rust IR pipeline before any Rust fallback.
 For `--toolchain=ir`, `./mee` now prefers the subset non-Rust frontend and uses Rust frontend only as a fallback for unsupported programs.
-The strict subset frontend now includes struct params/locals, field assignment (`p.x = ...`), nested struct-return calls in argument position, and basic struct-return function lowering by flattening struct values into i32 field lanes (`tests/struct_param_pass.mee`, `tests/struct_return_basic.mee`, `tests/struct_chain_calls.mee`, `tests/struct_field_mutation_subset.mee`, `tests/struct_nested_arg_subset.mee`).
+The strict subset frontend now includes struct params/locals, field assignment (`p.x = ...`), nested struct-return calls in argument position, and struct-return body lowering with local `let` + `if`/`else` returns by flattening struct values into i32 field lanes (`tests/struct_param_pass.mee`, `tests/struct_return_basic.mee`, `tests/struct_chain_calls.mee`, `tests/struct_field_mutation_subset.mee`, `tests/struct_nested_arg_subset.mee`, `tests/struct_return_if_subset.mee`).
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
 ## Hello World (Mee)

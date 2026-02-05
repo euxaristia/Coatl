@@ -98,6 +98,9 @@ check_case "tests/struct_field_mutation_subset.mee" "33"
 echo "[auto-no-rust-fallback] struct_nested_arg_subset"
 check_case "tests/struct_nested_arg_subset.mee" "6"
 
+echo "[auto-no-rust-fallback] struct_return_if_subset"
+check_case "tests/struct_return_if_subset.mee" "36"
+
 echo "[auto-no-rust-fallback] fd_read"
 check_case_stdin "tests/x86_fd_read_test.mee" "4" "abcd"
 

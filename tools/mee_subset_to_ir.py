@@ -151,8 +151,8 @@ class Parser:
             raise ParseError(f'unsupported function return type: {ret_ty}')
         if ret_ty in self.struct_fields:
             self.fn_return_struct[name] = ret_ty
-            return name, self.parse_struct_return_fn_irs(name, params, params_ir, ret_ty)
-        block = self.parse_block_ir(ret_struct_ty=None)
+            return name, self.parse_struct_return_fn_irs(name, params, ret_ty)
+        block = self.parse_block_ir(ret_struct_ty=None, ret_struct_field=None)
         fn_ir = (
             f'    (fn {name}\n'
             f'{params_ir}'
@@ -185,17 +185,17 @@ class Parser:
         body = ''.join(f'        (param {p} i32)\n' for p in params)
         return params, '      (params\n' + body + '      )\n'
 
-    def parse_block_ir(self, ret_struct_ty: Optional[str]) -> str:
+    def parse_block_ir(self, ret_struct_ty: Optional[str], ret_struct_field: Optional[str]) -> str:
         self.expect('sym', '{')
         stmts: List[str] = []
         while not (self.peek().kind == 'sym' and self.peek().text == '}'):
-            stmts.append(self.parse_stmt_ir(ret_struct_ty))
+            stmts.append(self.parse_stmt_ir(ret_struct_ty, ret_struct_field))
         self.expect('sym', '}')
         if not stmts:
             return '      (block)\n'
         return '      (block\n' + ''.join(stmts) + '      )\n'
 
-    def parse_stmt_ir(self, ret_struct_ty: Optional[str]) -> str:
+    def parse_stmt_ir(self, ret_struct_ty: Optional[str], ret_struct_field: Optional[str]) -> str:
         t = self.peek()
         if t.kind == 'ident' and t.text == 'let':
             self.next()
@@ -215,7 +215,11 @@ class Parser:
         if t.kind == 'ident' and t.text == 'return':
             self.next()
             if ret_struct_ty is not None:
-                raise ParseError(f'unsupported return in struct-return function body: expected {ret_struct_ty} literal return only')
+                if ret_struct_field is None:
+                    raise ParseError('internal error: missing struct return field context')
+                ret_vals = self.parse_struct_return_literal(ret_struct_ty)
+                self.expect('sym', ';')
+                return f'        (return\n{ret_vals[ret_struct_field]}        )\n'
             expr = self.parse_expr_ir()
             self.expect('sym', ';')
             return f'        (return\n{expr}        )\n'
@@ -224,10 +228,10 @@ class Parser:
             self.expect('sym', '(')
             cond = self.parse_expr_ir()
             self.expect('sym', ')')
-            then_block = self.parse_block_ir(ret_struct_ty)
+            then_block = self.parse_block_ir(ret_struct_ty, ret_struct_field)
             if self.peek().kind == 'ident' and self.peek().text == 'else':
                 self.next()
-                else_block = self.parse_block_ir(ret_struct_ty)
+                else_block = self.parse_block_ir(ret_struct_ty, ret_struct_field)
                 return f'        (if\n{cond}{then_block}          (else\n{else_block}          )\n        )\n'
             return f'        (if\n{cond}{then_block}        )\n'
         if t.kind == 'ident' and t.text == 'while':
@@ -235,7 +239,7 @@ class Parser:
             self.expect('sym', '(')
             cond = self.parse_expr_ir()
             self.expect('sym', ')')
-            body = self.parse_block_ir(ret_struct_ty)
+            body = self.parse_block_ir(ret_struct_ty, ret_struct_field)
             return f'        (while\n{cond}{body}        )\n'
         if t.kind == 'ident':
             t1 = self.toks[self.i + 1]
@@ -364,25 +368,48 @@ class Parser:
                 raise ParseError(f'missing field {fld} for struct {ty}')
         return vals
 
-    def parse_struct_return_fn_irs(self, name: str, params: List[str], params_ir: str, ret_ty: str) -> str:
+    def parse_block_range_ir(self, stop_index: int, ret_struct_ty: Optional[str], ret_struct_field: Optional[str]) -> str:
+        stmts: List[str] = []
+        while self.i < stop_index:
+            stmts.append(self.parse_stmt_ir(ret_struct_ty, ret_struct_field))
+        if self.i != stop_index:
+            raise ParseError('invalid block range parse state')
+        if not stmts:
+            return '      (block)\n'
+        return '      (block\n' + ''.join(stmts) + '      )\n'
+
+    def parse_struct_return_fn_irs(self, name: str, params: List[str], ret_ty: str) -> str:
         self.expect('sym', '{')
-        self.expect_ident('return')
-        ret_vals = self.parse_struct_return_literal(ret_ty)
-        self.expect('sym', ';')
-        self.expect('sym', '}')
+        body_start = self.i
+        depth = 1
+        j = self.i
+        while j < len(self.toks):
+            t = self.toks[j]
+            if t.kind == 'sym' and t.text == '{':
+                depth += 1
+            elif t.kind == 'sym' and t.text == '}':
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        if depth != 0:
+            raise ParseError('unterminated function block')
+        body_end = j
+        self.i = body_end + 1
+
         out = ''
         param_sig = ''.join(f'        (param {p} i32)\n' for p in params)
         params_section = '      (params)\n' if not params else ('      (params\n' + param_sig + '      )\n')
         for fld in self.struct_fields[ret_ty]:
+            self.local_structs = {}
+            self.i = body_start
+            block = self.parse_block_range_ir(body_end, ret_ty, fld)
             out += f'    (fn {name}__ret__{fld}\n'
             out += params_section
             out += '      (ret i32)\n'
-            out += '      (block\n'
-            out += '        (return\n'
-            out += ret_vals[fld]
-            out += '        )\n'
-            out += '      )\n'
+            out += block
             out += '    )\n'
+        self.i = body_end + 1
         return out
 
     def struct_var_fields(self, name: str) -> Optional[List[str]]:
