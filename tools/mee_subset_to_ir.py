@@ -314,8 +314,21 @@ class Parser:
             while True:
                 if self.peek().kind == 'ident':
                     arg_name = self.peek().text
-                    arg_fields = self.struct_var_fields(arg_name)
                     next_tok = self.toks[self.i + 1]
+                    if next_tok.kind == 'sym' and next_tok.text == '(' and arg_name in self.fn_return_struct:
+                        self.next()
+                        self.expect('sym', '(')
+                        call_args = self.parse_call_args_ir()
+                        self.expect('sym', ')')
+                        for fld in self.struct_fields[self.fn_return_struct[arg_name]]:
+                            args.append(f'          (call {arg_name}__ret__{fld}\n')
+                            args.append(call_args)
+                            args.append('          )\n')
+                        if self.peek().kind == 'sym' and self.peek().text == ',':
+                            self.next()
+                            continue
+                        break
+                    arg_fields = self.struct_var_fields(arg_name)
                     if arg_fields is not None and next_tok.kind == 'sym' and next_tok.text in (',', ')'):
                         self.next()
                         for fld in arg_fields:

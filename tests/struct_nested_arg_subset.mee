@@ -1,0 +1,17 @@
+struct Point {
+  x: i32,
+  y: i32
+}
+
+fn shift_point(p: Point) -> Point {
+  return Point { x: p.x + 1, y: p.y + 2 };
+}
+
+fn sum_point(p: Point) -> i32 {
+  return p.x + p.y;
+}
+
+fn main() -> i32 {
+  let p: Point = Point { x: 1, y: 2 };
+  return sum_point(shift_point(p));
+}
