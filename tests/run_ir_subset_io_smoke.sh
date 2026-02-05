@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TMP_DIR="$(mktemp -d /tmp/mee-ir-subset-io.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/coatl-ir-subset-io.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if ! command -v wasmtime >/dev/null 2>&1; then
@@ -11,7 +11,7 @@ if ! command -v wasmtime >/dev/null 2>&1; then
 fi
 
 WAT="$TMP_DIR/fdread.wat"
-"$ROOT_DIR/mee" build "$ROOT_DIR/tests/x86_fd_read_test.mee" --emit=wat --toolchain=ir -o "$WAT"
+"$ROOT_DIR/coatl" build "$ROOT_DIR/tests/x86_fd_read_test.coatl" --emit=wat --toolchain=ir -o "$WAT"
 
 set +e
 out="$(printf "abcd" | wasmtime --invoke main "$WAT")"

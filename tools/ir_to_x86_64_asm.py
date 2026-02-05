@@ -405,7 +405,7 @@ class FnEmitter:
                 out.append(f"  mov eax, dword ptr [rbp+{stack_off}]")
                 out.append(f"  mov dword ptr [rbp-{off}], eax")
 
-        out.append("  call __mee_init_memory")
+        out.append("  call __coatl_init_memory")
         self.lines = []
         self.stack_depth = 0
         self.emit_block(self.block, ret_label)
@@ -422,7 +422,7 @@ class FnEmitter:
 
 def lower_ir_to_asm_text(root: Node) -> str:
     top = as_list(root)
-    if len(top) != 4 or as_atom(top[0]) != "mee_ir" or as_atom(top[1]) != "v0":
+    if len(top) != 4 or as_atom(top[0]) != "coatl_ir" or as_atom(top[1]) != "v0":
         raise LowerError("unsupported IR root/version")
 
     structs = as_list(top[2])
@@ -457,22 +457,22 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append(".intel_syntax noprefix")
     out.append(".bss")
     out.append(".align 16")
-    out.append("__mee_mem:")
+    out.append("__coatl_mem:")
     out.append("  .zero 1048576")
     out.append(".align 4")
-    out.append("__mee_mem_inited:")
+    out.append("__coatl_mem_inited:")
     out.append("  .long 0")
     out.append("")
 
     out.append(".text")
-    out.append("__mee_init_memory:")
+    out.append("__coatl_init_memory:")
     out.append("  push rbp")
     out.append("  mov rbp, rsp")
-    out.append("  mov eax, dword ptr [rip+__mee_mem_inited]")
+    out.append("  mov eax, dword ptr [rip+__coatl_mem_inited]")
     out.append("  test eax, eax")
     out.append("  jne .L_mem_done")
-    out.append("  mov dword ptr [rip+__mee_mem_inited], 1")
-    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  mov dword ptr [rip+__coatl_mem_inited], 1")
+    out.append("  lea rdx, [rip+__coatl_mem]")
     for addr, data in string_entries:
         for i, b in enumerate(data):
             out.append(f"  mov byte ptr [rdx+{addr + i}], 0x{b:02x}")
@@ -484,7 +484,7 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("__mem_load:")
     out.append("  mov eax, edi")
     out.append("  cdqe")
-    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  lea rdx, [rip+__coatl_mem]")
     out.append("  mov eax, dword ptr [rdx+rax]")
     out.append("  ret")
     out.append("")
@@ -492,7 +492,7 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("__mem_load8:")
     out.append("  mov eax, edi")
     out.append("  cdqe")
-    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  lea rdx, [rip+__coatl_mem]")
     out.append("  movzx eax, byte ptr [rdx+rax]")
     out.append("  ret")
     out.append("")
@@ -500,7 +500,7 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("__mem_store:")
     out.append("  mov eax, edi")
     out.append("  cdqe")
-    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  lea rdx, [rip+__coatl_mem]")
     out.append("  mov dword ptr [rdx+rax], esi")
     out.append("  xor eax, eax")
     out.append("  ret")
@@ -509,7 +509,7 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("__mem_store8:")
     out.append("  mov eax, edi")
     out.append("  cdqe")
-    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  lea rdx, [rip+__coatl_mem]")
     out.append("  mov byte ptr [rdx+rax], sil")
     out.append("  xor eax, eax")
     out.append("  ret")
@@ -530,7 +530,7 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append(".L_fdw_loop:")
     out.append("  cmp r10d, edx")
     out.append("  jge .L_fdw_done")
-    out.append("  lea r11, [rip+__mee_mem]")
+    out.append("  lea r11, [rip+__coatl_mem]")
     out.append("  mov eax, r10d")
     out.append("  imul eax, 8")
     out.append("  add eax, r13d")
@@ -584,7 +584,7 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append(".L_fdr_loop:")
     out.append("  cmp r10d, edx")
     out.append("  jge .L_fdr_done")
-    out.append("  lea r11, [rip+__mee_mem]")
+    out.append("  lea r11, [rip+__coatl_mem]")
     out.append("  mov eax, r10d")
     out.append("  imul eax, 8")
     out.append("  add eax, r13d")
@@ -653,7 +653,7 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("  mov r13d, r8d")
     out.append("  mov r14d, dword ptr [rbp+32]")
     out.append("  lea r11, [rsp]")
-    out.append("  lea r10, [rip+__mee_mem]")
+    out.append("  lea r10, [rip+__coatl_mem]")
     out.append("  mov eax, edx")
     out.append("  cdqe")
     out.append("  lea r10, [r10+rax]")
@@ -717,8 +717,8 @@ def lower_ir_to_asm_text(root: Node) -> str:
         fn = FnEmitter(name, params, block, string_addrs, fn_names)
         out.extend(fn.emit_function())
 
-    out.append(".globl mee_start")
-    out.append("mee_start:")
+    out.append(".globl coatl_start")
+    out.append("coatl_start:")
     out.append("  call main")
     out.append("  mov edi, eax")
     out.append("  mov eax, 60")
@@ -735,7 +735,7 @@ def lower_ir_to_asm(ir_path: Path, out_path: Path) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Lower mee_ir v0 to x86_64 assembly (non-Rust path, no C compiler)")
+    ap = argparse.ArgumentParser(description="Lower coatl_ir v0 to x86_64 assembly (IR-based path, no C compiler)")
     ap.add_argument("input", help="input .ir file")
     ap.add_argument("-o", "--output", required=True, help="output .s file")
     args = ap.parse_args()

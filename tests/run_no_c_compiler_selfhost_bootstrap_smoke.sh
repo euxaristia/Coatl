@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TMP_DIR="$(mktemp -d /tmp/mee-no-c-selfhost.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/coatl-no-c-selfhost.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if ! command -v wasmtime >/dev/null 2>&1; then
@@ -21,8 +21,8 @@ SH
 done
 
 BOOTSTRAP_WAT="$TMP_DIR/bootstrap-no-c.wat"
-MEE_NO_RUST=1 MEE_NO_RUST_BUILD=1 PATH="$TMP_DIR/bin:$PATH" \
-  "$ROOT_DIR/mee" build "$ROOT_DIR/selfhost/bootstrap.mee" --emit=wat --toolchain=auto -o "$BOOTSTRAP_WAT"
+COATL_NO_RUST=1 COATL_IR_FIRST_BUILD=1 PATH="$TMP_DIR/bin:$PATH" \
+  "$ROOT_DIR/coatl" build "$ROOT_DIR/selfhost/bootstrap.coatl" --emit=wat --toolchain=auto -o "$BOOTSTRAP_WAT"
 
 if [[ ! -s "$BOOTSTRAP_WAT" ]]; then
   echo "[FAIL] bootstrap WAT was not produced"

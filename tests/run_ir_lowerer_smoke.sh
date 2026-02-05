@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TMP_DIR="$(mktemp -d /tmp/mee-ir-lowerer.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/coatl-ir-lowerer.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if ! command -v wasmtime >/dev/null 2>&1; then
@@ -14,7 +14,7 @@ IR="$TMP_DIR/simple.ir"
 WAT="$TMP_DIR/simple.wat"
 
 cat > "$IR" <<'IR'
-(mee_ir v0
+(coatl_ir v0
   (structs)
   (functions
     (fn main
@@ -36,8 +36,8 @@ cat > "$IR" <<'IR'
 )
 IR
 
-echo "[ir-lowerer] lower IR -> WAT via non-Rust backend lane"
-"$ROOT_DIR/mee" lower-ir "$IR" -o "$WAT"
+echo "[ir-lowerer] lower IR -> WAT via IR-based backend lane"
+"$ROOT_DIR/coatl" lower-ir "$IR" -o "$WAT"
 
 if [[ ! -s "$WAT" ]]; then
   echo "[FAIL] lower-ir did not produce output"

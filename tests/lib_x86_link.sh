@@ -34,12 +34,12 @@ link_x86_asm_binary() {
   fi
   if have_as_toolchain; then
     local obj
-    obj="$(mktemp /tmp/mee-x86-link.XXXXXX.o)"
+    obj="$(mktemp /tmp/coatl-x86-link.XXXXXX.o)"
     as --64 "$asm" -o "$obj"
     if have_internal_linker; then
-      python3 "$ROOT_DIR/tools/link_x86_64_elf.py" "$obj" -o "$bin" --entry mee_start
+      python3 "$ROOT_DIR/tools/link_x86_64_elf.py" "$obj" -o "$bin" --entry coatl_start
     else
-      ld "$obj" -o "$bin" -e mee_start
+      ld "$obj" -o "$bin" -e coatl_start
     fi
     rm -f "$obj"
     return 0

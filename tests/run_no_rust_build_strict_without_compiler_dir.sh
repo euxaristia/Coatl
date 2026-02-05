@@ -23,6 +23,6 @@ else
   echo "compiler directory already absent; running strict gate directly"
 fi
 
-MEE_NO_RUST_BUILD=1 "$ROOT_DIR/tests/run_strict_no_rust_suite.sh"
+COATL_IR_FIRST_BUILD=1 "$ROOT_DIR/tests/run_strict_no_rust_suite.sh"
 
 echo "no-rust-build strict suite passed without compiler directory"

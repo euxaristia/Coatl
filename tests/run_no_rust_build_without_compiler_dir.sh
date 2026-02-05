@@ -23,7 +23,7 @@ else
   echo "compiler directory already absent; running no-rust-build checks directly"
 fi
 
-MEE_NO_RUST_BUILD=1 "$ROOT_DIR/tests/run_no_rust_build_mode_full_coverage.sh"
-MEE_NO_RUST_BUILD=1 "$ROOT_DIR/tests/run_no_rust_build_mode_prefers_ir.sh"
+COATL_IR_FIRST_BUILD=1 "$ROOT_DIR/tests/run_no_rust_build_mode_full_coverage.sh"
+COATL_IR_FIRST_BUILD=1 "$ROOT_DIR/tests/run_no_rust_build_mode_prefers_ir.sh"
 
 echo "no-rust-build works without compiler directory"

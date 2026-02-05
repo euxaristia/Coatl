@@ -3,27 +3,25 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
-RUST_COMPILER_DIR="$ROOT_DIR/compiler"
 SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
-SUBSET_FRONTEND="$ROOT_DIR/tools/mee_subset_to_ir.py"
+SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.py"
 IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.py"
 
 usage() {
   cat <<'EOF'
 usage:
-  ./mee build <input.mee> [--emit=wat|asm|ir|obj|bin] [-o <output>] [--toolchain=auto|selfhost|rust|ir] [--compiler <seed.wat>]
-  ./mee lower-ir <input.ir> -o <output.wat>
-  ./mee --version
+  ./coatl build <input.coatl> [--emit=wat|asm|ir|obj|bin] [-o <output>] [--toolchain=auto|selfhost|ir] [--compiler <seed.wat>]
+  ./coatl lower-ir <input.ir> -o <output.wat>
+  ./coatl --version
 
 notes:
-  - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
-  - toolchain=ir uses IR + external non-Rust lowerer; frontend is Rust by default, subset non-Rust in strict mode
-  - --emit=asm supports toolchain=ir for subset/non-Rust lane (with Rust fallback unless MEE_NO_RUST=1)
+  - default toolchain is "auto" (or $COATL_TOOLCHAIN), preferring selfhost for --emit=wat
+  - toolchain=ir uses subset frontend + external lowerers (IR/WAT/ASM/OBJ/BIN)
+  - --emit=asm/obj/bin support toolchain=ir for subset lane
   - --emit=obj emits x86_64 ELF relocatable object from asm output
-  - --emit=bin links x86_64 Linux executable from asm output (uses CC or as+ld)
+  - --emit=bin links x86_64 Linux executable from asm output
   - --emit=ir supports toolchain=ir (subset frontend)
-  - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
-  - set MEE_NO_RUST_BUILD=1 to force no-Rust behavior for branch-mode development
+  - set COATL_IR_FIRST_BUILD=1 to force auto mode to skip selfhost-first attempt
 EOF
 }
 
@@ -32,9 +30,9 @@ print_version() {
   if version="$(git -C "$ROOT_DIR" describe --always --dirty --tags 2>/dev/null)"; then
     :
   else
-    version="${MEE_VERSION:-dev}"
+    version="${COATL_VERSION:-dev}"
   fi
-  echo "mee $version"
+  echo "coatl $version"
 }
 
 if [[ $# -lt 1 ]]; then
@@ -102,7 +100,7 @@ input_abs="$(realpath "$input")"
 
 emit="wat"
 out=""
-toolchain="${MEE_TOOLCHAIN:-auto}"
+toolchain="${COATL_TOOLCHAIN:-auto}"
 seed="$SEED_DEFAULT"
 
 shift 2
@@ -136,7 +134,7 @@ if [[ "$emit" != "wat" && "$emit" != "asm" && "$emit" != "ir" && "$emit" != "obj
   echo "unsupported emit target: $emit"
   exit 1
 fi
-if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "rust" && "$toolchain" != "ir" ]]; then
+if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "ir" ]]; then
   echo "unsupported toolchain: $toolchain"
   exit 1
 fi
@@ -145,18 +143,8 @@ if [[ -n "$out" ]]; then
   out_abs="$(realpath -m "$out")"
 fi
 
-rust_disabled() {
-  [[ "${MEE_NO_RUST:-0}" == "1" || "${MEE_NO_RUST_BUILD:-0}" == "1" ]]
-}
-
-no_rust_build_mode() {
-  [[ "${MEE_NO_RUST_BUILD:-0}" == "1" ]]
-}
-
-rust_lane_available() {
-  [[ -d "$RUST_COMPILER_DIR" ]] || return 1
-  command -v cargo >/dev/null 2>&1 || return 1
-  return 0
+ir_first_build_mode() {
+  [[ "${COATL_IR_FIRST_BUILD:-0}" == "1" ]]
 }
 
 cc_bin() {
@@ -198,7 +186,7 @@ internal_link_obj_to_bin() {
   if ! command -v python3 >/dev/null 2>&1; then
     return 1
   fi
-  python3 "$ROOT_DIR/tools/link_x86_64_elf.py" "$obj_in" -o "$bin_out" --entry mee_start
+  python3 "$ROOT_DIR/tools/link_x86_64_elf.py" "$obj_in" -o "$bin_out" --entry coatl_start
 }
 
 link_asm_to_bin() {
@@ -213,7 +201,7 @@ link_asm_to_bin() {
   fi
   if [[ "$mode" == "any" ]]; then
     local obj
-    obj="$(mktemp /tmp/mee-link-bin.XXXXXX.o)"
+    obj="$(mktemp /tmp/coatl-link-bin.XXXXXX.o)"
     if ! assemble_asm_to_obj "$asm_in" "$obj"; then
       rm -f "$obj"
       return 1
@@ -224,7 +212,7 @@ link_asm_to_bin() {
         echo "linking requires internal linker (python3) or usable ld" >&2
         return 1
       fi
-      ld "$obj" -o "$bin_out" -e mee_start
+      ld "$obj" -o "$bin_out" -e coatl_start
     fi
     rm -f "$obj"
     return 0
@@ -237,37 +225,10 @@ link_asm_to_bin() {
   return 1
 }
 
-ensure_rust_allowed() {
-  if rust_disabled; then
-    echo "rust-disabled mode: this operation requires Rust compiler usage" >&2
-    exit 1
-  fi
-  if ! rust_lane_available; then
-    echo "rust compiler lane unavailable: missing compiler/ or cargo in PATH" >&2
-    exit 1
-  fi
-}
-
-rust_build_emit() {
-  local emit_target="$1"
-  local out_target="${2:-}"
-  ensure_rust_allowed
-  local emit_flag="--emit=$emit_target"
-  if [[ -n "$out_target" ]]; then
-    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" "$emit_flag" -o "$out_target")
-  else
-    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" "$emit_flag")
-  fi
-}
-
-rust_build() {
-  rust_build_emit "$emit" "$out_abs"
-}
-
 selfhost_build_wat() {
   local tmp_out=""
   local validate_tmp=""
-  validate_tmp="$(mktemp /tmp/mee-selfhost-validate.XXXXXX.cwasm)"
+  validate_tmp="$(mktemp /tmp/coatl-selfhost-validate.XXXXXX.cwasm)"
   rm -f "$validate_tmp"
   if [[ -n "$out_abs" ]]; then
     "$SELFHOST_BUILD" build "$input_abs" -o "$out_abs" --compiler "$seed" >/dev/null
@@ -280,7 +241,7 @@ selfhost_build_wat() {
       rm -f "$validate_tmp"
     fi
   else
-    tmp_out="$(mktemp /tmp/mee-selfhost-out.XXXXXX.wat)"
+    tmp_out="$(mktemp /tmp/coatl-selfhost-out.XXXXXX.wat)"
     "$SELFHOST_BUILD" build "$input_abs" -o "$tmp_out" --compiler "$seed" >/dev/null
     if command -v wasmtime >/dev/null 2>&1; then
       if ! wasmtime compile "$tmp_out" -o "$validate_tmp" >/dev/null 2>&1; then
@@ -300,10 +261,10 @@ ir_pipeline_build_wat() {
   local tmp_wat
   local subset_err
   local lower_err
-  tmp_ir="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.ir)"
-  tmp_wat="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.wat)"
-  subset_err="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.subset.err)"
-  lower_err="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.lower.err)"
+  tmp_ir="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.ir)"
+  tmp_wat="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.wat)"
+  subset_err="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.subset.err)"
+  lower_err="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.lower.err)"
   if [[ -x "$SUBSET_FRONTEND" ]]; then
     if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
       if "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat" 2>"$lower_err"; then
@@ -315,42 +276,14 @@ ir_pipeline_build_wat() {
         rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
         return 0
       fi
-      if rust_disabled; then
-        echo "subset frontend produced unsupported IR for lowerer and Rust is disabled" >&2
-        rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-        return 1
-      fi
-      echo "warning: subset IR lowering failed, trying Rust frontend in ir pipeline" >&2
+      echo "subset frontend produced unsupported IR for lowerer" >&2
+      rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
+      return 1
     fi
   fi
 
-  if rust_disabled; then
-    echo "subset frontend failed for toolchain=ir and Rust is disabled" >&2
-    rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-    return 1
-  fi
-
-  if ! (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir"); then
-    echo "rust frontend failed for toolchain=ir" >&2
-    rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-    return 1
-  fi
-
-  if "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat" 2>"$lower_err"; then
-    if [[ -n "$out_abs" ]]; then
-      cp "$tmp_wat" "$out_abs"
-    else
-      cat "$tmp_wat"
-    fi
-    rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-    return 0
-  fi
-
-  echo "warning: rust IR could not be lowered by external backend, falling back to rust backend" >&2
+  echo "subset frontend failed for toolchain=ir" >&2
   rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-  if rust_build; then
-    return 0
-  fi
   return 1
 }
 
@@ -362,7 +295,7 @@ subset_emit_ir() {
     "$SUBSET_FRONTEND" "$input_abs" -o "$out_abs"
   else
     local tmp_ir
-    tmp_ir="$(mktemp /tmp/mee-subset-ir.XXXXXX.ir)"
+    tmp_ir="$(mktemp /tmp/coatl-subset-ir.XXXXXX.ir)"
     "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"
     cat "$tmp_ir"
     rm -f "$tmp_ir"
@@ -375,10 +308,10 @@ ir_pipeline_build_asm() {
   local tmp_asm
   local subset_err
   local lower_err
-  tmp_ir="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.ir)"
-  tmp_asm="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.s)"
-  subset_err="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.subset.err)"
-  lower_err="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.lower.err)"
+  tmp_ir="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.ir)"
+  tmp_asm="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.s)"
+  subset_err="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.subset.err)"
+  lower_err="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.lower.err)"
   if [[ -x "$SUBSET_FRONTEND" ]]; then
     if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
       if "$IR_TO_X86_ASM" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
@@ -390,42 +323,14 @@ ir_pipeline_build_asm() {
         rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
         return 0
       fi
-      if rust_disabled; then
-        echo "subset frontend produced unsupported IR for asm lowerer and Rust is disabled" >&2
-        rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-        return 1
-      fi
-      echo "warning: subset asm lowering failed, trying Rust frontend in asm pipeline" >&2
+      echo "subset frontend produced unsupported IR for asm lowerer" >&2
+      rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
+      return 1
     fi
   fi
 
-  if rust_disabled; then
-    echo "subset frontend failed for --emit=asm --toolchain=ir and Rust is disabled" >&2
-    rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-    return 1
-  fi
-
-  if ! (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir"); then
-    echo "rust frontend failed for --emit=asm --toolchain=ir" >&2
-    rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-    return 1
-  fi
-
-  if "$IR_TO_X86_ASM" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
-    if [[ -n "$out_abs" ]]; then
-      cp "$tmp_asm" "$out_abs"
-    else
-      cat "$tmp_asm"
-    fi
-    rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-    return 0
-  fi
-
-  echo "warning: rust IR could not be lowered by external asm backend, falling back to rust asm backend" >&2
+  echo "subset frontend failed for --emit=asm --toolchain=ir" >&2
   rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-  if rust_build; then
-    return 0
-  fi
   return 1
 }
 
@@ -455,15 +360,11 @@ if [[ "$emit" != "wat" ]]; then
       if ir_pipeline_build_asm; then
         exit 0
       fi
-      if rust_disabled; then
-        echo "ir asm pipeline failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
-        exit 1
-      fi
-      rust_build
-      exit 0
+      echo "ir asm pipeline failed in auto mode" >&2
+      exit 1
     fi
-    rust_build
-    exit 0
+    echo "--emit=$emit is not supported by toolchain=$toolchain"
+    exit 1
   fi
 
   if [[ "$emit" == "bin" ]]; then
@@ -480,7 +381,7 @@ if [[ "$emit" != "wat" ]]; then
       exit 1
     fi
 
-    tmp_asm="$(mktemp /tmp/mee-bin-link.XXXXXX.s)"
+    tmp_asm="$(mktemp /tmp/coatl-bin-link.XXXXXX.s)"
 
     if [[ "$toolchain" == "ir" ]]; then
       if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
@@ -504,27 +405,14 @@ if [[ "$emit" != "wat" ]]; then
         rm -f "$tmp_asm"
         exit 0
       fi
-      if rust_disabled; then
-        rm -f "$tmp_asm"
-        echo "ir asm pipeline failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
-        exit 1
-      fi
-      rust_build_emit "asm" "$tmp_asm"
-      if ! link_asm_to_bin "$tmp_asm" "$out_abs" "cc-only"; then
-        rm -f "$tmp_asm"
-        exit 1
-      fi
       rm -f "$tmp_asm"
-      exit 0
-    fi
-
-    rust_build_emit "asm" "$tmp_asm"
-    if ! link_asm_to_bin "$tmp_asm" "$out_abs" "cc-only"; then
-      rm -f "$tmp_asm"
+      echo "ir asm pipeline failed in auto mode"
       exit 1
     fi
+
+    echo "--emit=$emit is not supported by toolchain=$toolchain"
     rm -f "$tmp_asm"
-    exit 0
+    exit 1
   fi
 
   if [[ "$emit" == "obj" ]]; then
@@ -541,7 +429,7 @@ if [[ "$emit" != "wat" ]]; then
       exit 1
     fi
 
-    tmp_asm="$(mktemp /tmp/mee-obj-asm.XXXXXX.s)"
+    tmp_asm="$(mktemp /tmp/coatl-obj-asm.XXXXXX.s)"
 
     if [[ "$toolchain" == "ir" ]]; then
       if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
@@ -565,27 +453,14 @@ if [[ "$emit" != "wat" ]]; then
         rm -f "$tmp_asm"
         exit 0
       fi
-      if rust_disabled; then
-        rm -f "$tmp_asm"
-        echo "ir asm pipeline failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
-        exit 1
-      fi
-      rust_build_emit "asm" "$tmp_asm"
-      if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
-        rm -f "$tmp_asm"
-        exit 1
-      fi
       rm -f "$tmp_asm"
-      exit 0
-    fi
-
-    rust_build_emit "asm" "$tmp_asm"
-    if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
-      rm -f "$tmp_asm"
+      echo "ir asm pipeline failed in auto mode"
       exit 1
     fi
+
+    echo "--emit=$emit is not supported by toolchain=$toolchain"
     rm -f "$tmp_asm"
-    exit 0
+    exit 1
   fi
 
   # emit=ir
@@ -600,24 +475,15 @@ if [[ "$emit" != "wat" ]]; then
     if subset_emit_ir; then
       exit 0
     fi
-    if rust_disabled; then
-      echo "subset frontend failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
-      exit 1
-    fi
-    rust_build
-    exit 0
+    echo "subset frontend failed in auto mode"
+    exit 1
   fi
   if [[ "$toolchain" == "selfhost" ]]; then
     echo "--emit=$emit is not supported by toolchain=$toolchain"
     exit 1
   fi
-  rust_build
-  exit 0
-fi
-
-if [[ "$toolchain" == "rust" ]]; then
-  rust_build
-  exit 0
+  echo "--emit=$emit is not supported by toolchain=$toolchain"
+  exit 1
 fi
 
 if [[ "$toolchain" == "selfhost" ]]; then
@@ -631,7 +497,7 @@ if [[ "$toolchain" == "ir" ]]; then
 fi
 
 # auto
-if ! no_rust_build_mode && [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
+if ! ir_first_build_mode && [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
   if selfhost_build_wat; then
     exit 0
   fi
@@ -642,11 +508,5 @@ if ir_pipeline_build_wat; then
   exit 0
 fi
 
-if rust_disabled; then
-  echo "selfhost/ir pipelines failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
-  exit 1
-fi
-
-echo "warning: ir pipeline failed, falling back to rust backend" >&2
-
-rust_build
+echo "selfhost/ir pipelines failed"
+exit 1

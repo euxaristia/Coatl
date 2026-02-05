@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TMP_DIR="$(mktemp -d /tmp/mee-cli-no-rust.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/coatl-cli-no-rust.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if ! command -v wasmtime >/dev/null 2>&1; then
@@ -12,7 +12,7 @@ fi
 
 echo "[cli-no-rust] build hello with selfhost toolchain"
 HELLO_WAT="$TMP_DIR/hello.wat"
-"$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=wat --toolchain=selfhost -o "$HELLO_WAT"
+"$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --emit=wat --toolchain=selfhost -o "$HELLO_WAT"
 
 if [[ ! -s "$HELLO_WAT" ]]; then
   echo "[FAIL] hello.wat not created"

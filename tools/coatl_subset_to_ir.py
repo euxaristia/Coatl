@@ -120,7 +120,7 @@ class Parser:
             fns.append(fn_ir)
         if not saw_main:
             raise ParseError('expected fn main')
-        return '(mee_ir v0\n  (structs)\n  (functions\n' + ''.join(fns) + '  )\n)\n'
+        return '(coatl_ir v0\n  (structs)\n  (functions\n' + ''.join(fns) + '  )\n)\n'
 
     def parse_struct_decl(self) -> None:
         self.expect_ident('struct')
@@ -549,8 +549,8 @@ class Parser:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='Compile Mee subset to mee_ir v0')
-    ap.add_argument('input', help='input .mee file')
+    ap = argparse.ArgumentParser(description='Compile Coatl subset to coatl_ir v0')
+    ap.add_argument('input', help='input .coatl file')
     ap.add_argument('-o', '--output', required=True, help='output .ir file')
     args = ap.parse_args()
 

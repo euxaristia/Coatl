@@ -15,7 +15,7 @@ fn main() -> i32 {
   // Stage0a: validate token/opcode constants (self-host sanity check)
   let tok_ok: i32 = test_token_constants();
   if (tok_ok != 1) { return tok_ok; }
-  // Stage0: placeholder Mee "compiler".
+  // Stage0: placeholder Coatl "compiler".
   // Validates full pipeline with hardcoded input.
   let stage0_ok: i32 = compile_stub();
   if (stage0_ok != 0) { return stage0_ok; }

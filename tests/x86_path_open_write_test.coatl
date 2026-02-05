@@ -1,7 +1,7 @@
 fn main() -> i32 {
   let fd_ptr: i32 = 4096;
-  let path_ptr: i32 = "/tmp/mee_x86_io_test.txt";
-  let rc: i32 = __path_open(0, 0, path_ptr, 24, 1, 0, 0, 0, fd_ptr);
+  let path_ptr: i32 = "/tmp/coatl_x86_io_test.txt";
+  let rc: i32 = __path_open(0, 0, path_ptr, 26, 1, 0, 0, 0, fd_ptr);
   if (rc != 0) { return 1; }
 
   let fd: i32 = __mem_load(fd_ptr);

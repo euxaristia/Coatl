@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TMP_DIR="$(mktemp -d /tmp/mee-norust-parity.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/coatl-norust-parity.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 source "$ROOT_DIR/tests/lib_x86_link.sh"
 
@@ -26,13 +26,13 @@ run_case() {
   local stdin_text="${4:-}"
 
   local stem
-  stem="$(basename "$src" .mee)"
+  stem="$(basename "$src" .coatl)"
   local wat="$TMP_DIR/$stem.wat"
   local asm="$TMP_DIR/$stem.s"
   local bin="$TMP_DIR/$stem.bin"
 
-  MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/$src" --emit=wat --toolchain=ir -o "$wat"
-  MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/$src" --emit=asm --toolchain=ir -o "$asm"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat --toolchain=ir -o "$wat"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=asm --toolchain=ir -o "$asm"
   link_x86_asm_binary "$asm" "$bin"
 
   local wat_out wat_proc_rc asm_out asm_rc
@@ -102,25 +102,25 @@ run_case() {
 }
 
 echo "[no-rust-parity] hello"
-run_case "examples/hello.mee" "0"
+run_case "examples/hello.coatl" "0"
 
 echo "[no-rust-parity] mem/byte/array/control"
-run_case "tests/mem_test.mee" "142"
-run_case "tests/byte_test.mee" "389"
-run_case "tests/array_sim.mee" "100"
-run_case "tests/ir_subset_control_flow.mee" "77"
+run_case "tests/mem_test.coatl" "142"
+run_case "tests/byte_test.coatl" "389"
+run_case "tests/array_sim.coatl" "100"
+run_case "tests/ir_subset_control_flow.coatl" "77"
 
 echo "[no-rust-parity] struct subset"
-run_case "tests/struct_param_pass.mee" "9"
-run_case "tests/struct_return_basic.mee" "15"
-run_case "tests/struct_chain_calls.mee" "6"
-run_case "tests/struct_field_mutation_subset.mee" "33"
-run_case "tests/struct_nested_arg_subset.mee" "6"
-run_case "tests/struct_return_if_subset.mee" "36"
-run_case "tests/struct_return_while_subset.mee" "9"
+run_case "tests/struct_param_pass.coatl" "9"
+run_case "tests/struct_return_basic.coatl" "15"
+run_case "tests/struct_chain_calls.coatl" "6"
+run_case "tests/struct_field_mutation_subset.coatl" "33"
+run_case "tests/struct_nested_arg_subset.coatl" "6"
+run_case "tests/struct_return_if_subset.coatl" "36"
+run_case "tests/struct_return_while_subset.coatl" "9"
 
 echo "[no-rust-parity] io"
-run_case "tests/x86_fd_read_test.mee" "4" "stdin" "abcd"
-run_case "tests/ir_subset_path_open_write_close.mee" "3" "path_open_subset"
+run_case "tests/x86_fd_read_test.coatl" "4" "stdin" "abcd"
+run_case "tests/ir_subset_path_open_write_close.coatl" "3" "path_open_subset"
 
 echo "no-rust backend parity suite passed"

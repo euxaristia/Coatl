@@ -3,7 +3,7 @@
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 MANDIR ?= $(PREFIX)/share/man
-PROGRAM ?= mee
+PROGRAM ?= coatl
 TARGET ?= $(BINDIR)/$(PROGRAM)
 MAN1_TARGET ?= $(MANDIR)/man1/$(PROGRAM).1
 LOCAL_PREFIX ?= $(HOME)/.local

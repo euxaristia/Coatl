@@ -1,4 +1,4 @@
-# Mee Language Specification (Draft v0.1)
+# Coatl Language Specification (Draft v0.1)
 
 ## Goals
 - Be a systems language that is **safer than C**, while preserving **predictable performance**.
@@ -53,10 +53,10 @@ fn add(a: i32, b: i32) -> i32 {
 - **x86_64 SysV** and **AArch64** are planned for v0.2+.
 
 ## CLI (compiler)
-- `mee build <file>`
-- `mee build <file> --emit=wat` (default)
-- `mee build <file> --emit=asm` (x86_64 SysV)
-- `mee build <file> --emit=wasm` (planned)
+- `coatl build <file>`
+- `coatl build <file> --emit=wat` (default)
+- `coatl build <file> --emit=asm` (x86_64 SysV)
+- `coatl build <file> --emit=wasm` (planned)
 
 ## Status
 - This is a draft; features will be staged via ROADMAP.md.

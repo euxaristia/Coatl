@@ -7,12 +7,12 @@ SEED_WAT_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
 usage() {
   cat <<'EOF'
 usage:
-  ./selfhost/build_with_selfhost.sh build <input.mee> -o <output.wat> [--compiler <seed.wat>]
+  ./selfhost/build_with_selfhost.sh build <input.coatl> -o <output.wat> [--compiler <seed.wat>]
 
 notes:
   - Requires wasmtime.
   - Uses a prebuilt self-hosted seed compiler WAT (default: selfhost/bootstrap.seed.wat).
-  - Does not invoke Rust.
+  - Does not invoke external compiler lanes.
 EOF
 }
 
@@ -67,7 +67,7 @@ if ! command -v wasmtime >/dev/null 2>&1; then
   exit 1
 fi
 
-tmpdir="$(mktemp -d /tmp/mee-selfhost-build.XXXXXX)"
+tmpdir="$(mktemp -d /tmp/coatl-selfhost-build.XXXXXX)"
 trap 'rm -rf "$tmpdir"' EXIT
 patched="$tmpdir/compiler.stdin.wat"
 raw="$tmpdir/out.raw"

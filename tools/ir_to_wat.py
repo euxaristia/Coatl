@@ -502,7 +502,7 @@ def lower_function(name: str, params: List[str], block: Node, string_addrs: Dict
 
 def lower_ir(root: Node) -> str:
     top = as_list(root)
-    if len(top) != 4 or as_atom(top[0]) != "mee_ir":
+    if len(top) != 4 or as_atom(top[0]) != "coatl_ir":
         raise LowerError("unsupported IR root")
     if as_atom(top[1]) != "v0":
         raise LowerError("unsupported IR version")
@@ -572,7 +572,7 @@ def lower_ir(root: Node) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Lower Mee IR (subset) to WAT")
+    ap = argparse.ArgumentParser(description="Lower Coatl IR (subset) to WAT")
     ap.add_argument("input", help="input .ir file")
     ap.add_argument("-o", "--output", required=True, help="output .wat file")
     args = ap.parse_args()

@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SEED_CHECK="$ROOT_DIR/selfhost/check_self_compile_seed.sh"
 BUILD_SELFHOST="$ROOT_DIR/selfhost/build_with_selfhost.sh"
-STAGE1_WAT="/tmp/mee-bootstrap-seed-stage1.wat"
-TMP_DIR="$(mktemp -d /tmp/mee-seed-roundtrip.XXXXXX)"
+STAGE1_WAT="/tmp/coatl-bootstrap-seed-stage1.wat"
+TMP_DIR="$(mktemp -d /tmp/coatl-seed-roundtrip.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if ! command -v wasmtime >/dev/null 2>&1; then
@@ -24,7 +24,7 @@ check_case() {
   local expected_ret="$2"
   local expect_substr="${3:-}"
   local base
-  base=$(basename "$src" .mee)
+  base=$(basename "$src" .coatl)
   local wat="$TMP_DIR/${base}.wat"
 
   echo "[case] $src"
@@ -52,22 +52,22 @@ check_case() {
   echo "  ok (return=$expected_ret)"
 }
 
-echo "[seed-roundtrip] Verifying self-compile convergence (no Rust)"
+echo "[seed-roundtrip] Verifying self-compile convergence (seed-only)"
 "$SEED_CHECK"
 if [[ ! -f "$STAGE1_WAT" ]]; then
   echo "missing $STAGE1_WAT after seed convergence check"
   exit 1
 fi
 
-echo "[seed-roundtrip] Running runtime suite (no Rust)"
-check_case "tests/mem_test.mee" "142"
-check_case "tests/array_sim.mee" "100"
-check_case "tests/byte_test.mee" "389"
-check_case "examples/hello.mee" "0" "Hello, world!"
+echo "[seed-roundtrip] Running runtime suite (seed-only)"
+check_case "tests/mem_test.coatl" "142"
+check_case "tests/array_sim.coatl" "100"
+check_case "tests/byte_test.coatl" "389"
+check_case "examples/hello.coatl" "0" "Hello, world!"
 
-echo "[seed-roundtrip] Struct runtime suite (native selfhost structs, no Rust)"
-check_case "tests/struct_param_pass.mee" "9"
-check_case "tests/struct_return_basic.mee" "15"
-check_case "tests/struct_chain_calls.mee" "6"
+echo "[seed-roundtrip] Struct runtime suite (native selfhost structs, seed-only)"
+check_case "tests/struct_param_pass.coatl" "9"
+check_case "tests/struct_return_basic.coatl" "15"
+check_case "tests/struct_chain_calls.coatl" "6"
 
 echo "All seed-only round-trip checks passed"

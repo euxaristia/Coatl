@@ -1,9 +1,0 @@
-fn main() -> i32 {
-  let fd_ptr: i32 = 2048;
-  let path_ptr: i32 = "mee_probe.tmp";
-
-  // Probe path_open through the non-Rust backend lane.
-  // dirfd=3 targets first preopened dir under wasmtime --dir <...>.
-  let rc: i32 = __path_open(3, 0, path_ptr, 13, 1, 0, 0, 0, fd_ptr);
-  return rc;
-}

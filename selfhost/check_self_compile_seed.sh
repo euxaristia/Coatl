@@ -2,14 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BOOTSTRAP_SRC="$ROOT_DIR/selfhost/bootstrap.mee"
+BOOTSTRAP_SRC="$ROOT_DIR/selfhost/bootstrap.coatl"
 SEED_WAT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
-SEED_STDIN_WAT="/tmp/mee-bootstrap-seed-stdin.wat"
-STAGE1_RAW="/tmp/mee-bootstrap-seed-stage1.raw"
-STAGE1_WAT="/tmp/mee-bootstrap-seed-stage1.wat"
-STAGE1_STDIN_WAT="/tmp/mee-bootstrap-seed-stage1-stdin.wat"
-STAGE2_RAW="/tmp/mee-bootstrap-seed-stage2.raw"
-STAGE2_WAT="/tmp/mee-bootstrap-seed-stage2.wat"
+SEED_STDIN_WAT="/tmp/coatl-bootstrap-seed-stdin.wat"
+STAGE1_RAW="/tmp/coatl-bootstrap-seed-stage1.raw"
+STAGE1_WAT="/tmp/coatl-bootstrap-seed-stage1.wat"
+STAGE1_STDIN_WAT="/tmp/coatl-bootstrap-seed-stage1-stdin.wat"
+STAGE2_RAW="/tmp/coatl-bootstrap-seed-stage2.raw"
+STAGE2_WAT="/tmp/coatl-bootstrap-seed-stage2.wat"
 
 if [[ ! -f "$SEED_WAT" ]]; then
   echo "missing seed compiler: $SEED_WAT"
@@ -78,7 +78,7 @@ fi
 echo "[5/5] Checking convergence"
 if cmp -s "$STAGE1_WAT" "$STAGE2_WAT"; then
   sha256sum "$STAGE1_WAT" "$STAGE2_WAT"
-  echo "OK: self-compile converged (seed-only, no Rust)"
+  echo "OK: self-compile converged (seed-only)"
 else
   echo "ERROR: stage1 and stage2 outputs differ"
   diff -u "$STAGE1_WAT" "$STAGE2_WAT" | sed -n '1,80p'

@@ -6,14 +6,14 @@ This is a short, plain-language primer so you can read the self-hosting work wit
 
 The primary compiler in this repo is:
 
-- **Bootstrap compiler** (`selfhost/bootstrap.mee`): a compiler written in Mee that compiles Mee programs to WAT.
-- Non-Rust IR utility lanes in `tools/` support alternate lowering paths.
+- **Bootstrap compiler** (`selfhost/bootstrap.coatl`): a compiler written in Coatl that compiles Coatl programs to WAT.
+- Non-frontend IR utility lanes in `tools/` support alternate lowering paths.
 
 The goal of **self-hosting** is for the bootstrap compiler to compile its own source and remain the default development path.
 
 ## 2) What "WAT output" means
 
-Mee currently emits **WAT**, which is WebAssembly Text format. It's the human-readable form of WebAssembly.
+Coatl currently emits **WAT**, which is WebAssembly Text format. It's the human-readable form of WebAssembly.
 
 Example (very small WAT):
 ```
@@ -40,7 +40,7 @@ That's the Stage 5 goal: "the compiler can write its output somewhere".
 
 ## 4) The `__fd_write` intrinsic
 
-Mee doesn't directly know about WASI, so we add a special **intrinsic** function:
+Coatl doesn't directly know about WASI, so we add a special **intrinsic** function:
 
 ```
 __fd_write(fd, iov_ptr, iov_cnt, nwritten_ptr) -> i32
@@ -70,7 +70,7 @@ So:
 
 ## 6) The runtime flag (so it doesn’t always print)
 
-In `selfhost/bootstrap.mee`, we added:
+In `selfhost/bootstrap.coatl`, we added:
 
 ```
 fn emit_wat_stdout_enabled() -> i32 { return 0; }
@@ -83,10 +83,10 @@ Right now it’s **hardcoded**, so you have to edit that function if you want ou
 
 ## 7) Where to look in the code
 
-- Bootstrap compiler: `selfhost/bootstrap.mee`
+- Bootstrap compiler: `selfhost/bootstrap.coatl`
   - Output buffer and WAT generation: search for `Stage 5: WAT Text Output`
   - `out_flush()` and `compile_program_to_stdout()` are near the Stage 5 section
-- Non-Rust IR utility paths: `tools/`
+- Non-frontend IR utility paths: `tools/`
 
 ## 8) Glossary (super short)
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TMP_DIR="$(mktemp -d /tmp/mee-norust-bin-ir-no-cc.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/coatl-norust-bin-ir-no-cc.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
  prove_as_ld() {
@@ -31,7 +31,7 @@ done
 
 echo "[no-rust-bin-ir-no-cc] hello"
 HELLO_BIN="$TMP_DIR/hello.bin"
-PATH="$TMP_DIR/bin:$PATH" MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=bin --toolchain=ir -o "$HELLO_BIN"
+PATH="$TMP_DIR/bin:$PATH" COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --emit=bin --toolchain=ir -o "$HELLO_BIN"
 hello_out="$("$HELLO_BIN")"
 hello_rc=$?
 if [[ "$hello_out" != "Hello, world!" ]]; then
@@ -46,7 +46,7 @@ fi
 
 echo "[no-rust-bin-ir-no-cc] mem_test"
 MEM_BIN="$TMP_DIR/mem.bin"
-PATH="$TMP_DIR/bin:$PATH" MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/tests/mem_test.mee" --emit=bin --toolchain=ir -o "$MEM_BIN"
+PATH="$TMP_DIR/bin:$PATH" COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/mem_test.coatl" --emit=bin --toolchain=ir -o "$MEM_BIN"
 set +e
 "$MEM_BIN" >/dev/null 2>&1
 mem_rc=$?
