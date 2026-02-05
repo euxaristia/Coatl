@@ -20,6 +20,7 @@ notes:
   - --emit=asm supports toolchain=ir for subset/non-Rust lane (with Rust fallback unless MEE_NO_RUST=1)
   - --emit=ir supports toolchain=ir (subset frontend)
   - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
+  - set MEE_NO_RUST_BUILD=1 to force no-Rust behavior for branch-mode development
 EOF
 }
 
@@ -116,7 +117,7 @@ if [[ -n "$out" ]]; then
 fi
 
 rust_disabled() {
-  [[ "${MEE_NO_RUST:-0}" == "1" ]]
+  [[ "${MEE_NO_RUST:-0}" == "1" || "${MEE_NO_RUST_BUILD:-0}" == "1" ]]
 }
 
 ensure_rust_allowed() {

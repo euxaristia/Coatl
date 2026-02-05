@@ -125,6 +125,10 @@ Run no-Rust guard that fails if any path invokes `cargo`:
 ```bash
 ./tests/run_no_rust_no_cargo_guard.sh
 ```
+Run branch-mode no-Rust full coverage (uses `MEE_NO_RUST_BUILD=1` + cargo shadow guard):
+```bash
+./tests/run_no_rust_build_mode_full_coverage.sh
+```
 Run full no-Rust default CLI coverage (no explicit `--toolchain`) for WAT/IR/ASM:
 ```bash
 ./tests/run_no_rust_default_cli_full_wat_compile_coverage.sh
@@ -195,6 +199,7 @@ Strict no-Rust also guards full `--toolchain=auto` WAT compile coverage through 
 Strict no-Rust also guards against accidental Cargo invocation in no-Rust paths via `tests/run_no_rust_no_cargo_guard.sh`.
 Strict no-Rust also guards full default CLI (`./mee build ...` without explicit `--toolchain`) no-Rust coverage for WAT/IR/ASM via `tests/run_no_rust_default_cli_full_wat_compile_coverage.sh`, `tests/run_no_rust_default_cli_full_ir_emit_coverage.sh`, and `tests/run_no_rust_default_cli_full_asm_compile_coverage.sh`.
 Strict no-Rust also guards default-CLI no-Rust runtime parity between WAT and ASM via `tests/run_no_rust_default_cli_backend_parity_suite.sh`.
+Strict no-Rust also includes branch-mode coverage via `tests/run_no_rust_build_mode_full_coverage.sh`, which validates full default CLI corpus coverage under `MEE_NO_RUST_BUILD=1` and fails on any accidental Cargo invocation.
 In `--toolchain=auto` WAT mode, `./mee` now validates selfhost output as a compilable module (`wasmtime compile`) and falls back to the IR pipeline if selfhost emits invalid WAT.
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
