@@ -174,6 +174,9 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_backend_parity_suite.sh"
 echo "[strict-no-rust] no-rust-build mode full coverage"
 "$ROOT_DIR/tests/run_no_rust_build_mode_full_coverage.sh"
 
+echo "[strict-no-rust] no-rust-build mode prefers ir pipeline in auto"
+"$ROOT_DIR/tests/run_no_rust_build_mode_prefers_ir.sh"
+
 echo "[strict-no-rust] centralized Rust entrypoint guard"
 "$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
 

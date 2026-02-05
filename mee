@@ -120,6 +120,10 @@ rust_disabled() {
   [[ "${MEE_NO_RUST:-0}" == "1" || "${MEE_NO_RUST_BUILD:-0}" == "1" ]]
 }
 
+no_rust_build_mode() {
+  [[ "${MEE_NO_RUST_BUILD:-0}" == "1" ]]
+}
+
 ensure_rust_allowed() {
   if rust_disabled; then
     echo "rust-disabled mode: this operation requires Rust compiler usage" >&2
@@ -370,7 +374,7 @@ if [[ "$toolchain" == "ir" ]]; then
 fi
 
 # auto
-if [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
+if ! no_rust_build_mode && [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
   if selfhost_build_wat; then
     exit 0
   fi
