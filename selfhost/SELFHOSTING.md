@@ -23,6 +23,10 @@ This repo doesn't yet have a Mee-written compiler. This directory will host a ti
 Command sequence used:
 
 ```bash
+# Rust-free (seeded) compile path for regular use:
+./selfhost/build_with_selfhost.sh build ./examples/hello.mee -o /tmp/hello-self.wat
+wasmtime --invoke main /tmp/hello-self.wat
+
 # Full automated convergence check (recommended)
 ./selfhost/check_self_compile.sh
 

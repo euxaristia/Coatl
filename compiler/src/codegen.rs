@@ -9,6 +9,7 @@ struct FnSig {
 }
 
 const STRUCT_RET_SCRATCH_BASE: i32 = 65536;
+const X86_LINEAR_MEMORY_SIZE: i32 = 83_886_080; // 80 MiB
 
 fn is_scalar(ty: &Type) -> bool {
     matches!(ty, Type::I32 | Type::Char | Type::Bool)
@@ -435,6 +436,10 @@ pub fn emit_x86_64_asm(prog: &Program) -> String {
     let strings = collect_strings_from_program(prog);
     let struct_defs = collectstruct_defs(prog);
     let fn_sigs = collect_fn_sigs(prog);
+    let needs_fd_write = uses_fd_write(prog);
+    let needs_fd_read = uses_fd_read(prog);
+    let needs_path_open = uses_path_open(prog);
+    let needs_fd_close = uses_fd_close(prog);
     let mut out = String::new();
     out.push_str(".intel_syntax noprefix\n");
 
@@ -453,11 +458,203 @@ pub fn emit_x86_64_asm(prog: &Program) -> String {
         }
     }
 
+    out.push_str(".section .bss\n");
+    out.push_str(".align 16\n");
+    out.push_str(".globl __mee_memory\n");
+    out.push_str("__mee_memory:\n");
+    out.push_str(&format!("  .zero {}\n", X86_LINEAR_MEMORY_SIZE));
+    out.push_str(".globl __mee_mem_inited\n");
+    out.push_str("__mee_mem_inited:\n");
+    out.push_str("  .zero 4\n");
+
     out.push_str(".text\n");
+    if !strings.is_empty() {
+        emit_x86_64_memory_init_helper(&strings, &mut out);
+    }
+    emit_x86_64_intrinsic_helpers(
+        needs_fd_write,
+        needs_fd_read,
+        needs_path_open,
+        needs_fd_close,
+        &mut out,
+    );
     for f in &prog.functions {
         out.push_str(&emit_function_x86_64_with_strings(f, &strings, &struct_defs, &fn_sigs));
     }
     out
+}
+
+fn emit_x86_64_memory_init_helper(strings: &[String], out: &mut String) {
+    out.push_str(".globl __mee_init_memory\n");
+    out.push_str("__mee_init_memory:\n");
+    out.push_str("  cmp DWORD PTR [rip + __mee_mem_inited], 1\n");
+    out.push_str("  je .Lmee_mem_init_done\n");
+    let mut offset: i32 = 0;
+    for s in strings {
+        for (i, b) in s.bytes().enumerate() {
+            out.push_str(&format!(
+                "  mov BYTE PTR [rip + __mee_memory + {}], {}\n",
+                offset + i as i32,
+                b
+            ));
+        }
+        out.push_str(&format!(
+            "  mov BYTE PTR [rip + __mee_memory + {}], 0\n",
+            offset + s.len() as i32
+        ));
+        offset += s.len() as i32 + 1;
+    }
+    out.push_str("  mov DWORD PTR [rip + __mee_mem_inited], 1\n");
+    out.push_str(".Lmee_mem_init_done:\n");
+    out.push_str("  ret\n\n");
+}
+
+fn emit_x86_64_intrinsic_helpers(
+    needs_fd_write: bool,
+    needs_fd_read: bool,
+    needs_path_open: bool,
+    needs_fd_close: bool,
+    out: &mut String,
+) {
+    if needs_fd_write {
+        out.push_str(".globl __mee_fd_write\n");
+        out.push_str("__mee_fd_write:\n");
+        out.push_str("  push rbp\n  mov rbp, rsp\n");
+        out.push_str("  push rbx\n");
+        out.push_str("  push r12\n");
+        out.push_str("  push r13\n");
+        out.push_str("  lea r12, [rip + __mee_memory]\n");
+        out.push_str("  lea rsi, [r12 + rsi]\n"); // iov ptr offset -> host ptr
+        out.push_str("  lea rbx, [r12 + rcx]\n"); // nwritten ptr offset -> host ptr
+        out.push_str("  mov r13, rdx\n"); // iov_cnt
+        out.push_str("  xor r8, r8\n"); // total written
+        out.push_str("  xor r9, r9\n"); // iov index
+        out.push_str(".Lmee_fd_write_loop:\n");
+        out.push_str("  cmp r9, r13\n");
+        out.push_str("  jge .Lmee_fd_write_done\n");
+        out.push_str("  mov eax, DWORD PTR [rsi + r9*8]\n"); // buf offset (u32)
+        out.push_str("  lea r10, [r12 + rax]\n"); // offset -> host ptr
+        out.push_str("  mov r11d, DWORD PTR [rsi + r9*8 + 4]\n"); // len (u32)
+        out.push_str("  push rdi\n"); // preserve fd
+        out.push_str("  mov rsi, r10\n"); // syscall arg: buf
+        out.push_str("  mov rdx, r11\n"); // syscall arg: len
+        out.push_str("  mov rax, 1\n"); // SYS_write
+        out.push_str("  syscall\n");
+        out.push_str("  pop rdi\n");
+        out.push_str("  test rax, rax\n");
+        out.push_str("  js .Lmee_fd_write_err\n");
+        out.push_str("  add r8, rax\n");
+        out.push_str("  inc r9\n");
+        out.push_str("  jmp .Lmee_fd_write_loop\n");
+        out.push_str(".Lmee_fd_write_done:\n");
+        out.push_str("  mov DWORD PTR [rbx], r8d\n");
+        out.push_str("  xor eax, eax\n");
+        out.push_str("  pop r13\n");
+        out.push_str("  pop r12\n");
+        out.push_str("  pop rbx\n");
+        out.push_str("  mov rsp, rbp\n  pop rbp\n  ret\n");
+        out.push_str(".Lmee_fd_write_err:\n");
+        out.push_str("  mov DWORD PTR [rbx], r8d\n");
+        out.push_str("  neg eax\n"); // Linux returns -errno; intrinsic returns errno
+        out.push_str("  pop r13\n");
+        out.push_str("  pop r12\n");
+        out.push_str("  pop rbx\n");
+        out.push_str("  mov rsp, rbp\n  pop rbp\n  ret\n\n");
+    }
+
+    if needs_fd_read {
+        out.push_str(".globl __mee_fd_read\n");
+        out.push_str("__mee_fd_read:\n");
+        out.push_str("  push rbp\n  mov rbp, rsp\n");
+        out.push_str("  push rbx\n");
+        out.push_str("  push r12\n");
+        out.push_str("  push r13\n");
+        out.push_str("  lea r12, [rip + __mee_memory]\n");
+        out.push_str("  lea rsi, [r12 + rsi]\n"); // iov ptr offset -> host ptr
+        out.push_str("  lea rbx, [r12 + rcx]\n"); // nread ptr offset -> host ptr
+        out.push_str("  mov r13, rdx\n"); // iov_cnt
+        out.push_str("  xor r8, r8\n"); // total read
+        out.push_str("  xor r9, r9\n"); // iov index
+        out.push_str(".Lmee_fd_read_loop:\n");
+        out.push_str("  cmp r9, r13\n");
+        out.push_str("  jge .Lmee_fd_read_done\n");
+        out.push_str("  mov eax, DWORD PTR [rsi + r9*8]\n"); // buf offset (u32)
+        out.push_str("  lea r10, [r12 + rax]\n"); // offset -> host ptr
+        out.push_str("  mov r11d, DWORD PTR [rsi + r9*8 + 4]\n"); // len (u32)
+        out.push_str("  push rdi\n"); // preserve fd
+        out.push_str("  mov rsi, r10\n"); // syscall arg: buf
+        out.push_str("  mov rdx, r11\n"); // syscall arg: len
+        out.push_str("  mov rax, 0\n"); // SYS_read
+        out.push_str("  syscall\n");
+        out.push_str("  pop rdi\n");
+        out.push_str("  test rax, rax\n");
+        out.push_str("  js .Lmee_fd_read_err\n");
+        out.push_str("  add r8, rax\n");
+        out.push_str("  cmp rax, 0\n");
+        out.push_str("  je .Lmee_fd_read_done\n");
+        out.push_str("  inc r9\n");
+        out.push_str("  jmp .Lmee_fd_read_loop\n");
+        out.push_str(".Lmee_fd_read_done:\n");
+        out.push_str("  mov DWORD PTR [rbx], r8d\n");
+        out.push_str("  xor eax, eax\n");
+        out.push_str("  pop r13\n");
+        out.push_str("  pop r12\n");
+        out.push_str("  pop rbx\n");
+        out.push_str("  mov rsp, rbp\n  pop rbp\n  ret\n");
+        out.push_str(".Lmee_fd_read_err:\n");
+        out.push_str("  mov DWORD PTR [rbx], r8d\n");
+        out.push_str("  neg eax\n"); // Linux returns -errno; intrinsic returns errno
+        out.push_str("  pop r13\n");
+        out.push_str("  pop r12\n");
+        out.push_str("  pop rbx\n");
+        out.push_str("  mov rsp, rbp\n  pop rbp\n  ret\n\n");
+    }
+
+    if needs_path_open {
+        out.push_str(".globl __mee_path_open\n");
+        out.push_str("__mee_path_open:\n");
+        out.push_str("  push rbp\n  mov rbp, rsp\n");
+        out.push_str("  push r12\n");
+        out.push_str("  lea r11, [rip + __mee_memory]\n");
+        out.push_str("  mov r12, QWORD PTR [rbp + 32]\n"); // opened_fd_ptr offset (9th arg)
+        out.push_str("  lea r12, [r11 + r12]\n");
+        out.push_str("  lea r10, [r11 + rdx]\n"); // path offset -> host ptr
+        out.push_str("  mov eax, 257\n"); // SYS_openat
+        out.push_str("  mov rsi, r10\n"); // pathname
+        out.push_str("  cmp r8d, 0\n"); // WASI oflags
+        out.push_str("  jne .Lmee_open_write\n");
+        out.push_str("  mov edx, 0\n"); // O_RDONLY
+        out.push_str("  jmp .Lmee_open_flags_done\n");
+        out.push_str(".Lmee_open_write:\n");
+        out.push_str("  mov edx, 577\n"); // O_WRONLY | O_CREAT | O_TRUNC
+        out.push_str(".Lmee_open_flags_done:\n");
+        out.push_str("  mov r10d, 438\n"); // mode 0666
+        out.push_str("  syscall\n");
+        out.push_str("  test rax, rax\n");
+        out.push_str("  js .Lmee_open_err\n");
+        out.push_str("  mov DWORD PTR [r12], eax\n");
+        out.push_str("  xor eax, eax\n");
+        out.push_str("  pop r12\n");
+        out.push_str("  mov rsp, rbp\n  pop rbp\n  ret\n");
+        out.push_str(".Lmee_open_err:\n");
+        out.push_str("  neg eax\n"); // Linux returns -errno; intrinsic returns errno
+        out.push_str("  pop r12\n");
+        out.push_str("  mov rsp, rbp\n  pop rbp\n  ret\n\n");
+    }
+
+    if needs_fd_close {
+        out.push_str(".globl __mee_fd_close\n");
+        out.push_str("__mee_fd_close:\n");
+        out.push_str("  mov rax, 3\n"); // SYS_close
+        out.push_str("  syscall\n");
+        out.push_str("  test rax, rax\n");
+        out.push_str("  js .Lmee_close_err\n");
+        out.push_str("  xor eax, eax\n");
+        out.push_str("  ret\n");
+        out.push_str(".Lmee_close_err:\n");
+        out.push_str("  neg eax\n"); // Linux returns -errno; intrinsic returns errno
+        out.push_str("  ret\n\n");
+    }
 }
 
 fn collect_locals_from_block(
@@ -691,6 +888,9 @@ fn emit_function_x86_64_with_strings(
                 out.push_str(&format!("  mov QWORD PTR [rbp{}], {}\n", fmt_offset(*off), arg_regs[i]));
             }
         }
+    }
+    if !strings.is_empty() {
+        out.push_str("  call __mee_init_memory\n");
     }
 
     let ret_label = format!(".Lreturn_{}", f.name);
@@ -1593,8 +1793,8 @@ fn emit_expr_x86_64_with_strings(
             out.push_str(&format!("  mov rax, {}\n", n));
         }
         Expr::StringLit(s) => {
-             if let Some(idx) = strings.iter().position(|x| x == s) {
-                 out.push_str(&format!("  lea rax, [rip + .Lstr_{}]\n", idx));
+             if let Some(offset) = x86_string_offset(strings, s) {
+                 out.push_str(&format!("  mov rax, {}\n", offset));
             } else {
                  out.push_str("  mov rax, 0\n");
             }
@@ -1668,8 +1868,10 @@ fn emit_expr_x86_64_with_strings(
                     panic!("__mem_load expects 1 argument (address)");
                 }
                 emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
-                // rax has address, load 32-bit value and sign-extend to 64-bit
-                out.push_str("  movsxd rax, DWORD PTR [rax]\n");
+                // rax has linear-memory offset, load 32-bit value and sign-extend
+                out.push_str("  lea rcx, [rip + __mee_memory]\n");
+                out.push_str("  add rcx, rax\n");
+                out.push_str("  movsxd rax, DWORD PTR [rcx]\n");
                 return;
             }
             if callee == "__mem_load8" {
@@ -1677,8 +1879,10 @@ fn emit_expr_x86_64_with_strings(
                     panic!("__mem_load8 expects 1 argument (address)");
                 }
                 emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
-                // rax has address, load byte and zero-extend
-                out.push_str("  movzx rax, BYTE PTR [rax]\n");
+                // rax has linear-memory offset, load byte and zero-extend
+                out.push_str("  lea rcx, [rip + __mee_memory]\n");
+                out.push_str("  add rcx, rax\n");
+                out.push_str("  movzx rax, BYTE PTR [rcx]\n");
                 return;
             }
             if callee == "__mem_store" {
@@ -1689,8 +1893,10 @@ fn emit_expr_x86_64_with_strings(
                 out.push_str("  push rax\n");
                 emit_expr_x86_64_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, strings, out);
                 out.push_str("  pop rcx\n");
-                // rcx has address, rax has value
-                out.push_str("  mov DWORD PTR [rcx], eax\n");
+                // rcx has linear-memory offset, rax has value
+                out.push_str("  lea rdx, [rip + __mee_memory]\n");
+                out.push_str("  add rdx, rcx\n");
+                out.push_str("  mov DWORD PTR [rdx], eax\n");
                 out.push_str("  xor rax, rax\n"); // Return 0
                 return;
             }
@@ -1702,22 +1908,76 @@ fn emit_expr_x86_64_with_strings(
                 out.push_str("  push rax\n");
                 emit_expr_x86_64_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, strings, out);
                 out.push_str("  pop rcx\n");
-                // rcx has address, rax has value
-                out.push_str("  mov BYTE PTR [rcx], al\n");
+                // rcx has linear-memory offset, rax has value
+                out.push_str("  lea rdx, [rip + __mee_memory]\n");
+                out.push_str("  add rdx, rcx\n");
+                out.push_str("  mov BYTE PTR [rdx], al\n");
                 out.push_str("  xor rax, rax\n"); // Return 0
                 return;
             }
             if callee == "__fd_write" {
-                panic!("__fd_write is not supported in the x86_64 backend yet");
+                if args.len() != 4 {
+                    panic!("__fd_write expects 4 arguments (fd, iov_ptr, iov_cnt, nwritten_ptr)");
+                }
+                emit_expr_x86_64_with_strings(&args[3], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rcx, rax\n");
+                emit_expr_x86_64_with_strings(&args[2], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rdx, rax\n");
+                emit_expr_x86_64_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rsi, rax\n");
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rdi, rax\n");
+                out.push_str("  call __mee_fd_write\n");
+                return;
             }
             if callee == "__fd_read" {
-                panic!("__fd_read is not supported in the x86_64 backend yet");
+                if args.len() != 4 {
+                    panic!("__fd_read expects 4 arguments (fd, iov_ptr, iov_cnt, nread_ptr)");
+                }
+                emit_expr_x86_64_with_strings(&args[3], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rcx, rax\n");
+                emit_expr_x86_64_with_strings(&args[2], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rdx, rax\n");
+                emit_expr_x86_64_with_strings(&args[1], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rsi, rax\n");
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rdi, rax\n");
+                out.push_str("  call __mee_fd_read\n");
+                return;
             }
             if callee == "__path_open" {
-                panic!("__path_open is not supported in the x86_64 backend yet");
+                if args.len() != 9 {
+                    panic!("__path_open expects 9 arguments (dirfd, dirflags, path_ptr, path_len, oflags, rights_base, rights_inheriting, fdflags, opened_fd_ptr)");
+                }
+                let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+                let stack_count = args.len() - arg_regs.len();
+                let needs_pad = stack_count % 2 == 1;
+                if needs_pad {
+                    out.push_str("  sub rsp, 8\n");
+                }
+                for i in (arg_regs.len()..args.len()).rev() {
+                    emit_expr_x86_64_with_strings(&args[i], locals, var_types, struct_defs, fn_sigs, strings, out);
+                    out.push_str("  push rax\n");
+                }
+                for i in (0..arg_regs.len()).rev() {
+                    emit_expr_x86_64_with_strings(&args[i], locals, var_types, struct_defs, fn_sigs, strings, out);
+                    out.push_str(&format!("  mov {}, rax\n", arg_regs[i]));
+                }
+                out.push_str("  call __mee_path_open\n");
+                let cleanup = (stack_count as i32) * 8 + if needs_pad { 8 } else { 0 };
+                if cleanup > 0 {
+                    out.push_str(&format!("  add rsp, {}\n", cleanup));
+                }
+                return;
             }
             if callee == "__fd_close" {
-                panic!("__fd_close is not supported in the x86_64 backend yet");
+                if args.len() != 1 {
+                    panic!("__fd_close expects 1 argument (fd)");
+                }
+                emit_expr_x86_64_with_strings(&args[0], locals, var_types, struct_defs, fn_sigs, strings, out);
+                out.push_str("  mov rdi, rax\n");
+                out.push_str("  call __mee_fd_close\n");
+                return;
             }
             let flat_args: Vec<Expr> = if let Some(sig) = fn_sigs.get(callee) {
                 if matches!(sig.ret, Type::Struct(_)) {
@@ -1819,4 +2079,15 @@ fn fmt_offset(off: i32) -> String {
     } else {
         String::new()
     }
+}
+
+fn x86_string_offset(strings: &[String], s: &str) -> Option<i32> {
+    let mut offset: i32 = 0;
+    for item in strings {
+        if item == s {
+            return Some(offset);
+        }
+        offset += item.len() as i32 + 1;
+    }
+    None
 }

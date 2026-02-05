@@ -1,0 +1,14 @@
+fn main() -> i32 {
+  let buf: i32 = 12288;
+  let iov: i32 = 12300;
+  let nread: i32 = 12308;
+
+  __mem_store(iov, buf);
+  __mem_store(iov + 4, 4);
+  __mem_store(nread, 0);
+
+  let rc: i32 = __fd_read(0, iov, 1, nread);
+  if (rc != 0) { return 9; }
+
+  return __mem_load(nread);
+}

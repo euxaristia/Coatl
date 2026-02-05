@@ -35,6 +35,11 @@ Write output to a file:
 cargo run --quiet -- build ../examples/hello.mee --emit=wat -o /tmp/hello.wat
 ```
 
+Run the x86_64 runtime suite (Linux):
+```bash
+./tests/run_x86_runtime_suite.sh
+```
+
 ## Hello World (Mee)
 
 ```mee
@@ -70,7 +75,8 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 ## Limitations (Current)
 
 - No binary WASM emitter yet (WAT only).
-- x86_64 backend has no WASI/file I/O support.
+- x86_64 backend supports Mee I/O intrinsics (`__fd_write`, `__fd_read`, `__path_open`, `__fd_close`) via Linux syscalls.
+- x86_64 runtime helper path is Linux-oriented today; AArch64 backend is not implemented yet.
 - No ownership/borrow checker, enums, or pattern matching yet.
 - Minimal type system (i32/bool/char + string literals as pointers).
 - Bootstrap (Mee-in-Mee) compiler does not yet implement structs.
@@ -78,6 +84,17 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 ## Self-Hosting
 
 The bootstrap compiler lives in `selfhost/bootstrap.mee`. Self-hosting progress and verification steps are tracked in `selfhost/SELFHOSTING.md`.
+
+Rust-free (seeded) compile path:
+```bash
+./selfhost/build_with_selfhost.sh build ./examples/hello.mee -o /tmp/hello-self.wat
+wasmtime --invoke main /tmp/hello-self.wat
+```
+
+Refresh the committed seed (uses Rust once to regenerate):
+```bash
+./selfhost/update_seed.sh
+```
 
 ## Roadmap
 

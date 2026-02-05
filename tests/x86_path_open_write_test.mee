@@ -1,0 +1,22 @@
+fn main() -> i32 {
+  let fd_ptr: i32 = 4096;
+  let path_ptr: i32 = "/tmp/mee_x86_io_test.txt";
+  let rc: i32 = __path_open(0, 0, path_ptr, 24, 1, 0, 0, 0, fd_ptr);
+  if (rc != 0) { return 1; }
+
+  let fd: i32 = __mem_load(fd_ptr);
+  let iov: i32 = 8192;
+  let nwritten: i32 = 8200;
+  let msg: i32 = "OK\n";
+
+  __mem_store(iov, msg);
+  __mem_store(iov + 4, 3);
+  __mem_store(nwritten, 0);
+
+  let wrc: i32 = __fd_write(fd, iov, 1, nwritten);
+  let crc: i32 = __fd_close(fd);
+  if (wrc != 0) { return 2; }
+  if (crc != 0) { return 5; }
+
+  return __mem_load(nwritten);
+}
