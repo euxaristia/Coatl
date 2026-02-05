@@ -73,4 +73,29 @@ ior_rc=$?
 set -e
 assert_rc 4 "$ior_rc" "x86_fd_read_test"
 
+echo "[x86-suite] struct ABI"
+SP_BIN="$TMP_DIR/struct_param_pass.bin"
+build_bin "$ROOT_DIR/tests/struct_param_pass.mee" "$SP_BIN"
+set +e
+"$SP_BIN" >/dev/null 2>&1
+sp_rc=$?
+set -e
+assert_rc 9 "$sp_rc" "struct_param_pass"
+
+SR_BIN="$TMP_DIR/struct_return_basic.bin"
+build_bin "$ROOT_DIR/tests/struct_return_basic.mee" "$SR_BIN"
+set +e
+"$SR_BIN" >/dev/null 2>&1
+sr_rc=$?
+set -e
+assert_rc 15 "$sr_rc" "struct_return_basic"
+
+SC_BIN="$TMP_DIR/struct_chain_calls.bin"
+build_bin "$ROOT_DIR/tests/struct_chain_calls.mee" "$SC_BIN"
+set +e
+"$SC_BIN" >/dev/null 2>&1
+sc_rc=$?
+set -e
+assert_rc 6 "$sc_rc" "struct_chain_calls"
+
 echo "x86 runtime suite passed"
