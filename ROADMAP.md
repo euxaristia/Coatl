@@ -38,6 +38,7 @@ Last updated: 2026-02-05
 - AArch64 backend
 - Improve x86_64 backend coverage (feature parity where feasible; struct ABI runtime coverage now in suite)
 - Grow `--emit=ir` into a stable non-Rust backend interface (current extraction seam in place)
+- External non-Rust `lower-ir` -> WAT lane established (subset), expand coverage incrementally
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

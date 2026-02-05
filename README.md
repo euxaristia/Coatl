@@ -59,6 +59,11 @@ Check Rust compile-entrypoint centralization:
 ./tests/check_rust_entrypoint_centralization.sh
 ```
 
+Lower IR to WAT via external (non-Rust) backend lane:
+```bash
+./mee lower-ir /tmp/prog.ir -o /tmp/prog.wat
+```
+
 ## Hello World (Mee)
 
 ```mee

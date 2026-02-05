@@ -40,6 +40,9 @@ if ! grep -Fq "rust-disabled mode" "$TMP_DIR/ir.err"; then
   exit 1
 fi
 
+echo "[strict-no-rust] non-Rust IR lowerer lane"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
+
 echo "[strict-no-rust] centralized Rust entrypoint guard"
 "$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
 

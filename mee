@@ -10,6 +10,7 @@ usage() {
   cat <<'EOF'
 usage:
   ./mee build <input.mee> [--emit=wat|asm|ir] [-o <output>] [--toolchain=auto|selfhost|rust] [--compiler <seed.wat>]
+  ./mee lower-ir <input.ir> -o <output.wat>
 
 notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
@@ -24,6 +25,35 @@ if [[ $# -lt 2 ]]; then
 fi
 
 cmd="$1"
+if [[ "$cmd" == "lower-ir" ]]; then
+  input_ir="$2"
+  shift 2
+  out_wat=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -o)
+        out_wat="${2:-}"
+        shift 2
+        ;;
+      *)
+        echo "unknown arg: $1"
+        usage
+        exit 1
+        ;;
+    esac
+  done
+  if [[ -z "$out_wat" ]]; then
+    echo "missing -o <output.wat>"
+    exit 1
+  fi
+  if [[ ! -f "$input_ir" ]]; then
+    echo "input IR file not found: $input_ir"
+    exit 1
+  fi
+  "$ROOT_DIR/tools/ir_to_wat.py" "$input_ir" -o "$out_wat"
+  exit 0
+fi
+
 if [[ "$cmd" != "build" ]]; then
   usage
   exit 1
