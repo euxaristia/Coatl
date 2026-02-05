@@ -24,9 +24,14 @@ Run the WAT with wasmtime:
 wasmtime --invoke main /tmp/hello.wat
 ```
 
-Build x86_64 assembly (currently Rust-backed):
+Build x86_64 assembly (Rust backend):
 ```bash
 ./mee build ./examples/hello.mee --emit=asm --toolchain=rust -o /tmp/hello.s
+```
+
+Build x86_64 assembly via non-Rust IR subset backend:
+```bash
+./mee build ./examples/hello.mee --emit=asm --toolchain=ir -o /tmp/hello-ir.s
 ```
 
 Emit backend-neutral IR (S-expression form, currently Rust-backed):
@@ -62,6 +67,10 @@ Run Rust-frontend + external-backend (`toolchain=ir`) smoke suite:
 Run no-Rust subset frontend + external backend suite:
 ```bash
 ./tests/run_ir_subset_backend_suite.sh
+```
+Run no-Rust subset x86_64 asm smoke suite:
+```bash
+./tests/run_ir_x86_subset_asm_smoke.sh
 ```
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
@@ -152,7 +161,7 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 
 - No binary WASM emitter yet (WAT only).
 - `--emit=ir` is a typed AST/IR seam intended for external (non-Rust) backend work; native backend production flow is still Rust-owned today.
-- `MEE_NO_RUST=1` forbids Rust compiler usage/fallback in `./mee`; `--emit=asm` fails, while `--emit=ir` works for the current subset frontend coverage.
+- `MEE_NO_RUST=1` forbids Rust compiler usage/fallback in `./mee`; `--emit=asm --toolchain=ir` and `--emit=ir --toolchain=ir` work for the current subset coverage, while `--emit=asm --toolchain=rust` still fails.
 - Strict no-Rust `--toolchain=ir` coverage now includes scalar/control-flow/I/O plus basic struct params/locals/returns paths.
 - x86_64 backend supports Mee I/O intrinsics (`__fd_write`, `__fd_read`, `__path_open`, `__fd_close`) via Linux syscalls.
 - x86_64 runtime suite covers scalar, memory, I/O, and struct ABI cases.

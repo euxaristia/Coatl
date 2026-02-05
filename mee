@@ -6,6 +6,7 @@ SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
 RUST_COMPILER_DIR="$ROOT_DIR/compiler"
 SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
 SUBSET_FRONTEND="$ROOT_DIR/tools/mee_subset_to_ir.py"
+IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.py"
 
 usage() {
   cat <<'EOF'
@@ -16,7 +17,8 @@ usage:
 notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
   - toolchain=ir uses IR + external non-Rust lowerer; frontend is Rust by default, subset non-Rust in strict mode
-  - --emit=asm requires Rust toolchain; --emit=ir supports toolchain=ir (subset frontend)
+  - --emit=asm supports toolchain=ir for subset/non-Rust lane (with Rust fallback unless MEE_NO_RUST=1)
+  - --emit=ir supports toolchain=ir (subset frontend)
   - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
 EOF
 }
@@ -221,11 +223,85 @@ subset_emit_ir() {
   return 0
 }
 
+ir_pipeline_build_asm() {
+  local tmp_ir
+  local tmp_asm
+  local subset_err
+  local lower_err
+  tmp_ir="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.ir)"
+  tmp_asm="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.s)"
+  subset_err="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.subset.err)"
+  lower_err="$(mktemp /tmp/mee-ir-asm-pipeline.XXXXXX.lower.err)"
+  if [[ -x "$SUBSET_FRONTEND" ]]; then
+    if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
+      if "$IR_TO_X86_ASM" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
+        if [[ -n "$out_abs" ]]; then
+          cp "$tmp_asm" "$out_abs"
+        else
+          cat "$tmp_asm"
+        fi
+        rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
+        return 0
+      fi
+      if rust_disabled; then
+        echo "subset frontend produced unsupported IR for asm lowerer and Rust is disabled" >&2
+        rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
+        return 1
+      fi
+      echo "warning: subset asm lowering failed, trying Rust frontend in asm pipeline" >&2
+    fi
+  fi
+
+  if rust_disabled; then
+    echo "subset frontend failed for --emit=asm --toolchain=ir and Rust is disabled" >&2
+    rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
+    return 1
+  fi
+
+  if ! (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir"); then
+    echo "rust frontend failed for --emit=asm --toolchain=ir" >&2
+    rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
+    return 1
+  fi
+
+  if "$IR_TO_X86_ASM" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
+    if [[ -n "$out_abs" ]]; then
+      cp "$tmp_asm" "$out_abs"
+    else
+      cat "$tmp_asm"
+    fi
+    rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
+    return 0
+  fi
+
+  echo "warning: rust IR could not be lowered by external asm backend, falling back to rust asm backend" >&2
+  rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
+  if rust_build; then
+    return 0
+  fi
+  return 1
+}
+
 if [[ "$emit" != "wat" ]]; then
   if [[ "$emit" == "asm" ]]; then
-    if [[ "$toolchain" == "selfhost" || "$toolchain" == "ir" ]]; then
+    if [[ "$toolchain" == "selfhost" ]]; then
       echo "--emit=$emit is not supported by toolchain=$toolchain"
       exit 1
+    fi
+    if [[ "$toolchain" == "ir" ]]; then
+      ir_pipeline_build_asm
+      exit 0
+    fi
+    if [[ "$toolchain" == "auto" ]]; then
+      if ir_pipeline_build_asm; then
+        exit 0
+      fi
+      if rust_disabled; then
+        echo "ir asm pipeline failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
+        exit 1
+      fi
+      rust_build
+      exit 0
     fi
     rust_build
     exit 0

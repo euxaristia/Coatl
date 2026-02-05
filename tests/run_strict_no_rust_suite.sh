@@ -13,16 +13,29 @@ MEE_NO_RUST=1 "$ROOT_DIR/selfhost/run_no_rust_ci.sh"
 
 echo "[strict-no-rust] rust-backed emits must fail"
 set +e
-MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=asm -o "$TMP_DIR/hello.s" >"$TMP_DIR/asm.out" 2>"$TMP_DIR/asm.err"
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=asm --toolchain=rust -o "$TMP_DIR/hello.s" >"$TMP_DIR/asm.out" 2>"$TMP_DIR/asm.err"
 asm_rc=$?
 set -e
 if [[ "$asm_rc" -eq 0 ]]; then
-  echo "[FAIL] expected --emit=asm to fail in strict no-rust mode"
+  echo "[FAIL] expected --emit=asm --toolchain=rust to fail in strict no-rust mode"
   exit 1
 fi
 if ! grep -Fq "rust-disabled mode" "$TMP_DIR/asm.err"; then
-  echo "[FAIL] missing rust-disabled error for --emit=asm"
+  echo "[FAIL] missing rust-disabled error for --emit=asm --toolchain=rust"
   cat "$TMP_DIR/asm.err"
+  exit 1
+fi
+
+echo "[strict-no-rust] emit=asm via toolchain=ir (subset asm backend)"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_x86_subset_asm_smoke.sh"
+
+echo "[strict-no-rust] emit=asm via toolchain=auto (subset asm fallback)"
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=asm --toolchain=auto -o "$TMP_DIR/hello-auto.s"
+gcc -no-pie "$TMP_DIR/hello-auto.s" -o "$TMP_DIR/hello-auto"
+auto_asm_out="$("$TMP_DIR/hello-auto")"
+if ! printf '%s\n' "$auto_asm_out" | grep -Fq "Hello, world!"; then
+  echo "[FAIL] auto asm output missing Hello, world!"
+  printf '%s\n' "$auto_asm_out"
   exit 1
 fi
 

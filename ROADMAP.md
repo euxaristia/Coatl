@@ -47,6 +47,7 @@ Last updated: 2026-02-05
 - Strict suite now verifies auto-mode no-Rust fallback across multiple runtime cases (not just hello)
 - `--toolchain=ir` now tries subset non-Rust frontend first and falls back to Rust frontend only when needed
 - Strict no-Rust subset frontend now also supports `./mee build --emit=ir --toolchain=ir` for supported programs
+- `--emit=asm --toolchain=ir` now has a non-Rust subset lane (`tools/ir_to_x86_64_asm.py`) with Rust fallback when allowed
 - Strict no-Rust subset coverage now includes basic struct params/locals/returns paths in `--toolchain=ir` (`tests/struct_param_pass.mee`, `tests/struct_return_basic.mee`, `tests/struct_chain_calls.mee`)
 - Strict no-Rust subset coverage now includes struct field mutation lowering (`tests/struct_field_mutation_subset.mee`)
 - Strict no-Rust subset coverage now includes nested struct-return calls in arg position (`tests/struct_nested_arg_subset.mee`)
