@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-ir-x86-subset-asm.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+TOOLCHAIN="${MEE_ASM_TOOLCHAIN:-ir}"
 
 if ! command -v gcc >/dev/null 2>&1; then
   echo "gcc is required but not found in PATH"
@@ -14,7 +15,7 @@ build_bin() {
   local src="$1"
   local bin="$2"
   local asm="$TMP_DIR/$(basename "$bin").s"
-  "$ROOT_DIR/mee" build "$src" --emit=asm --toolchain=ir -o "$asm"
+  "$ROOT_DIR/mee" build "$src" --emit=asm --toolchain="$TOOLCHAIN" -o "$asm"
   gcc -no-pie "$asm" -o "$bin"
 }
 

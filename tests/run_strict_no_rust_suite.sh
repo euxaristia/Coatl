@@ -30,14 +30,7 @@ echo "[strict-no-rust] emit=asm via toolchain=ir (subset asm backend)"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_x86_subset_asm_smoke.sh"
 
 echo "[strict-no-rust] emit=asm via toolchain=auto (subset asm fallback)"
-MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=asm --toolchain=auto -o "$TMP_DIR/hello-auto.s"
-gcc -no-pie "$TMP_DIR/hello-auto.s" -o "$TMP_DIR/hello-auto"
-auto_asm_out="$("$TMP_DIR/hello-auto")"
-if ! printf '%s\n' "$auto_asm_out" | grep -Fq "Hello, world!"; then
-  echo "[FAIL] auto asm output missing Hello, world!"
-  printf '%s\n' "$auto_asm_out"
-  exit 1
-fi
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_auto_no_rust_asm_suite.sh"
 
 set +e
 MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=ir --toolchain=rust -o "$TMP_DIR/hello.ir" >"$TMP_DIR/ir.out" 2>"$TMP_DIR/ir.err"
