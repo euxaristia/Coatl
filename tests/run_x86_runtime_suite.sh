@@ -6,6 +6,11 @@ TMP_DIR="$(mktemp -d /tmp/mee-x86-suite.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 TOOLCHAIN="${MEE_X86_TOOLCHAIN:-rust}"
 
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "x86 runtime suite currently supports Linux only"
+  exit 1
+fi
+
 build_bin() {
   local src="$1"
   local out="$2"
