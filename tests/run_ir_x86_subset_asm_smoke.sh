@@ -50,6 +50,15 @@ mem_rc=$?
 set -e
 assert_rc 142 "$mem_rc" "mem_test"
 
+echo "[ir-x86-subset-asm] byte_test"
+BYTE_BIN="$TMP_DIR/byte"
+build_bin "$ROOT_DIR/tests/byte_test.mee" "$BYTE_BIN"
+set +e
+"$BYTE_BIN"
+byte_rc=$?
+set -e
+assert_rc 133 "$byte_rc" "byte_test"
+
 echo "[ir-x86-subset-asm] array_sim"
 ARR_BIN="$TMP_DIR/array"
 build_bin "$ROOT_DIR/tests/array_sim.mee" "$ARR_BIN"
@@ -76,6 +85,24 @@ set +e
 struct_rc=$?
 set -e
 assert_rc 6 "$struct_rc" "struct_chain_calls"
+
+echo "[ir-x86-subset-asm] struct param pass"
+SPP_BIN="$TMP_DIR/struct-param"
+build_bin "$ROOT_DIR/tests/struct_param_pass.mee" "$SPP_BIN"
+set +e
+"$SPP_BIN"
+spp_rc=$?
+set -e
+assert_rc 9 "$spp_rc" "struct_param_pass"
+
+echo "[ir-x86-subset-asm] struct field mutation"
+SFM_BIN="$TMP_DIR/struct-mutate"
+build_bin "$ROOT_DIR/tests/struct_field_mutation_subset.mee" "$SFM_BIN"
+set +e
+"$SFM_BIN"
+sfm_rc=$?
+set -e
+assert_rc 33 "$sfm_rc" "struct_field_mutation_subset"
 
 echo "[ir-x86-subset-asm] struct nested arg"
 NEST_BIN="$TMP_DIR/struct-nested"
