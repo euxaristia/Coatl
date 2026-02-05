@@ -91,9 +91,20 @@ Rust-free (seeded) compile path:
 wasmtime --invoke main /tmp/hello-self.wat
 ```
 
-Refresh the committed seed (uses Rust once to regenerate):
+Rust-free convergence + runtime checks:
+```bash
+./selfhost/check_self_compile_seed.sh
+./selfhost/run_selfhost_runtime_suite.sh
+```
+
+Refresh the committed seed (default: no Rust):
 ```bash
 ./selfhost/update_seed.sh
+```
+
+Refresh seed using Rust-assisted trust chain (optional):
+```bash
+./selfhost/update_seed.sh --with-rust
 ```
 
 ## Roadmap
