@@ -75,6 +75,9 @@ if ! printf '%s\n' "$auto_out" | grep -Fq "Hello, world!"; then
   exit 1
 fi
 
+echo "[strict-no-rust] auto mode fallback suite"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_auto_no_rust_fallback_suite.sh"
+
 echo "[strict-no-rust] non-Rust IR lowerer lane"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
 

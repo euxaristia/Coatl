@@ -44,6 +44,7 @@ Last updated: 2026-02-05
 - Strict no-Rust subset `toolchain=ir` currently covers `hello`, `mem_test`, `byte_test`, `array_sim`, control-flow subset tests, and `__fd_read` / `__path_open` / `__fd_write` / `__fd_close` probes
 - `--toolchain=auto` now attempts non-Rust IR pipeline fallback before Rust backend fallback
 - `--emit=ir --toolchain=auto` now attempts subset non-Rust frontend before Rust fallback
+- Strict suite now verifies auto-mode no-Rust fallback across multiple runtime cases (not just hello)
 - Strict no-Rust subset frontend now also supports `./mee build --emit=ir --toolchain=ir` for supported programs
 
 ### v0.4 (self-hosting)

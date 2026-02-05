@@ -80,6 +80,10 @@ Run no-Rust subset frontend IR emission smoke:
 ```bash
 ./tests/run_ir_subset_frontend_smoke.sh
 ```
+Run no-Rust auto-fallback suite (forces selfhost failure, expects IR fallback):
+```bash
+./tests/run_auto_no_rust_fallback_suite.sh
+```
 
 Check Rust compile-entrypoint centralization:
 ```bash
