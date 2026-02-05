@@ -40,6 +40,9 @@ if ! grep -Fq "rust-disabled mode" "$TMP_DIR/ir.err"; then
   exit 1
 fi
 
+echo "[strict-no-rust] emit=ir via toolchain=ir (subset frontend)"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_frontend_smoke.sh"
+
 echo "[strict-no-rust] toolchain=ir via non-Rust subset frontend"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_backend_suite.sh"
 

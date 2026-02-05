@@ -16,7 +16,7 @@ usage:
 notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
   - toolchain=ir uses IR + external non-Rust lowerer; frontend is Rust by default, subset non-Rust in strict mode
-  - --emit=asm and --emit=ir currently require the Rust compiler toolchain
+  - --emit=asm requires Rust toolchain; --emit=ir supports toolchain=ir (subset frontend)
   - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
 EOF
 }
@@ -181,8 +181,38 @@ ir_pipeline_build_wat() {
   rm -f "$tmp_ir" "$tmp_wat"
 }
 
+subset_emit_ir() {
+  if [[ ! -x "$SUBSET_FRONTEND" ]]; then
+    echo "subset frontend missing: $SUBSET_FRONTEND" >&2
+    exit 1
+  fi
+  if [[ -n "$out_abs" ]]; then
+    "$SUBSET_FRONTEND" "$input_abs" -o "$out_abs"
+  else
+    local tmp_ir
+    tmp_ir="$(mktemp /tmp/mee-subset-ir.XXXXXX.ir)"
+    "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"
+    cat "$tmp_ir"
+    rm -f "$tmp_ir"
+  fi
+}
+
 if [[ "$emit" != "wat" ]]; then
-  if [[ "$toolchain" == "selfhost" || "$toolchain" == "ir" ]]; then
+  if [[ "$emit" == "asm" ]]; then
+    if [[ "$toolchain" == "selfhost" || "$toolchain" == "ir" ]]; then
+      echo "--emit=$emit is not supported by toolchain=$toolchain"
+      exit 1
+    fi
+    rust_build
+    exit 0
+  fi
+
+  # emit=ir
+  if [[ "$toolchain" == "ir" ]]; then
+    subset_emit_ir
+    exit 0
+  fi
+  if [[ "$toolchain" == "selfhost" ]]; then
     echo "--emit=$emit is not supported by toolchain=$toolchain"
     exit 1
   fi

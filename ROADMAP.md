@@ -42,6 +42,7 @@ Last updated: 2026-02-05
 - `./mee --toolchain=ir` now exercises Rust frontend + non-Rust WAT backend path for supported programs
 - `./mee --toolchain=ir` can run in strict no-Rust mode via a non-Rust subset frontend (currently limited coverage)
 - Strict no-Rust subset `toolchain=ir` currently covers `hello`, `mem_test`, `byte_test`, and `array_sim`
+- Strict no-Rust subset frontend now also supports `./mee build --emit=ir --toolchain=ir` for supported programs
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

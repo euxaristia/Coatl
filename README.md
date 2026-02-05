@@ -64,6 +64,11 @@ Run no-Rust subset frontend + external backend suite:
 ./tests/run_ir_subset_backend_suite.sh
 ```
 
+Run no-Rust subset frontend IR emission smoke:
+```bash
+./tests/run_ir_subset_frontend_smoke.sh
+```
+
 Check Rust compile-entrypoint centralization:
 ```bash
 ./tests/check_rust_entrypoint_centralization.sh
@@ -82,6 +87,10 @@ Compile Mee source with Rust frontend + external non-Rust WAT backend:
 In strict no-Rust mode, `--toolchain=ir` uses a non-Rust subset frontend for supported programs:
 ```bash
 MEE_NO_RUST=1 ./mee build ./examples/hello.mee --emit=wat --toolchain=ir -o /tmp/hello-ir-norust.wat
+```
+And for IR output itself:
+```bash
+MEE_NO_RUST=1 ./mee build ./examples/hello.mee --emit=ir --toolchain=ir -o /tmp/hello.ir
 ```
 Current strict subset coverage includes `hello`, `mem_test`, `byte_test`, and `array_sim` via `./tests/run_ir_subset_backend_suite.sh`.
 
