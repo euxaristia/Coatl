@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+TMP_DIR="$(mktemp -d /tmp/mee-no-cargo-guard.XXXXXX)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+mkdir -p "$TMP_DIR/bin"
+cat > "$TMP_DIR/bin/cargo" <<'SH'
+#!/usr/bin/env bash
+echo "[FAIL] cargo should not be invoked in no-rust mode" >&2
+exit 86
+SH
+chmod +x "$TMP_DIR/bin/cargo"
+
+export PATH="$TMP_DIR/bin:$PATH"
+
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_compile_coverage.sh"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_emit_full_coverage.sh"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_asm_compile_coverage.sh"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_wat_compile_coverage.sh"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_wat_compile_default_seed_coverage.sh"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_ir_emit_coverage.sh"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_asm_compile_coverage.sh"
+
+echo "no-rust no-cargo guard passed"
