@@ -85,6 +85,10 @@ Run no-Rust auto-mode x86_64 asm suite:
 ```bash
 ./tests/run_auto_no_rust_asm_suite.sh
 ```
+Run no-Rust backend parity suite (WAT vs ASM) for subset corpus:
+```bash
+./tests/run_no_rust_backend_parity_suite.sh
+```
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
 ./tests/run_ir_subset_io_smoke.sh

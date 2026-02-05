@@ -129,6 +129,9 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_auto_no_rust_fallback_suite.sh"
 echo "[strict-no-rust] non-Rust IR lowerer lane"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
 
+echo "[strict-no-rust] no-rust backend parity (wat vs asm)"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_backend_parity_suite.sh"
+
 echo "[strict-no-rust] centralized Rust entrypoint guard"
 "$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
 
