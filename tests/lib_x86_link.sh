@@ -16,7 +16,7 @@ have_as_toolchain() {
 }
 
 have_internal_linker() {
-  command -v python3 >/dev/null 2>&1 && [[ -f "$ROOT_DIR/tools/link_x86_64_elf.py" ]]
+  [[ -f "$ROOT_DIR/tools/link_x86_64_elf" ]]
 }
 
 have_x86_link_toolchain() {
@@ -37,7 +37,7 @@ link_x86_asm_binary() {
     obj="$(mktemp /tmp/coatl-x86-link.XXXXXX.o)"
     as --64 "$asm" -o "$obj"
     if have_internal_linker; then
-      python3 "$ROOT_DIR/tools/link_x86_64_elf.py" "$obj" -o "$bin" --entry coatl_start
+      bash "$ROOT_DIR/tools/link_x86_64_elf" "$obj" -o "$bin" --entry coatl_start
     else
       ld "$obj" -o "$bin" -e coatl_start
     fi

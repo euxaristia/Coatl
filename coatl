@@ -214,10 +214,10 @@ assemble_asm_to_obj() {
 internal_link_obj_to_bin() {
   local obj_in="$1"
   local bin_out="$2"
-  if ! command -v python3 >/dev/null 2>&1; then
+  if [[ ! -f "$ROOT_DIR/tools/link_x86_64_elf" ]]; then
     return 1
   fi
-  python3 "$ROOT_DIR/tools/link_x86_64_elf.py" "$obj_in" -o "$bin_out" --entry coatl_start
+  bash "$ROOT_DIR/tools/link_x86_64_elf" "$obj_in" -o "$bin_out" --entry coatl_start
 }
 
 link_asm_to_bin() {
@@ -240,7 +240,7 @@ link_asm_to_bin() {
     if ! internal_link_obj_to_bin "$obj" "$bin_out"; then
       if ! command -v ld >/dev/null 2>&1 || ! ld --version >/dev/null 2>&1; then
         rm -f "$obj"
-        echo "linking requires internal linker (python3) or usable ld" >&2
+        echo "linking requires internal linker (coatl) or usable ld" >&2
         return 1
       fi
       ld "$obj" -o "$bin_out" -e coatl_start
