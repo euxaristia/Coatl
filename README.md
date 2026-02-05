@@ -76,10 +76,11 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 
 - No binary WASM emitter yet (WAT only).
 - x86_64 backend supports Mee I/O intrinsics (`__fd_write`, `__fd_read`, `__path_open`, `__fd_close`) via Linux syscalls.
+- x86_64 runtime suite covers scalar, memory, I/O, and struct ABI cases.
 - x86_64 runtime helper path is Linux-oriented today; AArch64 backend is not implemented yet.
 - No ownership/borrow checker, enums, or pattern matching yet.
 - Minimal type system (i32/bool/char + string literals as pointers).
-- Bootstrap (Mee-in-Mee) compiler now parses struct declarations/types/field access/literals natively for the selfhost WASM path; struct typechecking remains minimal.
+- Bootstrap (Mee-in-Mee) compiler now parses struct declarations/types/field access/literals natively for the selfhost WASM path, including stricter struct-aware call typing checks.
 
 ## Self-Hosting
 

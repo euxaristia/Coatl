@@ -1,6 +1,6 @@
 # Mee Roadmap
 
-Last updated: 2026-02-04
+Last updated: 2026-02-05
 
 ## Completed (through current head)
 
@@ -20,7 +20,7 @@ Last updated: 2026-02-04
 - Stage 6 partially complete:
   - Self-compile convergence checks automated
   - Round-trip suite automated
-  - Basic semantic checks in bootstrap compiler
+  - Struct-aware semantic checks in bootstrap compiler (including call argument typing)
 
 ## Current Focus (next roadmap slice)
 
@@ -29,12 +29,12 @@ Last updated: 2026-02-04
 - Strengthen bootstrap diagnostics (semantic/type errors with precise spans)
 - Stabilize self-hosted behavior on full test corpus by default
 - Add more negative tests (expected failures) for parser/type checker
-- Close selfhost struct support gap (current blocker to full Rust-independent language coverage)
+- Continue closing remaining selfhost struct support gaps (field-level typing and diagnostics)
 
 ### v0.3
 - WASM binary emitter (in addition to WAT)
 - AArch64 backend
-- Improve x86_64 backend coverage (feature parity where feasible)
+- Improve x86_64 backend coverage (feature parity where feasible; struct ABI runtime coverage now in suite)
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

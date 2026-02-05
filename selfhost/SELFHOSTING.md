@@ -66,7 +66,7 @@ Memory intrinsics (`__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`) e
 - ~~No memory ops~~ ✓ **DONE**: `__mem_load`/`__mem_store` intrinsics added
 - No array syntax `[T; N]` - use memory intrinsics as workaround
 - Bootstrap compiler now parses struct declarations/types/field access/literals in the selfhost WASM path.
-- Struct typechecking is still minimal, and native backend ownership remains in Rust.
+- Struct typechecking now includes struct-aware call argument checks and negative regression coverage; native backend ownership remains in Rust.
 - No I/O - blocks reading source files
 
 ## Stages
