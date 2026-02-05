@@ -1,0 +1,24 @@
+fn main() -> i32 {
+  let fd_ptr: i32 = 4096;
+  let path_ptr: i32 = "probe_out.txt";
+
+  let rc: i32 = __path_open(3, 0, path_ptr, 13, 1, 0, 0, 0, fd_ptr);
+  if (rc != 0) { return 10; }
+
+  let fd: i32 = __mem_load(fd_ptr);
+  let msg: i32 = "OK\n";
+  let iov: i32 = 8192;
+  let nwritten: i32 = 8200;
+
+  __mem_store(iov, msg);
+  __mem_store(iov + 4, 3);
+  __mem_store(nwritten, 0);
+
+  let wrc: i32 = __fd_write(fd, iov, 1, nwritten);
+  if (wrc != 0) { return 11; }
+
+  let crc: i32 = __fd_close(fd);
+  if (crc != 0) { return 12; }
+
+  return __mem_load(nwritten);
+}
