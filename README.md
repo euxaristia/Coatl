@@ -45,6 +45,11 @@ Run the x86_64 runtime suite (Linux):
 ./tests/run_x86_runtime_suite.sh
 ```
 
+Run the IR seam smoke suite:
+```bash
+./tests/run_ir_smoke.sh
+```
+
 ## Hello World (Mee)
 
 ```mee
