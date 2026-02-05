@@ -71,6 +71,9 @@ tmpdir="$(mktemp -d /tmp/mee-selfhost-build.XXXXXX)"
 trap 'rm -rf "$tmpdir"' EXIT
 patched="$tmpdir/compiler.stdin.wat"
 raw="$tmpdir/out.raw"
+lowered_src="$tmpdir/input.lowered.mee"
+
+python3 "$ROOT_DIR/selfhost/lower_structs.py" "$in_file" "$lowered_src"
 
 python3 - "$compiler_wat" "$patched" <<'PY'
 from pathlib import Path
@@ -83,7 +86,7 @@ if needle not in src:
 Path(sys.argv[2]).write_text(src)
 PY
 
-wasmtime --invoke main "$patched" < "$in_file" > "$raw"
+wasmtime --invoke main "$patched" < "$lowered_src" > "$raw"
 
 python3 - "$raw" "$out_file" <<'PY'
 from pathlib import Path

@@ -60,17 +60,9 @@ check_case "tests/array_sim.mee" "100"
 check_case "tests/byte_test.mee" "389"
 check_case "examples/hello.mee" "0" "Hello, world!"
 
-echo "[seed-roundtrip] Struct compatibility check (expected failure until bootstrap struct support lands)"
-struct_log="$TMP_DIR/struct_param_pass.log"
-if "$BUILD_SELFHOST" build "$ROOT_DIR/tests/struct_param_pass.mee" -o "$TMP_DIR/struct_param_pass.wat" >"$struct_log" 2>&1; then
-  echo "ERROR: struct_param_pass compiled in seed-only mode; add runtime struct cases to this suite."
-  exit 1
-fi
-if ! grep -Fq "self-host compile failed: output is not WAT module" "$struct_log"; then
-  echo "ERROR: struct compile failed for an unexpected reason"
-  cat "$struct_log"
-  exit 1
-fi
-echo "  ok (struct programs fail explicitly instead of silently emitting empty modules)"
+echo "[seed-roundtrip] Struct runtime suite (no Rust via struct-lowering prepass)"
+check_case "tests/struct_param_pass.mee" "9"
+check_case "tests/struct_return_basic.mee" "15"
+check_case "tests/struct_chain_calls.mee" "6"
 
 echo "All seed-only round-trip checks passed"
