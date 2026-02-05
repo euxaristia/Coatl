@@ -11,7 +11,7 @@ IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.py"
 usage() {
   cat <<'EOF'
 usage:
-  ./mee build <input.mee> [--emit=wat|asm|ir] [-o <output>] [--toolchain=auto|selfhost|rust|ir] [--compiler <seed.wat>]
+  ./mee build <input.mee> [--emit=wat|asm|ir|obj|bin] [-o <output>] [--toolchain=auto|selfhost|rust|ir] [--compiler <seed.wat>]
   ./mee lower-ir <input.ir> -o <output.wat>
   ./mee --version
 
@@ -19,6 +19,8 @@ notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
   - toolchain=ir uses IR + external non-Rust lowerer; frontend is Rust by default, subset non-Rust in strict mode
   - --emit=asm supports toolchain=ir for subset/non-Rust lane (with Rust fallback unless MEE_NO_RUST=1)
+  - --emit=obj emits x86_64 ELF relocatable object from asm output
+  - --emit=bin links x86_64 Linux executable from asm output (uses CC or as+ld)
   - --emit=ir supports toolchain=ir (subset frontend)
   - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
   - set MEE_NO_RUST_BUILD=1 to force no-Rust behavior for branch-mode development
@@ -130,7 +132,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$emit" != "wat" && "$emit" != "asm" && "$emit" != "ir" ]]; then
+if [[ "$emit" != "wat" && "$emit" != "asm" && "$emit" != "ir" && "$emit" != "obj" && "$emit" != "bin" ]]; then
   echo "unsupported emit target: $emit"
   exit 1
 fi
@@ -157,6 +159,84 @@ rust_lane_available() {
   return 0
 }
 
+cc_bin() {
+  if [[ -n "${CC:-}" ]]; then
+    echo "${CC%%[[:space:]]*}"
+  else
+    echo "cc"
+  fi
+}
+
+usable_cc_toolchain() {
+  local cc
+  cc="$(cc_bin)"
+  command -v "$cc" >/dev/null 2>&1 || return 1
+  "$cc" --version >/dev/null 2>&1 || return 1
+  return 0
+}
+
+assemble_asm_to_obj() {
+  local asm_in="$1"
+  local obj_out="$2"
+  if command -v as >/dev/null 2>&1; then
+    as --64 "$asm_in" -o "$obj_out"
+    return 0
+  fi
+  if usable_cc_toolchain; then
+    local cc
+    cc="$(cc_bin)"
+    "$cc" -c -x assembler "$asm_in" -o "$obj_out"
+    return 0
+  fi
+  echo "assembling requires GNU as or a usable C compiler (set CC)" >&2
+  return 1
+}
+
+internal_link_obj_to_bin() {
+  local obj_in="$1"
+  local bin_out="$2"
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 1
+  fi
+  python3 "$ROOT_DIR/tools/link_x86_64_elf.py" "$obj_in" -o "$bin_out" --entry mee_start
+}
+
+link_asm_to_bin() {
+  local asm_in="$1"
+  local bin_out="$2"
+  local mode="${3:-any}" # any|cc-only
+  local cc
+  if usable_cc_toolchain; then
+    cc="$(cc_bin)"
+    "$cc" -no-pie "$asm_in" -o "$bin_out"
+    return 0
+  fi
+  if [[ "$mode" == "any" ]]; then
+    local obj
+    obj="$(mktemp /tmp/mee-link-bin.XXXXXX.o)"
+    if ! assemble_asm_to_obj "$asm_in" "$obj"; then
+      rm -f "$obj"
+      return 1
+    fi
+    if ! internal_link_obj_to_bin "$obj" "$bin_out"; then
+      if ! command -v ld >/dev/null 2>&1 || ! ld --version >/dev/null 2>&1; then
+        rm -f "$obj"
+        echo "linking requires internal linker (python3) or usable ld" >&2
+        return 1
+      fi
+      ld "$obj" -o "$bin_out" -e mee_start
+    fi
+    rm -f "$obj"
+    return 0
+  fi
+  if [[ "$mode" == "cc-only" ]]; then
+    echo "linking requires a usable C compiler (set CC or install cc/clang)" >&2
+  else
+    echo "linking requires a usable C compiler or as+ld toolchain" >&2
+  fi
+  return 1
+}
+
 ensure_rust_allowed() {
   if rust_disabled; then
     echo "rust-disabled mode: this operation requires Rust compiler usage" >&2
@@ -168,14 +248,20 @@ ensure_rust_allowed() {
   fi
 }
 
-rust_build() {
+rust_build_emit() {
+  local emit_target="$1"
+  local out_target="${2:-}"
   ensure_rust_allowed
-  local emit_flag="--emit=$emit"
-  if [[ -n "$out_abs" ]]; then
-    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" "$emit_flag" -o "$out_abs")
+  local emit_flag="--emit=$emit_target"
+  if [[ -n "$out_target" ]]; then
+    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" "$emit_flag" -o "$out_target")
   else
     (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" "$emit_flag")
   fi
+}
+
+rust_build() {
+  rust_build_emit "$emit" "$out_abs"
 }
 
 selfhost_build_wat() {
@@ -343,6 +429,18 @@ ir_pipeline_build_asm() {
   return 1
 }
 
+ir_pipeline_build_asm_to_file() {
+  local asm_out="$1"
+  local prev_out_abs="$out_abs"
+  out_abs="$asm_out"
+  if ir_pipeline_build_asm; then
+    out_abs="$prev_out_abs"
+    return 0
+  fi
+  out_abs="$prev_out_abs"
+  return 1
+}
+
 if [[ "$emit" != "wat" ]]; then
   if [[ "$emit" == "asm" ]]; then
     if [[ "$toolchain" == "selfhost" ]]; then
@@ -365,6 +463,128 @@ if [[ "$emit" != "wat" ]]; then
       exit 0
     fi
     rust_build
+    exit 0
+  fi
+
+  if [[ "$emit" == "bin" ]]; then
+    if [[ -z "$out_abs" ]]; then
+      echo "missing -o <output.bin> for --emit=bin"
+      exit 1
+    fi
+    if [[ "$(uname -s)" != "Linux" ]]; then
+      echo "--emit=bin currently supports Linux only"
+      exit 1
+    fi
+    if [[ "$toolchain" == "selfhost" ]]; then
+      echo "--emit=$emit is not supported by toolchain=$toolchain"
+      exit 1
+    fi
+
+    tmp_asm="$(mktemp /tmp/mee-bin-link.XXXXXX.s)"
+
+    if [[ "$toolchain" == "ir" ]]; then
+      if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
+        rm -f "$tmp_asm"
+        exit 1
+      fi
+      if ! link_asm_to_bin "$tmp_asm" "$out_abs" "any"; then
+        rm -f "$tmp_asm"
+        exit 1
+      fi
+      rm -f "$tmp_asm"
+      exit 0
+    fi
+
+    if [[ "$toolchain" == "auto" ]]; then
+      if ir_pipeline_build_asm_to_file "$tmp_asm"; then
+        if ! link_asm_to_bin "$tmp_asm" "$out_abs" "any"; then
+          rm -f "$tmp_asm"
+          exit 1
+        fi
+        rm -f "$tmp_asm"
+        exit 0
+      fi
+      if rust_disabled; then
+        rm -f "$tmp_asm"
+        echo "ir asm pipeline failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
+        exit 1
+      fi
+      rust_build_emit "asm" "$tmp_asm"
+      if ! link_asm_to_bin "$tmp_asm" "$out_abs" "cc-only"; then
+        rm -f "$tmp_asm"
+        exit 1
+      fi
+      rm -f "$tmp_asm"
+      exit 0
+    fi
+
+    rust_build_emit "asm" "$tmp_asm"
+    if ! link_asm_to_bin "$tmp_asm" "$out_abs" "cc-only"; then
+      rm -f "$tmp_asm"
+      exit 1
+    fi
+    rm -f "$tmp_asm"
+    exit 0
+  fi
+
+  if [[ "$emit" == "obj" ]]; then
+    if [[ -z "$out_abs" ]]; then
+      echo "missing -o <output.o> for --emit=obj"
+      exit 1
+    fi
+    if [[ "$(uname -s)" != "Linux" ]]; then
+      echo "--emit=obj currently supports Linux only"
+      exit 1
+    fi
+    if [[ "$toolchain" == "selfhost" ]]; then
+      echo "--emit=$emit is not supported by toolchain=$toolchain"
+      exit 1
+    fi
+
+    tmp_asm="$(mktemp /tmp/mee-obj-asm.XXXXXX.s)"
+
+    if [[ "$toolchain" == "ir" ]]; then
+      if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
+        rm -f "$tmp_asm"
+        exit 1
+      fi
+      if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
+        rm -f "$tmp_asm"
+        exit 1
+      fi
+      rm -f "$tmp_asm"
+      exit 0
+    fi
+
+    if [[ "$toolchain" == "auto" ]]; then
+      if ir_pipeline_build_asm_to_file "$tmp_asm"; then
+        if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
+          rm -f "$tmp_asm"
+          exit 1
+        fi
+        rm -f "$tmp_asm"
+        exit 0
+      fi
+      if rust_disabled; then
+        rm -f "$tmp_asm"
+        echo "ir asm pipeline failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
+        exit 1
+      fi
+      rust_build_emit "asm" "$tmp_asm"
+      if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
+        rm -f "$tmp_asm"
+        exit 1
+      fi
+      rm -f "$tmp_asm"
+      exit 0
+    fi
+
+    rust_build_emit "asm" "$tmp_asm"
+    if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
+      rm -f "$tmp_asm"
+      exit 1
+    fi
+    rm -f "$tmp_asm"
     exit 0
   fi
 

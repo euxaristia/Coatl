@@ -4,9 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-strict-no-rust.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+source "$ROOT_DIR/tests/lib_x86_link.sh"
+HAVE_C_COMPILER=0
+if have_x86_link_toolchain; then
+  HAVE_C_COMPILER=1
+fi
 
 echo "[strict-no-rust] cli no-rust smoke"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_cli_no_rust_smoke.sh"
+
+echo "[strict-no-rust] selfhost bootstrap compile without C compiler"
+"$ROOT_DIR/tests/run_no_c_compiler_selfhost_bootstrap_smoke.sh"
+
+echo "[strict-no-rust] ir bin build without C compiler (as+ld path)"
+"$ROOT_DIR/tests/run_no_rust_bin_ir_no_cc_smoke.sh"
 
 echo "[strict-no-rust] selfhost no-rust ci"
 MEE_NO_RUST=1 "$ROOT_DIR/selfhost/run_no_rust_ci.sh"
@@ -26,17 +37,24 @@ if ! grep -Fq "rust-disabled mode" "$TMP_DIR/asm.err"; then
   exit 1
 fi
 
-echo "[strict-no-rust] emit=asm via toolchain=ir (subset asm backend)"
-MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_x86_subset_asm_smoke.sh"
+if [[ "$HAVE_C_COMPILER" -eq 1 ]]; then
+  echo "[strict-no-rust] emit=asm via toolchain=ir (subset asm backend)"
+  MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_x86_subset_asm_smoke.sh"
 
-echo "[strict-no-rust] emit=asm via toolchain=auto (subset asm fallback)"
-MEE_NO_RUST=1 "$ROOT_DIR/tests/run_auto_no_rust_asm_suite.sh"
+  echo "[strict-no-rust] emit=asm via toolchain=auto (subset asm fallback)"
+  MEE_NO_RUST=1 "$ROOT_DIR/tests/run_auto_no_rust_asm_suite.sh"
 
-echo "[strict-no-rust] x86 runtime suite via asm toolchain=ir"
-MEE_NO_RUST=1 "$ROOT_DIR/tests/run_x86_runtime_suite_ir_no_rust.sh"
+  echo "[strict-no-rust] x86 runtime suite via asm toolchain=ir"
+  MEE_NO_RUST=1 "$ROOT_DIR/tests/run_x86_runtime_suite_ir_no_rust.sh"
 
-echo "[strict-no-rust] x86 runtime suite via asm toolchain=auto"
-MEE_NO_RUST=1 "$ROOT_DIR/tests/run_x86_runtime_suite_auto_no_rust.sh"
+  echo "[strict-no-rust] x86 runtime suite via asm toolchain=auto"
+  MEE_NO_RUST=1 "$ROOT_DIR/tests/run_x86_runtime_suite_auto_no_rust.sh"
+else
+  echo "[strict-no-rust] skip asm/x86 runtime checks: x86 link toolchain unavailable"
+fi
+
+echo "[strict-no-rust] x86 path_open edge cases"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_x86_path_open_edges_smoke.sh"
 
 set +e
 MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=ir --toolchain=rust -o "$TMP_DIR/hello.ir" >"$TMP_DIR/ir.out" 2>"$TMP_DIR/ir.err"
@@ -129,8 +147,15 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_auto_no_rust_fallback_suite.sh"
 echo "[strict-no-rust] non-Rust IR lowerer lane"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
 
-echo "[strict-no-rust] no-rust backend parity (wat vs asm)"
-MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_backend_parity_suite.sh"
+if [[ "$HAVE_C_COMPILER" -eq 1 ]]; then
+  echo "[strict-no-rust] no-rust backend parity (wat vs asm)"
+  MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_backend_parity_suite.sh"
+else
+  echo "[strict-no-rust] skip no-rust backend parity: x86 link toolchain unavailable"
+fi
+
+echo "[strict-no-rust] no-rust backend parity (wat vs bin)"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_bin_backend_parity_suite.sh"
 
 echo "[strict-no-rust] bootstrap compile via toolchain=ir"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_bootstrap_ir_compile.sh"
@@ -144,6 +169,12 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_emit_full_coverage.sh"
 echo "[strict-no-rust] full no-rust toolchain=ir asm compile coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_asm_compile_coverage.sh"
 
+echo "[strict-no-rust] full no-rust toolchain=ir obj compile coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_obj_compile_coverage.sh"
+
+echo "[strict-no-rust] full no-rust toolchain=ir bin compile coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_bin_compile_coverage.sh"
+
 echo "[strict-no-rust] full no-rust auto wat compile coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_wat_compile_coverage.sh"
 
@@ -155,6 +186,9 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_ir_emit_coverage.sh"
 
 echo "[strict-no-rust] full no-rust auto asm compile coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_asm_compile_coverage.sh"
+
+echo "[strict-no-rust] full no-rust auto bin compile coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_auto_full_bin_compile_coverage.sh"
 
 echo "[strict-no-rust] no-rust no-cargo invocation guard"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_no_cargo_guard.sh"
@@ -168,8 +202,15 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_full_ir_emit_coverage.sh"
 echo "[strict-no-rust] full no-rust default-cli emit=asm coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_full_asm_compile_coverage.sh"
 
-echo "[strict-no-rust] default-cli no-rust backend parity (wat vs asm)"
-MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_backend_parity_suite.sh"
+echo "[strict-no-rust] full no-rust default-cli emit=bin coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_full_bin_compile_coverage.sh"
+
+if [[ "$HAVE_C_COMPILER" -eq 1 ]]; then
+  echo "[strict-no-rust] default-cli no-rust backend parity (wat vs asm)"
+  MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_default_cli_backend_parity_suite.sh"
+else
+  echo "[strict-no-rust] skip default-cli backend parity: x86 link toolchain unavailable"
+fi
 
 echo "[strict-no-rust] no-rust-build mode full coverage"
 "$ROOT_DIR/tests/run_no_rust_build_mode_full_coverage.sh"

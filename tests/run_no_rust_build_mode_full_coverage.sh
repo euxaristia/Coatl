@@ -5,11 +5,6 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-no-rust-build-mode.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-if ! command -v gcc >/dev/null 2>&1; then
-  echo "gcc is required but not found in PATH"
-  exit 1
-fi
-
 mkdir -p "$TMP_DIR/bin"
 cat > "$TMP_DIR/bin/cargo" <<'SH'
 #!/usr/bin/env bash

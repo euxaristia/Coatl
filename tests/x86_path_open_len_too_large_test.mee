@@ -1,0 +1,6 @@
+fn main() -> i32 {
+  let fd_ptr: i32 = 4096;
+  let path_ptr: i32 = "probe_out.txt";
+  let rc: i32 = __path_open(3, 0, path_ptr, 5000, 1, 0, 0, 0, fd_ptr);
+  return rc;
+}

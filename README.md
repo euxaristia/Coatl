@@ -33,6 +33,18 @@ Build x86_64 assembly via non-Rust IR subset backend:
 ```bash
 ./mee build ./examples/hello.mee --emit=asm --toolchain=ir -o /tmp/hello-ir.s
 ```
+IR/auto asm lowering emits `.s` directly (no C compiler required for asm generation).
+
+Build native x86_64 Linux binary directly:
+```bash
+./mee build ./examples/hello.mee --emit=bin --toolchain=ir -o /tmp/hello-ir.bin
+/tmp/hello-ir.bin
+```
+
+Build x86_64 ELF relocatable object:
+```bash
+./mee build ./examples/hello.mee --emit=obj --toolchain=ir -o /tmp/hello-ir.o
+```
 
 Install `mee` to your `PATH`:
 ```bash
@@ -57,6 +69,7 @@ Run the x86_64 runtime suite (Linux):
 ```bash
 ./tests/run_x86_runtime_suite.sh
 ```
+Runtime linking uses `CC` when available, otherwise falls back to `as` + `ld` (entrypoint `mee_start`).
 Run the same x86_64 runtime suite through strict no-Rust `toolchain=ir`:
 ```bash
 ./tests/run_x86_runtime_suite_ir_no_rust.sh
@@ -95,6 +108,11 @@ Run no-Rust subset x86_64 asm smoke suite:
 ./tests/run_ir_x86_subset_asm_smoke.sh
 ```
 This suite currently covers scalar/memory/control-flow, struct flows, and Linux I/O intrinsics (`__fd_read`, `__path_open`, `__fd_write`, `__fd_close`).
+In no-C-compiler environments, asm generation still works; only asm runtime/link parity suites are skipped by strict no-Rust orchestration.
+Run no-Rust IR binary smoke with `cc/gcc/clang` blocked (forces `as+ld` linker path):
+```bash
+./tests/run_no_rust_bin_ir_no_cc_smoke.sh
+```
 Run no-Rust auto-mode x86_64 asm suite:
 ```bash
 ./tests/run_auto_no_rust_asm_suite.sh
@@ -102,6 +120,11 @@ Run no-Rust auto-mode x86_64 asm suite:
 Run no-Rust backend parity suite (WAT vs ASM) for subset corpus:
 ```bash
 ./tests/run_no_rust_backend_parity_suite.sh
+```
+Parity suite uses the same linker strategy (`CC` or `as`+`ld`).
+Run no-Rust backend parity suite (WAT vs BIN) for subset corpus:
+```bash
+./tests/run_no_rust_bin_backend_parity_suite.sh
 ```
 Run no-Rust bootstrap compile check through `toolchain=ir`:
 ```bash
@@ -119,6 +142,14 @@ Run full no-Rust `--emit=asm --toolchain=ir` compile coverage (`tests/`, `exampl
 ```bash
 ./tests/run_no_rust_ir_full_asm_compile_coverage.sh
 ```
+Run full no-Rust `--emit=obj --toolchain=ir` compile coverage (`tests/`, `examples/`, `selfhost/`):
+```bash
+./tests/run_no_rust_ir_full_obj_compile_coverage.sh
+```
+Run full no-Rust `--emit=bin --toolchain=ir` compile coverage (`tests/`, `examples/`, `selfhost/`):
+```bash
+./tests/run_no_rust_ir_full_bin_compile_coverage.sh
+```
 Run full no-Rust `--toolchain=auto` WAT compile coverage (`tests/`, `examples/`, `selfhost/`):
 ```bash
 ./tests/run_no_rust_auto_full_wat_compile_coverage.sh
@@ -134,6 +165,10 @@ Run full no-Rust `--emit=ir --toolchain=auto` coverage:
 Run full no-Rust `--emit=asm --toolchain=auto` coverage:
 ```bash
 ./tests/run_no_rust_auto_full_asm_compile_coverage.sh
+```
+Run full no-Rust `--emit=bin --toolchain=auto` coverage:
+```bash
+./tests/run_no_rust_auto_full_bin_compile_coverage.sh
 ```
 Run no-Rust guard that fails if any path invokes `cargo`:
 ```bash
@@ -165,6 +200,7 @@ Run full no-Rust default CLI coverage (no explicit `--toolchain`) for WAT/IR/ASM
 ./tests/run_no_rust_default_cli_full_wat_compile_coverage.sh
 ./tests/run_no_rust_default_cli_full_ir_emit_coverage.sh
 ./tests/run_no_rust_default_cli_full_asm_compile_coverage.sh
+./tests/run_no_rust_default_cli_full_bin_compile_coverage.sh
 ```
 Run default-CLI no-Rust backend parity suite (WAT vs ASM):
 ```bash
@@ -173,6 +209,10 @@ Run default-CLI no-Rust backend parity suite (WAT vs ASM):
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
 ./tests/run_ir_subset_io_smoke.sh
+```
+Run x86 `__path_open` edge-case smoke (invalid lengths):
+```bash
+./tests/run_x86_path_open_edges_smoke.sh
 ```
 Run no-Rust subset `__path_open` probe smoke:
 ```bash

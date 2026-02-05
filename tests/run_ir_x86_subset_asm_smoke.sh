@@ -5,9 +5,10 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-ir-x86-subset-asm.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 TOOLCHAIN="${MEE_ASM_TOOLCHAIN:-ir}"
+source "$ROOT_DIR/tests/lib_x86_link.sh"
 
-if ! command -v gcc >/dev/null 2>&1; then
-  echo "gcc is required but not found in PATH"
+if ! have_x86_link_toolchain; then
+  echo "x86_64 link toolchain unavailable (need usable CC or as+ld)"
   exit 1
 fi
 if [[ "$(uname -s)" != "Linux" ]]; then
@@ -20,7 +21,7 @@ build_bin() {
   local bin="$2"
   local asm="$TMP_DIR/$(basename "$bin").s"
   "$ROOT_DIR/mee" build "$src" --emit=asm --toolchain="$TOOLCHAIN" -o "$asm"
-  gcc -no-pie "$asm" -o "$bin"
+  link_x86_asm_binary "$asm" "$bin"
 }
 
 assert_rc() {

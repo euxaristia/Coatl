@@ -5,9 +5,15 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-x86-suite.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 TOOLCHAIN="${MEE_X86_TOOLCHAIN:-rust}"
+source "$ROOT_DIR/tests/lib_x86_link.sh"
 
 if [[ "$(uname -s)" != "Linux" ]]; then
   echo "x86 runtime suite currently supports Linux only"
+  exit 1
+fi
+
+if ! have_x86_link_toolchain; then
+  echo "x86 runtime suite requires usable CC or as+ld"
   exit 1
 fi
 
@@ -16,7 +22,7 @@ build_bin() {
   local out="$2"
   local asm="$TMP_DIR/$(basename "$out").s"
   "$ROOT_DIR/mee" build "$src" --emit=asm --toolchain="$TOOLCHAIN" -o "$asm"
-  gcc -no-pie "$asm" -o "$out"
+  link_x86_asm_binary "$asm" "$out"
 }
 
 assert_rc() {

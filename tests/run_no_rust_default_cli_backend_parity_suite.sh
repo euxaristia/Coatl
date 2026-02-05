@@ -4,13 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-norust-default-parity.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+source "$ROOT_DIR/tests/lib_x86_link.sh"
 
 if ! command -v wasmtime >/dev/null 2>&1; then
   echo "wasmtime is required but not found in PATH"
   exit 1
 fi
-if ! command -v gcc >/dev/null 2>&1; then
-  echo "gcc is required but not found in PATH"
+if ! have_x86_link_toolchain; then
+  echo "x86_64 link toolchain unavailable (need usable CC or as+ld)"
   exit 1
 fi
 if [[ "$(uname -s)" != "Linux" ]]; then
@@ -32,7 +33,7 @@ run_case() {
 
   MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/$src" --emit=wat -o "$wat"
   MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/$src" --emit=asm -o "$asm"
-  gcc -no-pie "$asm" -o "$bin"
+  link_x86_asm_binary "$asm" "$bin"
 
   local wat_out wat_proc_rc asm_out asm_rc
   if [[ "$mode" == "stdin" ]]; then

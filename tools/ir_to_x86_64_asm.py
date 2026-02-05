@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import argparse
-import subprocess
-import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union
 
 Node = Union[str, List["Node"]]
 
@@ -101,14 +99,23 @@ def decode_string_token(tok: str) -> bytes:
     return text.encode("utf-8")
 
 
-def c_escape_bytes(data: bytes) -> str:
-    out: List[str] = []
-    for b in data:
-        if 32 <= b <= 126 and b not in (34, 92):
-            out.append(chr(b))
-        else:
-            out.append(f"\\x{b:02x}")
-    return "".join(out)
+def collect_locals(block: Node, out: Set[str]) -> None:
+    b = as_list(block)
+    if as_atom(b[0]) != "block":
+        raise LowerError("expected block")
+    for stmt in b[1:]:
+        s = as_list(stmt)
+        tag = as_atom(s[0])
+        if tag == "let":
+            out.add(as_atom(s[1]))
+        elif tag == "if":
+            collect_locals(s[2], out)
+            if len(s) > 3:
+                eb = as_list(s[3])
+                if as_atom(eb[0]) == "else":
+                    collect_locals(eb[1], out)
+        elif tag == "while":
+            collect_locals(s[2], out)
 
 
 def walk_expr_for_strings(expr: Node, out: Dict[str, None]) -> None:
@@ -117,17 +124,16 @@ def walk_expr_for_strings(expr: Node, out: Dict[str, None]) -> None:
     if tag == "string":
         out[as_atom(e[1])] = None
         return
-    if tag == "unary":
-        walk_expr_for_strings(e[2], out)
-        return
     if tag == "binary":
         walk_expr_for_strings(e[2], out)
         walk_expr_for_strings(e[3], out)
         return
+    if tag == "unary":
+        walk_expr_for_strings(e[2], out)
+        return
     if tag == "call":
         for arg in e[2:]:
             walk_expr_for_strings(arg, out)
-        return
 
 
 def collect_string_literals(block: Node) -> List[str]:
@@ -174,160 +180,263 @@ def parse_fn(fn_node: List[Node]) -> Tuple[str, List[str], Node]:
         pl = as_list(p)
         if len(pl) != 3 or as_atom(pl[0]) != "param":
             raise LowerError("only i32 params supported")
-        if isinstance(pl[2], list) or as_atom(pl[2]) != "i32":
+        if as_atom(pl[2]) != "i32":
             raise LowerError("only i32 params supported")
         params.append(as_atom(pl[1]))
     ret = as_list(fn_node[3])
-    if len(ret) != 2 or as_atom(ret[0]) != "ret":
+    if len(ret) != 2 or as_atom(ret[0]) != "ret" or as_atom(ret[1]) != "i32":
         raise LowerError("only (ret i32) supported")
-    if isinstance(ret[1], list) or as_atom(ret[1]) != "i32":
-        raise LowerError("only (ret i32) supported")
-    block = as_list(fn_node[4])
-    return name, params, block
+    return name, params, as_list(fn_node[4])
 
 
-def collect_locals(block: Node, out: Set[str]) -> None:
-    b = as_list(block)
-    if as_atom(b[0]) != "block":
-        raise LowerError("expected block")
-    for stmt in b[1:]:
+def align16(n: int) -> int:
+    return (n + 15) & ~15
+
+
+ARG_REGS64 = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+ARG_REGS32 = ["edi", "esi", "edx", "ecx", "r8d", "r9d"]
+
+
+class FnEmitter:
+    def __init__(self, name: str, params: List[str], block: Node, string_addrs: Dict[str, int], fn_names: Set[str]):
+        self.name = name
+        self.params = params
+        self.block = block
+        self.string_addrs = string_addrs
+        self.fn_names = fn_names
+        self.lines: List[str] = []
+        self.stack_depth = 0
+        self.label_id = 0
+
+        locals_set: Set[str] = set()
+        collect_locals(block, locals_set)
+        ordered_vars: List[str] = []
+        seen: Set[str] = set()
+        for p in params:
+            ordered_vars.append(p)
+            seen.add(p)
+        for v in sorted(locals_set):
+            if v not in seen:
+                ordered_vars.append(v)
+        self.var_off: Dict[str, int] = {v: (i + 1) * 8 for i, v in enumerate(ordered_vars)}
+        self.stack_size = align16(len(ordered_vars) * 8)
+
+    def emit(self, s: str) -> None:
+        self.lines.append(s)
+
+    def new_label(self, prefix: str) -> str:
+        self.label_id += 1
+        return f".L_{self.name}_{prefix}_{self.label_id}"
+
+    def var_offset(self, name: str) -> int:
+        if name not in self.var_off:
+            raise LowerError(f"unknown local: {name}")
+        return self.var_off[name]
+
+    def push_rax(self) -> None:
+        self.emit("  push rax")
+        self.stack_depth += 1
+
+    def pop_reg(self, reg64: str) -> None:
+        self.emit(f"  pop {reg64}")
+        self.stack_depth -= 1
+
+    def emit_expr(self, expr: Node) -> None:
+        e = as_list(expr)
+        tag = as_atom(e[0])
+        if tag == "int":
+            self.emit(f"  mov eax, {as_atom(e[1])}")
+            return
+        if tag == "bool":
+            self.emit(f"  mov eax, {as_atom(e[1])}")
+            return
+        if tag == "ident":
+            off = self.var_offset(as_atom(e[1]))
+            self.emit(f"  mov eax, dword ptr [rbp-{off}]")
+            return
+        if tag == "string":
+            tok = as_atom(e[1])
+            if tok not in self.string_addrs:
+                raise LowerError("missing string literal address")
+            self.emit(f"  mov eax, {self.string_addrs[tok]}")
+            return
+        if tag == "binary":
+            op = as_atom(e[1])
+            self.emit_expr(e[2])
+            self.push_rax()
+            self.emit_expr(e[3])
+            self.emit("  mov ecx, eax")
+            self.pop_reg("rax")
+            if op == "add":
+                self.emit("  add eax, ecx")
+            elif op == "sub":
+                self.emit("  sub eax, ecx")
+            elif op == "mul":
+                self.emit("  imul eax, ecx")
+            elif op == "div":
+                self.emit("  cdq")
+                self.emit("  idiv ecx")
+            elif op in ("eq", "ne", "lt", "gt", "le", "ge"):
+                self.emit("  cmp eax, ecx")
+                cc = {
+                    "eq": "e",
+                    "ne": "ne",
+                    "lt": "l",
+                    "gt": "g",
+                    "le": "le",
+                    "ge": "ge",
+                }[op]
+                self.emit(f"  set{cc} al")
+                self.emit("  movzx eax, al")
+            elif op == "and":
+                self.emit("  and eax, ecx")
+            elif op == "or":
+                self.emit("  or eax, ecx")
+            else:
+                raise LowerError(f"unsupported binary op: {op}")
+            return
+        if tag == "call":
+            fn = as_atom(e[1])
+            args = e[2:]
+            self.emit_call(fn, args)
+            return
+        raise LowerError(f"unsupported expr: {tag}")
+
+    def emit_call(self, fn: str, args: List[Node]) -> None:
+        if fn not in self.fn_names and not fn.startswith("__"):
+            raise LowerError(f"unknown function call: {fn}")
+
+        n = len(args)
+        reg_n = min(n, 6)
+        stack_n = max(0, n - 6)
+
+        need_pad = (self.stack_depth + stack_n) % 2 == 1
+        if need_pad:
+            self.emit("  sub rsp, 8")
+            self.stack_depth += 1
+
+        for arg in reversed(args):
+            self.emit_expr(arg)
+            self.push_rax()
+
+        for i in range(reg_n):
+            self.pop_reg(ARG_REGS64[i])
+
+        self.emit(f"  call {fn}")
+
+        cleanup_slots = stack_n + (1 if need_pad else 0)
+        if cleanup_slots:
+            self.emit(f"  add rsp, {cleanup_slots * 8}")
+            self.stack_depth -= cleanup_slots
+
+    def emit_stmt(self, stmt: Node, ret_label: str) -> None:
         s = as_list(stmt)
         tag = as_atom(s[0])
         if tag == "let":
-            out.add(as_atom(s[1]))
-        elif tag == "if":
-            collect_locals(s[2], out)
+            name = as_atom(s[1])
+            self.emit_expr(s[3])
+            off = self.var_offset(name)
+            self.emit(f"  mov dword ptr [rbp-{off}], eax")
+            return
+        if tag == "assign":
+            name = as_atom(s[1])
+            self.emit_expr(s[2])
+            off = self.var_offset(name)
+            self.emit(f"  mov dword ptr [rbp-{off}], eax")
+            return
+        if tag == "return":
+            self.emit_expr(s[1])
+            self.emit(f"  jmp {ret_label}")
+            return
+        if tag == "expr":
+            self.emit_expr(s[1])
+            return
+        if tag == "if":
+            else_label = self.new_label("else")
+            end_label = self.new_label("ifend")
+            self.emit_expr(s[1])
+            self.emit("  test eax, eax")
+            self.emit(f"  jz {else_label}")
+            self.emit_block(s[2], ret_label)
+            self.emit(f"  jmp {end_label}")
+            self.emit(f"{else_label}:")
             if len(s) > 3:
                 eb = as_list(s[3])
                 if as_atom(eb[0]) == "else":
-                    collect_locals(eb[1], out)
-        elif tag == "while":
-            collect_locals(s[2], out)
+                    self.emit_block(eb[1], ret_label)
+            self.emit(f"{end_label}:")
+            return
+        if tag == "while":
+            cond_label = self.new_label("while_cond")
+            end_label = self.new_label("while_end")
+            self.emit(f"{cond_label}:")
+            self.emit_expr(s[1])
+            self.emit("  test eax, eax")
+            self.emit(f"  jz {end_label}")
+            self.emit_block(s[2], ret_label)
+            self.emit(f"  jmp {cond_label}")
+            self.emit(f"{end_label}:")
+            return
+        raise LowerError(f"unsupported stmt: {tag}")
+
+    def emit_block(self, block: Node, ret_label: str) -> None:
+        b = as_list(block)
+        if as_atom(b[0]) != "block":
+            raise LowerError("expected block")
+        for stmt in b[1:]:
+            self.emit_stmt(stmt, ret_label)
+
+    def emit_function(self) -> List[str]:
+        ret_label = f".L_{self.name}_ret"
+        out: List[str] = []
+        out.append(f".globl {self.name}")
+        out.append(f"{self.name}:")
+        out.append("  push rbp")
+        out.append("  mov rbp, rsp")
+        if self.stack_size:
+            out.append(f"  sub rsp, {self.stack_size}")
+
+        for i, p in enumerate(self.params):
+            off = self.var_offset(p)
+            if i < 6:
+                out.append(f"  mov dword ptr [rbp-{off}], {ARG_REGS32[i]}")
+            else:
+                stack_off = 16 + (i - 6) * 8
+                out.append(f"  mov eax, dword ptr [rbp+{stack_off}]")
+                out.append(f"  mov dword ptr [rbp-{off}], eax")
+
+        out.append("  call __mee_init_memory")
+        self.lines = []
+        self.stack_depth = 0
+        self.emit_block(self.block, ret_label)
+        if self.stack_depth != 0:
+            raise LowerError(f"internal stack depth mismatch in {self.name}: {self.stack_depth}")
+        out.extend(self.lines)
+        out.append("  mov eax, 0")
+        out.append(f"{ret_label}:")
+        out.append("  leave")
+        out.append("  ret")
+        out.append("")
+        return out
 
 
-class Ctx:
-    def __init__(self, string_addrs: Dict[str, int], fn_cnames: Dict[str, str]):
-        self.string_addrs = string_addrs
-        self.fn_cnames = fn_cnames
-
-
-OP_MAP = {
-    "add": "+",
-    "sub": "-",
-    "mul": "*",
-    "div": "/",
-    "eq": "==",
-    "ne": "!=",
-    "lt": "<",
-    "gt": ">",
-    "le": "<=",
-    "ge": ">=",
-    "and": "&",
-    "or": "|",
-}
-
-
-def expr_to_c(expr: Node, ctx: Ctx) -> str:
-    e = as_list(expr)
-    tag = as_atom(e[0])
-    if tag == "int":
-        return f"((int32_t){as_atom(e[1])})"
-    if tag == "bool":
-        return f"((int32_t){as_atom(e[1])})"
-    if tag == "ident":
-        return as_atom(e[1])
-    if tag == "string":
-        tok = as_atom(e[1])
-        if tok not in ctx.string_addrs:
-            raise LowerError("missing string literal address")
-        return f"((int32_t){ctx.string_addrs[tok]})"
-    if tag == "binary":
-        op = as_atom(e[1])
-        if op not in OP_MAP:
-            raise LowerError(f"unsupported binary op: {op}")
-        left = expr_to_c(e[2], ctx)
-        right = expr_to_c(e[3], ctx)
-        if op in ("eq", "ne", "lt", "gt", "le", "ge"):
-            return f"((int32_t)({left} {OP_MAP[op]} {right}))"
-        return f"((int32_t)({left} {OP_MAP[op]} {right}))"
-    if tag == "call":
-        fn = as_atom(e[1])
-        args = ", ".join(expr_to_c(a, ctx) for a in e[2:])
-        if fn in ctx.fn_cnames:
-            return f"((int32_t){ctx.fn_cnames[fn]}({args}))"
-        if fn.startswith("__"):
-            return f"((int32_t){fn}({args}))"
-        raise LowerError(f"unknown function call: {fn}")
-    raise LowerError(f"unsupported expr: {tag}")
-
-
-def emit_stmt(stmt: Node, ctx: Ctx, out: List[str], indent: str) -> None:
-    s = as_list(stmt)
-    tag = as_atom(s[0])
-    if tag == "let":
-        name = as_atom(s[1])
-        out.append(f"{indent}{name} = {expr_to_c(s[3], ctx)};")
-        return
-    if tag == "assign":
-        name = as_atom(s[1])
-        out.append(f"{indent}{name} = {expr_to_c(s[2], ctx)};")
-        return
-    if tag == "return":
-        out.append(f"{indent}return {expr_to_c(s[1], ctx)};")
-        return
-    if tag == "expr":
-        out.append(f"{indent}(void){expr_to_c(s[1], ctx)};")
-        return
-    if tag == "if":
-        out.append(f"{indent}if ({expr_to_c(s[1], ctx)}) {{")
-        emit_block(s[2], ctx, out, indent + "  ")
-        out.append(f"{indent}}}")
-        if len(s) > 3:
-            eb = as_list(s[3])
-            if as_atom(eb[0]) == "else":
-                out.append(f"{indent}else {{")
-                emit_block(eb[1], ctx, out, indent + "  ")
-                out.append(f"{indent}}}")
-        return
-    if tag == "while":
-        out.append(f"{indent}while ({expr_to_c(s[1], ctx)}) {{")
-        emit_block(s[2], ctx, out, indent + "  ")
-        out.append(f"{indent}}}")
-        return
-    raise LowerError(f"unsupported stmt: {tag}")
-
-
-def emit_block(block: Node, ctx: Ctx, out: List[str], indent: str) -> None:
-    b = as_list(block)
-    if as_atom(b[0]) != "block":
-        raise LowerError("expected block")
-    for stmt in b[1:]:
-        emit_stmt(stmt, ctx, out, indent)
-
-
-def lower_ir_to_c(root: Node) -> str:
+def lower_ir_to_asm_text(root: Node) -> str:
     top = as_list(root)
-    if len(top) != 4 or as_atom(top[0]) != "mee_ir":
-        raise LowerError("unsupported IR root")
-    if as_atom(top[1]) != "v0":
-        raise LowerError("unsupported IR version")
+    if len(top) != 4 or as_atom(top[0]) != "mee_ir" or as_atom(top[1]) != "v0":
+        raise LowerError("unsupported IR root/version")
+
     structs = as_list(top[2])
     if as_atom(structs[0]) != "structs":
         raise LowerError("invalid structs section")
+
     functions = as_list(top[3])
     if as_atom(functions[0]) != "functions":
         raise LowerError("invalid functions section")
 
     parsed = [parse_fn(as_list(f)) for f in functions[1:]]
-    fn_names = {name for (name, _, _) in parsed}
+    fn_names: Set[str] = {name for name, _, _ in parsed}
     if "main" not in fn_names:
         raise LowerError("expected main function")
-    fn_cnames: Dict[str, str] = {}
-    for name in fn_names:
-        if name == "main":
-            fn_cnames[name] = "mee_user_main"
-        else:
-            fn_cnames[name] = f"mee_fn_{name}"
 
     str_tokens: Dict[str, None] = {}
     for _, _, block in parsed:
@@ -341,140 +450,292 @@ def lower_ir_to_c(root: Node) -> str:
         data = decode_string_token(tok)
         addr = next_addr
         string_addrs[tok] = addr
-        string_entries.append((addr, data))
+        string_entries.append((addr, data + b"\x00"))
         next_addr += len(data) + 1
 
     out: List[str] = []
-    out.append("#include <stdint.h>")
-    out.append("#include <stddef.h>")
-    out.append("#include <string.h>")
-    out.append("#include <unistd.h>")
-    out.append("#include <fcntl.h>")
-    out.append("#include <errno.h>")
+    out.append(".intel_syntax noprefix")
+    out.append(".bss")
+    out.append(".align 16")
+    out.append("__mee_mem:")
+    out.append("  .zero 1048576")
+    out.append(".align 4")
+    out.append("__mee_mem_inited:")
+    out.append("  .long 0")
     out.append("")
-    out.append("static uint8_t __mee_mem[1 << 20];")
-    out.append("static int __mee_mem_inited = 0;")
-    out.append("")
-    out.append("static void __mee_init_memory(void) {")
-    out.append("  if (__mee_mem_inited) return;")
-    out.append("  __mee_mem_inited = 1;")
+
+    out.append(".text")
+    out.append("__mee_init_memory:")
+    out.append("  push rbp")
+    out.append("  mov rbp, rsp")
+    out.append("  mov eax, dword ptr [rip+__mee_mem_inited]")
+    out.append("  test eax, eax")
+    out.append("  jne .L_mem_done")
+    out.append("  mov dword ptr [rip+__mee_mem_inited], 1")
+    out.append("  lea rdx, [rip+__mee_mem]")
     for addr, data in string_entries:
-        esc = c_escape_bytes(data)
-        out.append(f"  memcpy(__mee_mem + {addr}, \"{esc}\", {len(data)});")
-    out.append("}")
+        for i, b in enumerate(data):
+            out.append(f"  mov byte ptr [rdx+{addr + i}], 0x{b:02x}")
+    out.append(".L_mem_done:")
+    out.append("  pop rbp")
+    out.append("  ret")
     out.append("")
-    out.append("static int32_t __mem_load(int32_t addr) {")
-    out.append("  int32_t v = 0;")
-    out.append("  memcpy(&v, __mee_mem + addr, 4);")
-    out.append("  return v;")
-    out.append("}")
+
+    out.append("__mem_load:")
+    out.append("  mov eax, edi")
+    out.append("  cdqe")
+    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  mov eax, dword ptr [rdx+rax]")
+    out.append("  ret")
     out.append("")
-    out.append("static int32_t __mem_load8(int32_t addr) {")
-    out.append("  return (int32_t)__mee_mem[addr];")
-    out.append("}")
+
+    out.append("__mem_load8:")
+    out.append("  mov eax, edi")
+    out.append("  cdqe")
+    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  movzx eax, byte ptr [rdx+rax]")
+    out.append("  ret")
     out.append("")
-    out.append("static int32_t __mem_store(int32_t addr, int32_t val) {")
-    out.append("  memcpy(__mee_mem + addr, &val, 4);")
-    out.append("  return 0;")
-    out.append("}")
+
+    out.append("__mem_store:")
+    out.append("  mov eax, edi")
+    out.append("  cdqe")
+    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  mov dword ptr [rdx+rax], esi")
+    out.append("  xor eax, eax")
+    out.append("  ret")
     out.append("")
-    out.append("static int32_t __mem_store8(int32_t addr, int32_t val) {")
-    out.append("  __mee_mem[addr] = (uint8_t)(val & 0xff);")
-    out.append("  return 0;")
-    out.append("}")
+
+    out.append("__mem_store8:")
+    out.append("  mov eax, edi")
+    out.append("  cdqe")
+    out.append("  lea rdx, [rip+__mee_mem]")
+    out.append("  mov byte ptr [rdx+rax], sil")
+    out.append("  xor eax, eax")
+    out.append("  ret")
     out.append("")
-    out.append("struct __mee_iovec32 { int32_t base; int32_t len; };")
+
+    out.append("__fd_write:")
+    out.append("  push rbp")
+    out.append("  mov rbp, rsp")
+    out.append("  push rbx")
+    out.append("  push r12")
+    out.append("  push r13")
+    out.append("  push r14")
+    out.append("  mov r12d, edi")
+    out.append("  mov r13d, esi")
+    out.append("  mov r14d, ecx")
+    out.append("  xor ebx, ebx")
+    out.append("  xor r10d, r10d")
+    out.append(".L_fdw_loop:")
+    out.append("  cmp r10d, edx")
+    out.append("  jge .L_fdw_done")
+    out.append("  lea r11, [rip+__mee_mem]")
+    out.append("  mov eax, r10d")
+    out.append("  imul eax, 8")
+    out.append("  add eax, r13d")
+    out.append("  cdqe")
+    out.append("  mov ecx, dword ptr [r11+rax]")
+    out.append("  mov r8d, dword ptr [r11+rax+4]")
+    out.append("  mov eax, ecx")
+    out.append("  lea rsi, [r11+rax]")
+    out.append("  mov edi, r12d")
+    out.append("  mov edx, r8d")
+    out.append("  mov eax, 1")
+    out.append("  syscall")
+    out.append("  test eax, eax")
+    out.append("  js .L_fdw_err")
+    out.append("  add ebx, eax")
+    out.append("  inc r10d")
+    out.append("  jmp .L_fdw_loop")
+    out.append(".L_fdw_done:")
+    out.append("  mov edi, r14d")
+    out.append("  mov esi, ebx")
+    out.append("  call __mem_store")
+    out.append("  xor eax, eax")
+    out.append("  pop r14")
+    out.append("  pop r13")
+    out.append("  pop r12")
+    out.append("  pop rbx")
+    out.append("  leave")
+    out.append("  ret")
+    out.append(".L_fdw_err:")
+    out.append("  neg eax")
+    out.append("  pop r14")
+    out.append("  pop r13")
+    out.append("  pop r12")
+    out.append("  pop rbx")
+    out.append("  leave")
+    out.append("  ret")
     out.append("")
-    out.append("static int32_t __fd_write(int32_t fd, int32_t iov_ptr, int32_t iov_cnt, int32_t nwritten_ptr) {")
-    out.append("  int32_t total = 0;")
-    out.append("  for (int32_t i = 0; i < iov_cnt; i++) {")
-    out.append("    struct __mee_iovec32 iv;")
-    out.append("    memcpy(&iv, __mee_mem + iov_ptr + i * 8, 8);")
-    out.append("    ssize_t n = write(fd, __mee_mem + iv.base, (size_t)iv.len);")
-    out.append("    if (n < 0) return (int32_t)errno;")
-    out.append("    total += (int32_t)n;")
-    out.append("  }")
-    out.append("  __mem_store(nwritten_ptr, total);")
-    out.append("  return 0;")
-    out.append("}")
+
+    out.append("__fd_read:")
+    out.append("  push rbp")
+    out.append("  mov rbp, rsp")
+    out.append("  push rbx")
+    out.append("  push r12")
+    out.append("  push r13")
+    out.append("  push r14")
+    out.append("  mov r12d, edi")
+    out.append("  mov r13d, esi")
+    out.append("  mov r14d, ecx")
+    out.append("  xor ebx, ebx")
+    out.append("  xor r10d, r10d")
+    out.append(".L_fdr_loop:")
+    out.append("  cmp r10d, edx")
+    out.append("  jge .L_fdr_done")
+    out.append("  lea r11, [rip+__mee_mem]")
+    out.append("  mov eax, r10d")
+    out.append("  imul eax, 8")
+    out.append("  add eax, r13d")
+    out.append("  cdqe")
+    out.append("  mov ecx, dword ptr [r11+rax]")
+    out.append("  mov r8d, dword ptr [r11+rax+4]")
+    out.append("  mov eax, ecx")
+    out.append("  lea rsi, [r11+rax]")
+    out.append("  mov edi, r12d")
+    out.append("  mov edx, r8d")
+    out.append("  mov eax, 0")
+    out.append("  syscall")
+    out.append("  test eax, eax")
+    out.append("  js .L_fdr_err")
+    out.append("  add ebx, eax")
+    out.append("  cmp eax, r8d")
+    out.append("  jl .L_fdr_done")
+    out.append("  inc r10d")
+    out.append("  jmp .L_fdr_loop")
+    out.append(".L_fdr_done:")
+    out.append("  mov edi, r14d")
+    out.append("  mov esi, ebx")
+    out.append("  call __mem_store")
+    out.append("  xor eax, eax")
+    out.append("  pop r14")
+    out.append("  pop r13")
+    out.append("  pop r12")
+    out.append("  pop rbx")
+    out.append("  leave")
+    out.append("  ret")
+    out.append(".L_fdr_err:")
+    out.append("  neg eax")
+    out.append("  pop r14")
+    out.append("  pop r13")
+    out.append("  pop r12")
+    out.append("  pop rbx")
+    out.append("  leave")
+    out.append("  ret")
     out.append("")
-    out.append("static int32_t __fd_read(int32_t fd, int32_t iov_ptr, int32_t iov_cnt, int32_t nread_ptr) {")
-    out.append("  int32_t total = 0;")
-    out.append("  for (int32_t i = 0; i < iov_cnt; i++) {")
-    out.append("    struct __mee_iovec32 iv;")
-    out.append("    memcpy(&iv, __mee_mem + iov_ptr + i * 8, 8);")
-    out.append("    ssize_t n = read(fd, __mee_mem + iv.base, (size_t)iv.len);")
-    out.append("    if (n < 0) return (int32_t)errno;")
-    out.append("    total += (int32_t)n;")
-    out.append("    if (n < iv.len) break;")
-    out.append("  }")
-    out.append("  __mem_store(nread_ptr, total);")
-    out.append("  return 0;")
-    out.append("}")
+
+    out.append("__fd_close:")
+    out.append("  mov eax, 3")
+    out.append("  mov edi, edi")
+    out.append("  syscall")
+    out.append("  test eax, eax")
+    out.append("  js .L_fdc_err")
+    out.append("  xor eax, eax")
+    out.append("  ret")
+    out.append(".L_fdc_err:")
+    out.append("  neg eax")
+    out.append("  ret")
     out.append("")
-    out.append("static int32_t __fd_close(int32_t fd) {")
-    out.append("  if (close(fd) < 0) return (int32_t)errno;")
-    out.append("  return 0;")
-    out.append("}")
-    out.append("")
-    out.append("static int32_t __path_open(int32_t dirfd, int32_t dirflags, int32_t path_ptr, int32_t path_len, int32_t oflags, int64_t rights_base, int64_t rights_inh, int32_t fdflags, int32_t fd_out_ptr) {")
-    out.append("  (void)dirfd; (void)dirflags; (void)rights_base; (void)rights_inh; (void)fdflags;")
-    out.append("  char path_buf[4096];")
-    out.append("  if (path_len < 0 || path_len >= (int32_t)sizeof(path_buf)) return 22;")
-    out.append("  memcpy(path_buf, __mee_mem + path_ptr, (size_t)path_len);")
-    out.append("  path_buf[path_len] = '\\0';")
-    out.append("  int flags = O_RDONLY;")
-    out.append("  if (oflags & 1) flags = O_WRONLY | O_CREAT | O_TRUNC;")
-    out.append("  int fd = open(path_buf, flags, 0644);")
-    out.append("  if (fd < 0) return (int32_t)errno;")
-    out.append("  __mem_store(fd_out_ptr, (int32_t)fd);")
-    out.append("  return 0;")
-    out.append("}")
+
+    out.append("__path_open:")
+    out.append("  push rbp")
+    out.append("  mov rbp, rsp")
+    out.append("  push r12")
+    out.append("  push r13")
+    out.append("  push r14")
+    out.append("  sub rsp, 4096")
+    out.append("  cmp ecx, 0")
+    out.append("  jl .L_po_inval")
+    out.append("  cmp ecx, 4095")
+    out.append("  jg .L_po_inval")
+    out.append("  mov r12d, edi")
+    out.append("  mov r13d, r8d")
+    out.append("  mov r14d, dword ptr [rbp+32]")
+    out.append("  lea r11, [rsp]")
+    out.append("  lea r10, [rip+__mee_mem]")
+    out.append("  mov eax, edx")
+    out.append("  cdqe")
+    out.append("  lea r10, [r10+rax]")
+    out.append("  mov edx, ecx")
+    out.append("  xor eax, eax")
+    out.append(".L_po_copy_loop:")
+    out.append("  cmp eax, edx")
+    out.append("  jge .L_po_copy_done")
+    out.append("  mov bl, byte ptr [r10+rax]")
+    out.append("  mov byte ptr [r11+rax], bl")
+    out.append("  inc eax")
+    out.append("  jmp .L_po_copy_loop")
+    out.append(".L_po_copy_done:")
+    out.append("  mov byte ptr [r11+rdx], 0")
+    out.append("  mov edi, r12d")
+    out.append("  cmp edi, 3")
+    out.append("  jne .L_po_dirfd_ok")
+    out.append("  mov edi, -100")
+    out.append(".L_po_dirfd_ok:")
+    out.append("  mov esi, 0")
+    out.append("  test r13d, 1")
+    out.append("  jz .L_po_flags_done")
+    out.append("  mov esi, 577")
+    out.append(".L_po_flags_done:")
+    out.append("  mov r10d, 420")
+    out.append("  mov edx, esi")
+    out.append("  mov rsi, r11")
+    out.append("  mov eax, 257")
+    out.append("  syscall")
+    out.append("  test eax, eax")
+    out.append("  js .L_po_err")
+    out.append("  mov edi, r14d")
+    out.append("  mov esi, eax")
+    out.append("  call __mem_store")
+    out.append("  xor eax, eax")
+    out.append("  add rsp, 4096")
+    out.append("  pop r14")
+    out.append("  pop r13")
+    out.append("  pop r12")
+    out.append("  leave")
+    out.append("  ret")
+    out.append(".L_po_inval:")
+    out.append("  mov eax, 22")
+    out.append("  add rsp, 4096")
+    out.append("  pop r14")
+    out.append("  pop r13")
+    out.append("  pop r12")
+    out.append("  leave")
+    out.append("  ret")
+    out.append(".L_po_err:")
+    out.append("  neg eax")
+    out.append("  add rsp, 4096")
+    out.append("  pop r14")
+    out.append("  pop r13")
+    out.append("  pop r12")
+    out.append("  leave")
+    out.append("  ret")
     out.append("")
 
     for name, params, block in parsed:
-        sig = ", ".join(f"int32_t {p}" for p in params)
-        out.append(f"static int32_t {fn_cnames[name]}({sig});")
+        fn = FnEmitter(name, params, block, string_addrs, fn_names)
+        out.extend(fn.emit_function())
+
+    out.append(".globl mee_start")
+    out.append("mee_start:")
+    out.append("  call main")
+    out.append("  mov edi, eax")
+    out.append("  mov eax, 60")
+    out.append("  syscall")
     out.append("")
 
-    ctx = Ctx(string_addrs, fn_cnames)
-    for name, params, block in parsed:
-        sig = ", ".join(f"int32_t {p}" for p in params)
-        out.append(f"static int32_t {fn_cnames[name]}({sig}) {{")
-        out.append("  __mee_init_memory();")
-        locals_set: Set[str] = set()
-        collect_locals(block, locals_set)
-        params_set = set(params)
-        for local in sorted(locals_set):
-            if local in params_set:
-                continue
-            out.append(f"  int32_t {local} = 0;")
-        emit_block(block, ctx, out, "  ")
-        out.append("  return 0;")
-        out.append("}")
-        out.append("")
+    return "\n".join(out) + "\n"
 
-    out.append("int main(void) {")
-    out.append(f"  return (int){fn_cnames['main']}();")
-    out.append("}")
-    out.append("")
-    return "\n".join(out)
 
 def lower_ir_to_asm(ir_path: Path, out_path: Path) -> None:
     src = ir_path.read_text()
     root = parse_sexpr(tokenize(src))
-    c_src = lower_ir_to_c(root)
-    with tempfile.TemporaryDirectory(prefix="mee-ir-x86-") as td:
-        c_file = Path(td) / "module.c"
-        c_file.write_text(c_src)
-        cmd = ["gcc", "-S", "-O2", "-fno-asynchronous-unwind-tables", "-fno-stack-protector", "-no-pie", str(c_file), "-o", str(out_path)]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise LowerError(f"gcc failed:\n{proc.stderr}")
+    out_path.write_text(lower_ir_to_asm_text(root))
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Lower mee_ir v0 to x86_64 assembly via C (non-Rust path)")
+    ap = argparse.ArgumentParser(description="Lower mee_ir v0 to x86_64 assembly (non-Rust path, no C compiler)")
     ap.add_argument("input", help="input .ir file")
     ap.add_argument("-o", "--output", required=True, help="output .s file")
     args = ap.parse_args()

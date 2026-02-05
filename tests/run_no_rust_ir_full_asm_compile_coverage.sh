@@ -4,11 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-ir-full-asm-norust.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
-
-if ! command -v gcc >/dev/null 2>&1; then
-  echo "gcc is required but not found in PATH"
-  exit 1
-fi
 if [[ "$(uname -s)" != "Linux" ]]; then
   echo "no-rust full ir asm compile coverage currently supports Linux only"
   exit 1
