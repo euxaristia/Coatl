@@ -93,6 +93,7 @@ wasmtime --invoke main /tmp/hello-self.wat
 
 Rust-free convergence + runtime checks:
 ```bash
+./selfhost/check_self_compile.sh
 ./selfhost/check_self_compile_seed.sh
 ./selfhost/run_selfhost_runtime_suite.sh
 ./selfhost/run_roundtrip_suite_seed.sh
