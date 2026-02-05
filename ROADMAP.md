@@ -67,6 +67,7 @@ Last updated: 2026-02-05
 - strict no-Rust now verifies full `--toolchain=auto` coverage for WAT/IR/ASM across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_auto_full_wat_compile_coverage.sh`, `tests/run_no_rust_auto_full_ir_emit_coverage.sh`, and `tests/run_no_rust_auto_full_asm_compile_coverage.sh`
 - strict no-Rust now also verifies full `--toolchain=auto` WAT compile coverage via the default seed/selfhost-attempt path through `tests/run_no_rust_auto_full_wat_compile_default_seed_coverage.sh`
 - strict no-Rust now also enforces no accidental Cargo invocation in no-Rust compile lanes via `tests/run_no_rust_no_cargo_guard.sh`
+- strict no-Rust now also verifies full default CLI (`./mee build ...` without explicit `--toolchain`) no-Rust coverage for WAT/IR/ASM via `tests/run_no_rust_default_cli_full_wat_compile_coverage.sh`, `tests/run_no_rust_default_cli_full_ir_emit_coverage.sh`, and `tests/run_no_rust_default_cli_full_asm_compile_coverage.sh`
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

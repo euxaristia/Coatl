@@ -125,6 +125,12 @@ Run no-Rust guard that fails if any path invokes `cargo`:
 ```bash
 ./tests/run_no_rust_no_cargo_guard.sh
 ```
+Run full no-Rust default CLI coverage (no explicit `--toolchain`) for WAT/IR/ASM:
+```bash
+./tests/run_no_rust_default_cli_full_wat_compile_coverage.sh
+./tests/run_no_rust_default_cli_full_ir_emit_coverage.sh
+./tests/run_no_rust_default_cli_full_asm_compile_coverage.sh
+```
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
 ./tests/run_ir_subset_io_smoke.sh
@@ -183,6 +189,7 @@ Strict no-Rust also guards full `--emit=asm --toolchain=ir` compile coverage acr
 Strict no-Rust also guards full `--toolchain=auto` compile/emission coverage for WAT/IR/ASM via `tests/run_no_rust_auto_full_wat_compile_coverage.sh`, `tests/run_no_rust_auto_full_ir_emit_coverage.sh`, and `tests/run_no_rust_auto_full_asm_compile_coverage.sh`.
 Strict no-Rust also guards full `--toolchain=auto` WAT compile coverage through the default seed/selfhost-attempt path via `tests/run_no_rust_auto_full_wat_compile_default_seed_coverage.sh`.
 Strict no-Rust also guards against accidental Cargo invocation in no-Rust paths via `tests/run_no_rust_no_cargo_guard.sh`.
+Strict no-Rust also guards full default CLI (`./mee build ...` without explicit `--toolchain`) no-Rust coverage for WAT/IR/ASM via `tests/run_no_rust_default_cli_full_wat_compile_coverage.sh`, `tests/run_no_rust_default_cli_full_ir_emit_coverage.sh`, and `tests/run_no_rust_default_cli_full_asm_compile_coverage.sh`.
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
 ## Hello World (Mee)
