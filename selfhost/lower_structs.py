@@ -16,16 +16,13 @@ class StructDef:
 STRUCT_RE = re.compile(r"struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{", re.MULTILINE)
 
 
-def parse_structs(src: str) -> tuple[list[StructDef], str]:
+def parse_structs(src: str) -> list[StructDef]:
     out = []
     i = 0
-    kept = []
     while i < len(src):
         m = STRUCT_RE.search(src, i)
         if not m:
-            kept.append(src[i:])
             break
-        kept.append(src[i : m.start()])
         name = m.group(1)
         j = m.end()
         depth = 1
@@ -52,15 +49,41 @@ def parse_structs(src: str) -> tuple[list[StructDef], str]:
             raise SystemExit(f"struct {name} has no fields")
         out.append(StructDef(name=name, fields=fields))
         i = j
-    return out, "".join(kept)
+    return out
 
 
-def replace_types(src: str, sdefs: list[StructDef]) -> str:
-    for sd in sdefs:
-        n = re.escape(sd.name)
-        src = re.sub(rf"(:\s*){n}\b", r"\1i32", src)
-        src = re.sub(rf"(->\s*){n}\b", r"\1i32", src)
-    return src
+def protect_struct_defs(src: str) -> tuple[str, list[str]]:
+    chunks: list[str] = []
+    out: list[str] = []
+    i = 0
+    while i < len(src):
+        m = STRUCT_RE.search(src, i)
+        if not m:
+            out.append(src[i:])
+            break
+        out.append(src[i : m.start()])
+        j = m.end()
+        depth = 1
+        while j < len(src) and depth > 0:
+            c = src[j]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            j += 1
+        chunk = src[m.start() : j]
+        idx = len(chunks)
+        chunks.append(chunk)
+        out.append(f"__MEE_STRUCT_DEF_{idx}__")
+        i = j
+    return "".join(out), chunks
+
+
+def restore_struct_defs(src: str, chunks: list[str]) -> str:
+    out = src
+    for idx, chunk in enumerate(chunks):
+        out = out.replace(f"__MEE_STRUCT_DEF_{idx}__", chunk)
+    return out
 
 
 def replace_field_access(src: str, sdefs: list[StructDef]) -> str:
@@ -107,6 +130,11 @@ def replace_struct_literals(src: str, sdefs: list[StructDef]) -> str:
         for sd in sdefs:
             m = re.match(rf"{re.escape(sd.name)}\s*\{{", src[i:])
             if m:
+                j = i - 1
+                while j >= 0 and src[j].isspace():
+                    j -= 1
+                if j >= 0 and src[j] == ">":
+                    continue
                 matched = sd
                 break
         if not matched:
@@ -182,12 +210,13 @@ def gen_helpers(sdefs: list[StructDef]) -> str:
 
 
 def lower(src: str) -> str:
-    sdefs, src2 = parse_structs(src)
+    sdefs = parse_structs(src)
     if not sdefs:
         return src
-    src2 = replace_types(src2, sdefs)
-    src2 = replace_struct_literals(src2, sdefs)
+    masked, defs = protect_struct_defs(src)
+    src2 = replace_struct_literals(masked, sdefs)
     src2 = replace_field_access(src2, sdefs)
+    src2 = restore_struct_defs(src2, defs)
     helpers = gen_helpers(sdefs)
     return helpers + "\n" + src2.lstrip()
 

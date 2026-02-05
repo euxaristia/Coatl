@@ -11,9 +11,9 @@ if [[ "$MODE" == "selfhost" ]]; then
   exec "$ROOT_DIR/selfhost/run_roundtrip_suite_seed.sh"
 fi
 
-SELFHOST_CHECK="$ROOT_DIR/selfhost/check_self_compile.sh"
-STAGE1_WAT="/tmp/mee-bootstrap-stage1.wat"
-STAGE1_STDIN_WAT="/tmp/mee-bootstrap-stage1-stdin.wat"
+SELFHOST_CHECK="$ROOT_DIR/selfhost/check_self_compile_seed.sh"
+STAGE1_WAT="/tmp/mee-bootstrap-seed-stage1.wat"
+STAGE1_STDIN_WAT="/tmp/mee-bootstrap-seed-stage1-stdin.wat"
 
 patch_stdin_flag() {
   local in_wat="$1"
