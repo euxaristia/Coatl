@@ -10,6 +10,10 @@ if ! command -v gcc >/dev/null 2>&1; then
   echo "gcc is required but not found in PATH"
   exit 1
 fi
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "ir x86 subset asm smoke currently supports Linux only"
+  exit 1
+fi
 
 build_bin() {
   local src="$1"
