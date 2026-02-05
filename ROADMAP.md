@@ -65,6 +65,7 @@ Last updated: 2026-02-05
 - strict no-Rust now verifies full `--emit=ir --toolchain=ir` coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_emit_full_coverage.sh`
 - strict no-Rust now verifies full `--emit=asm --toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_asm_compile_coverage.sh`
 - strict no-Rust now verifies full `--toolchain=auto` coverage for WAT/IR/ASM across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_auto_full_wat_compile_coverage.sh`, `tests/run_no_rust_auto_full_ir_emit_coverage.sh`, and `tests/run_no_rust_auto_full_asm_compile_coverage.sh`
+- strict no-Rust now also verifies full `--toolchain=auto` WAT compile coverage via the default seed/selfhost-attempt path through `tests/run_no_rust_auto_full_wat_compile_default_seed_coverage.sh`
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

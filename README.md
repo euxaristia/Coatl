@@ -109,6 +109,10 @@ Run full no-Rust `--toolchain=auto` WAT compile coverage (`tests/`, `examples/`,
 ```bash
 ./tests/run_no_rust_auto_full_wat_compile_coverage.sh
 ```
+Run full no-Rust `--toolchain=auto` WAT compile coverage with default seed/selfhost attempt path:
+```bash
+./tests/run_no_rust_auto_full_wat_compile_default_seed_coverage.sh
+```
 Run full no-Rust `--emit=ir --toolchain=auto` coverage:
 ```bash
 ./tests/run_no_rust_auto_full_ir_emit_coverage.sh
@@ -173,6 +177,7 @@ Strict no-Rust also guards full `--toolchain=ir` compile coverage across `tests/
 Strict no-Rust also guards full `--emit=ir --toolchain=ir` coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_emit_full_coverage.sh`.
 Strict no-Rust also guards full `--emit=asm --toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_asm_compile_coverage.sh`.
 Strict no-Rust also guards full `--toolchain=auto` compile/emission coverage for WAT/IR/ASM via `tests/run_no_rust_auto_full_wat_compile_coverage.sh`, `tests/run_no_rust_auto_full_ir_emit_coverage.sh`, and `tests/run_no_rust_auto_full_asm_compile_coverage.sh`.
+Strict no-Rust also guards full `--toolchain=auto` WAT compile coverage through the default seed/selfhost-attempt path via `tests/run_no_rust_auto_full_wat_compile_default_seed_coverage.sh`.
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
 ## Hello World (Mee)
