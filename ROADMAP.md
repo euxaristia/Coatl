@@ -59,6 +59,10 @@ Last updated: 2026-02-05
 - Strict no-Rust subset coverage now includes control-flow/local-let struct-return bodies (`tests/struct_return_if_subset.mee`)
 - Strict no-Rust subset coverage now includes loop-based struct-return body lowering (`tests/struct_return_while_subset.mee`)
 - Strict no-Rust auto-fallback suite now exercises the same struct set through forced selfhost-failure -> IR pipeline fallback
+- Non-Rust WAT lowerer now supports nested-block `let` locals (function-wide WASM local predeclaration), covered by `tests/nested_let_scope_subset.mee`
+- strict no-Rust now verifies `selfhost/bootstrap.mee` compiles via `--toolchain=ir` through `tests/run_no_rust_bootstrap_ir_compile.sh`
+- strict no-Rust now verifies full `--toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_compile_coverage.sh`
+- strict no-Rust now verifies full `--emit=asm --toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_asm_compile_coverage.sh`
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

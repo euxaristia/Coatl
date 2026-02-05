@@ -81,6 +81,15 @@ cf_rc=$?
 set -e
 assert_rc 77 "$cf_rc" "ir_subset_control_flow"
 
+echo "[ir-x86-subset-asm] nested_let_scope_subset"
+NESTLET_BIN="$TMP_DIR/nested-let"
+build_bin "$ROOT_DIR/tests/nested_let_scope_subset.mee" "$NESTLET_BIN"
+set +e
+"$NESTLET_BIN"
+nestlet_rc=$?
+set -e
+assert_rc 7 "$nestlet_rc" "nested_let_scope_subset"
+
 echo "[ir-x86-subset-asm] struct chain"
 STRUCT_BIN="$TMP_DIR/struct"
 build_bin "$ROOT_DIR/tests/struct_chain_calls.mee" "$STRUCT_BIN"

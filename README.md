@@ -89,6 +89,18 @@ Run no-Rust backend parity suite (WAT vs ASM) for subset corpus:
 ```bash
 ./tests/run_no_rust_backend_parity_suite.sh
 ```
+Run no-Rust bootstrap compile check through `toolchain=ir`:
+```bash
+./tests/run_no_rust_bootstrap_ir_compile.sh
+```
+Run full no-Rust `toolchain=ir` compile coverage (`tests/`, `examples/`, `selfhost/`):
+```bash
+./tests/run_no_rust_ir_full_compile_coverage.sh
+```
+Run full no-Rust `--emit=asm --toolchain=ir` compile coverage (`tests/`, `examples/`, `selfhost/`):
+```bash
+./tests/run_no_rust_ir_full_asm_compile_coverage.sh
+```
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
 ./tests/run_ir_subset_io_smoke.sh
@@ -140,6 +152,9 @@ It also includes control flow (`if`/`while`) and boolean/comparison operators vi
 In `--toolchain=auto`, if selfhost WAT compilation fails, `./mee` now tries the non-Rust IR pipeline before any Rust fallback.
 For `--toolchain=ir`, `./mee` now prefers the subset non-Rust frontend and uses Rust frontend only as a fallback for unsupported programs.
 The strict subset frontend now includes struct params/locals, field assignment (`p.x = ...`), nested struct-return calls in argument position, and struct-return body lowering with local `let` + `if`/`else`/`while` by flattening struct values into i32 field lanes (`tests/struct_param_pass.mee`, `tests/struct_return_basic.mee`, `tests/struct_chain_calls.mee`, `tests/struct_field_mutation_subset.mee`, `tests/struct_nested_arg_subset.mee`, `tests/struct_return_if_subset.mee`, `tests/struct_return_while_subset.mee`).
+The non-Rust WAT lowerer now handles nested-block `let` locals correctly (covered by `tests/nested_let_scope_subset.mee`), and strict no-Rust also guards that `selfhost/bootstrap.mee` compiles through `--toolchain=ir` via `tests/run_no_rust_bootstrap_ir_compile.sh`.
+Strict no-Rust also guards full `--toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_compile_coverage.sh`.
+Strict no-Rust also guards full `--emit=asm --toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_asm_compile_coverage.sh`.
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
 ## Hello World (Mee)

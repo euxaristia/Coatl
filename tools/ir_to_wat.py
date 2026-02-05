@@ -431,12 +431,24 @@ def collect_locals(block: Node) -> List[str]:
     b = as_list(block)
     if as_atom(b[0]) != "block":
         raise LowerError("expected block")
-    locals_: List[str] = []
+    found: Dict[str, None] = {}
     for stmt in b[1:]:
         s = as_list(stmt)
-        if as_atom(s[0]) == "let":
-            locals_.append(as_atom(s[1]))
-    return locals_
+        tag = as_atom(s[0])
+        if tag == "let":
+            found[as_atom(s[1])] = None
+        elif tag == "if":
+            for name in collect_locals(s[2]):
+                found[name] = None
+            if len(s) > 3:
+                eb = as_list(s[3])
+                if as_atom(eb[0]) == "else":
+                    for name in collect_locals(eb[1]):
+                        found[name] = None
+        elif tag == "while":
+            for name in collect_locals(s[2]):
+                found[name] = None
+    return list(found.keys())
 
 
 def parse_fn(fn_node: List[Node]) -> Tuple[str, List[str], Node]:

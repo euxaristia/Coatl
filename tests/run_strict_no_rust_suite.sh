@@ -132,6 +132,15 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
 echo "[strict-no-rust] no-rust backend parity (wat vs asm)"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_backend_parity_suite.sh"
 
+echo "[strict-no-rust] bootstrap compile via toolchain=ir"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_bootstrap_ir_compile.sh"
+
+echo "[strict-no-rust] full no-rust toolchain=ir compile coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_compile_coverage.sh"
+
+echo "[strict-no-rust] full no-rust toolchain=ir asm compile coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_asm_compile_coverage.sh"
+
 echo "[strict-no-rust] centralized Rust entrypoint guard"
 "$ROOT_DIR/tests/check_rust_entrypoint_centralization.sh"
 
