@@ -1,0 +1,21 @@
+struct Point {
+  x: i32,
+  y: i32
+}
+
+fn build(n: i32) -> Point {
+  let x: i32 = 0;
+  let y: i32 = 0;
+  let i: i32 = 0;
+  while (i < n) {
+    x = x + 1;
+    y = y + 2;
+    i = i + 1;
+  }
+  return Point { x: x, y: y };
+}
+
+fn main() -> i32 {
+  let p: Point = build(3);
+  return p.x + p.y;
+}

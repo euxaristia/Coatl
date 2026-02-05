@@ -60,4 +60,7 @@ check_case "tests/struct_nested_arg_subset.mee" "6"
 echo "[ir-subset] struct_return_if_subset"
 check_case "tests/struct_return_if_subset.mee" "36"
 
+echo "[ir-subset] struct_return_while_subset"
+check_case "tests/struct_return_while_subset.mee" "9"
+
 echo "ir subset backend suite passed"

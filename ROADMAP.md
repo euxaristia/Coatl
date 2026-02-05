@@ -51,6 +51,7 @@ Last updated: 2026-02-05
 - Strict no-Rust subset coverage now includes struct field mutation lowering (`tests/struct_field_mutation_subset.mee`)
 - Strict no-Rust subset coverage now includes nested struct-return calls in arg position (`tests/struct_nested_arg_subset.mee`)
 - Strict no-Rust subset coverage now includes control-flow/local-let struct-return bodies (`tests/struct_return_if_subset.mee`)
+- Strict no-Rust subset coverage now includes loop-based struct-return body lowering (`tests/struct_return_while_subset.mee`)
 - Strict no-Rust auto-fallback suite now exercises the same struct set through forced selfhost-failure -> IR pipeline fallback
 
 ### v0.4 (self-hosting)
