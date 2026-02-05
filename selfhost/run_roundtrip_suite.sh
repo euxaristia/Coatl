@@ -70,10 +70,7 @@ compile_with_selfhost() {
 compile_with_rust() {
   local src="$1"
   local out_wat="$2"
-  (
-    cd "$ROOT_DIR/compiler"
-    cargo run --quiet -- build "../$src" --emit=wat -o "$out_wat"
-  )
+  "$ROOT_DIR/mee" build "$ROOT_DIR/$src" --emit=wat --toolchain=rust -o "$out_wat"
 }
 
 check_case() {

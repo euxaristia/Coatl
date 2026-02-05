@@ -52,10 +52,7 @@ PY
 }
 
 echo "[1/6] Building stage0 WAT with Rust compiler"
-(
-  cd "$ROOT_DIR/compiler"
-  cargo run --quiet -- build ../selfhost/bootstrap.mee --emit=wat -o "$STAGE0_WAT"
-)
+"$ROOT_DIR/mee" build "$ROOT_DIR/selfhost/bootstrap.mee" --emit=wat --toolchain=rust -o "$STAGE0_WAT"
 
 echo "[2/6] Running stage0 -> stage1"
 patch_stdin_flag "$STAGE0_WAT" "$STAGE0_STDIN_WAT"
