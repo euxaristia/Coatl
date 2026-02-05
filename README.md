@@ -141,6 +141,10 @@ Run strongest pre-delete gate: strict no-rust suite with `compiler/` temporarily
 ```bash
 ./tests/run_no_rust_build_strict_without_compiler_dir.sh
 ```
+Run smoke test for expected rust-toolchain failure message when `compiler/` is missing:
+```bash
+./tests/run_missing_compiler_rust_lane_smoke.sh
+```
 Rust-legacy helper suites now gracefully fall back/skip when Rust lane is unavailable (`compiler/` missing or `MEE_NO_RUST_BUILD=1`), including `selfhost/check_self_compile.sh --with-rust`, `selfhost/run_roundtrip_suite.sh --with-rust`, and `tests/run_ir_smoke.sh`.
 Run full no-Rust default CLI coverage (no explicit `--toolchain`) for WAT/IR/ASM:
 ```bash
