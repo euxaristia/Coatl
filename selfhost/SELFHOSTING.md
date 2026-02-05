@@ -181,9 +181,10 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 **Bootstrap work**:
 - [x] Basic name checking (undefined locals error)
 - [x] Basic call arity checking (non-intrinsics)
-- [ ] Implement all constructs used by `bootstrap.mee`
+- [x] Implement all constructs used by `bootstrap.mee` (audit complete: `fn`, `let`, assign, `return`, `if`/`else`, `while`, calls, numeric/bool/string literals, `!`, `&&`, `||`, comparisons, memory/file intrinsics)
 - [x] Minimal type checker (i32 only, no inference)
 - [x] Error reporting with line/column spans (parse errors)
+- [x] Error reporting with line/column spans (semantic/type/name errors)
 - [x] Boolean literals + logical `&&`/`||` (non-short-circuit)
 - [x] String literals (WAT data segments, i32 pointer values)
 - [x] Unary `!` operator
@@ -214,8 +215,10 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 6. ~~**Bootstrap**: Line comments~~ ✓
 7. ~~**Rust compiler**: Add WASI imports + output intrinsic(s) (Stage 5)~~ ✓
 8. ~~**Bootstrap**: `out_flush` + write WAT to file (Stage 5)~~ ✓
-9. **Bootstrap**: Minimal type checker + error reporting (Stage 6)
-10. **Bootstrap**: Self-compile verification loop (Stage 6)
+9. ~~**Bootstrap**: Minimal type checker + error reporting (Stage 6)~~ ✓
+10. ~~**Bootstrap**: Self-compile verification loop (Stage 6)~~ ✓
+11. ~~**Bootstrap**: Add semantic error spans (line/column for type/name errors)~~ ✓
+12. ~~**Bootstrap**: Expand negative tests (expected parser/typecheck failures)~~ ✓
 
 ## Stage 5 Detailed Tasks (File I/O + WAT Output)
 
@@ -232,7 +235,7 @@ Note: file output test is gated by `state_emit_file_flag` (state_base+72) and re
 
 ## Stage 6 Detailed Tasks (Self-Compile)
 
-- Inventory constructs used in `bootstrap.mee` and confirm parser/codegen coverage
+- ~~Inventory constructs used in `bootstrap.mee` and confirm parser/codegen coverage~~ ✓
 - Add minimal type checker for i32:
 - Track symbol table with types for locals, params, and function returns
 - Validate binary ops are i32-only, comparisons return i32 (0/1)

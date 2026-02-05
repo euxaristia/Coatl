@@ -83,6 +83,12 @@ fn main() -> i32 {
   let comment_ok: i32 = test_comments();
   if (comment_ok != 1) { return 16; }
 
+  // Stage 4f: negative parser/typecheck tests.
+  let neg_parse_ok: i32 = test_negative_parse();
+  if (neg_parse_ok != 1) { return 24; }
+  let neg_sem_ok: i32 = test_negative_semantic();
+  if (neg_sem_ok != 1) { return 25; }
+
   // Stage 5: test WAT text generation.
   let wat_text_ok: i32 = test_wat_text_gen();
   if (wat_text_ok != 1) { return 17; }
@@ -242,6 +248,19 @@ fn set_parse_error(code: i32) -> i32 {
   __mem_store(state_err_tok(), lex_kind(tok));
   set_error_line_col(get_pos());
   return code;
+}
+
+// Store semantic/type error info (code + source position).
+fn set_semantic_error_pos(code: i32, pos: i32) -> i32 {
+  __mem_store(state_err_code(), code);
+  __mem_store(state_err_pos(), pos);
+  __mem_store(state_err_tok(), 0);
+  set_error_line_col(pos);
+  return code;
+}
+
+fn set_semantic_error_node(code: i32, node: i32) -> i32 {
+  return set_semantic_error_pos(code, ast_pos(node));
 }
 
 fn compile_stub() -> i32 {
@@ -1096,6 +1115,7 @@ fn map_local(ident_id: i32) -> i32 {
 //   0x12C0000 - 0x12FFFFF: Function tables
 //   0x1300000 - 0x42FFFFF: Output buffer (48MB)
 //   0x4300000 - 0x44FFFFF: Function local identifier table
+//   0x4500000 - 0x457FFFF: AST node source-position table
 //   0x4600000+      : I/O scratch (iovec + counters)
 //
 // AST Node format (16 bytes):
@@ -1103,14 +1123,30 @@ fn map_local(ident_id: i32) -> i32 {
 //   offset 4: arg_a (i32)
 //   offset 8: arg_b (i32)
 //   offset 12: arg_c (i32)
+// AST position table (parallel array):
+//   ast_pos[idx] = source position for node idx
 
 fn ast_base() -> i32 { return 0; }
 fn ast_node_size() -> i32 { return 16; }
 fn ast_max_nodes() -> i32 { return 131072; }
+fn ast_pos_base() -> i32 { return 72351744; }
 
 // Compute address of AST node field
 fn ast_addr(node_idx: i32, field_offset: i32) -> i32 {
   return ast_base() + node_idx * ast_node_size() + field_offset;
+}
+
+fn ast_pos_addr(node_idx: i32) -> i32 {
+  return ast_pos_base() + node_idx * 4;
+}
+
+fn ast_set_pos(node_idx: i32, pos: i32) -> i32 {
+  __mem_store(ast_pos_addr(node_idx), pos);
+  return 0;
+}
+
+fn ast_pos(node_idx: i32) -> i32 {
+  return __mem_load(ast_pos_addr(node_idx));
 }
 
 // Store AST node
@@ -1119,6 +1155,7 @@ fn ast_set(idx: i32, kind: i32, a: i32, b: i32, c: i32) -> i32 {
   __mem_store(ast_addr(idx, 4), a);
   __mem_store(ast_addr(idx, 8), b);
   __mem_store(ast_addr(idx, 12), c);
+  ast_set_pos(idx, get_pos());
   return 0;
 }
 
@@ -1693,7 +1730,7 @@ fn emit_ir_call(node: i32) -> i32 {
   let arg_count: i32 = ast_c(node);
 
   if (fn_id == intrin_mem_load_id()) {
-    if (arg_count != 1) { return 0 - 3302; }
+    if (arg_count != 1) { return set_semantic_error_node(0 - 3302, node); }
     let arg0: i32 = ast_a(first_arg);
     let r1: i32 = emit_ir_expr(arg0);
     if (r1 < 0) { return r1; }
@@ -1702,7 +1739,7 @@ fn emit_ir_call(node: i32) -> i32 {
     return r1 + 1;
   }
   if (fn_id == intrin_mem_load8_id()) {
-    if (arg_count != 1) { return 0 - 3302; }
+    if (arg_count != 1) { return set_semantic_error_node(0 - 3302, node); }
     let arg1: i32 = ast_a(first_arg);
     let r2: i32 = emit_ir_expr(arg1);
     if (r2 < 0) { return r2; }
@@ -1711,9 +1748,9 @@ fn emit_ir_call(node: i32) -> i32 {
     return r2 + 1;
   }
   if (fn_id == intrin_mem_store_id()) {
-    if (arg_count != 2) { return 0 - 3303; }
+    if (arg_count != 2) { return set_semantic_error_node(0 - 3303, node); }
     let arg2: i32 = ast_c(first_arg);
-    if (arg2 < 0) { return 0 - 3304; }
+    if (arg2 < 0) { return set_semantic_error_node(0 - 3304, node); }
     let a0: i32 = ast_a(first_arg);
     let a1: i32 = ast_a(arg2);
     let r3: i32 = emit_ir_expr(a0);
@@ -1725,9 +1762,9 @@ fn emit_ir_call(node: i32) -> i32 {
     return r3 + r4 + 1;
   }
   if (fn_id == intrin_mem_store8_id()) {
-    if (arg_count != 2) { return 0 - 3303; }
+    if (arg_count != 2) { return set_semantic_error_node(0 - 3303, node); }
     let arg3: i32 = ast_c(first_arg);
-    if (arg3 < 0) { return 0 - 3304; }
+    if (arg3 < 0) { return set_semantic_error_node(0 - 3304, node); }
     let b0: i32 = ast_a(first_arg);
     let b1: i32 = ast_a(arg3);
     let r5: i32 = emit_ir_expr(b0);
@@ -1739,7 +1776,7 @@ fn emit_ir_call(node: i32) -> i32 {
     return r5 + r6 + 1;
   }
   if (fn_id == intrin_fd_write_id()) {
-    if (arg_count != 4) { return 0 - 3305; }
+    if (arg_count != 4) { return set_semantic_error_node(0 - 3305, node); }
     let args_ok2: i32 = emit_ir_args(first_arg, arg_count, 0);
     if (args_ok2 < 0) { return args_ok2; }
     let idx5: i32 = alloc_ir();
@@ -1747,7 +1784,7 @@ fn emit_ir_call(node: i32) -> i32 {
     return args_ok2 + 1;
   }
   if (fn_id == intrin_fd_read_id()) {
-    if (arg_count != 4) { return 0 - 3305; }
+    if (arg_count != 4) { return set_semantic_error_node(0 - 3305, node); }
     let args_ok3: i32 = emit_ir_args(first_arg, arg_count, 0);
     if (args_ok3 < 0) { return args_ok3; }
     let idx6: i32 = alloc_ir();
@@ -1755,7 +1792,7 @@ fn emit_ir_call(node: i32) -> i32 {
     return args_ok3 + 1;
   }
   if (fn_id == intrin_path_open_id()) {
-    if (arg_count != 9) { return 0 - 3306; }
+    if (arg_count != 9) { return set_semantic_error_node(0 - 3306, node); }
     // WASI path_open expects args 5 and 6 as i64. Convert those two stack
     // values after evaluating each argument expression.
     let n4: i32 = 0;
@@ -1784,7 +1821,7 @@ fn emit_ir_call(node: i32) -> i32 {
     return args_ok4 + 1;
   }
   if (fn_id == intrin_fd_close_id()) {
-    if (arg_count != 1) { return 0 - 3307; }
+    if (arg_count != 1) { return set_semantic_error_node(0 - 3307, node); }
     let args_ok5: i32 = emit_ir_args(first_arg, arg_count, 0);
     if (args_ok5 < 0) { return args_ok5; }
     let idx8: i32 = alloc_ir();
@@ -1798,8 +1835,8 @@ fn emit_ir_call(node: i32) -> i32 {
 
   // Emit call instruction
   let fn_idx: i32 = lookup_fn(fn_id);
-  if (fn_idx < 0) { return 0 - 3301; }
-  if (arg_count != fn_params(fn_idx)) { return 0 - 3308; }
+  if (fn_idx < 0) { return set_semantic_error_node(0 - 3301, node); }
+  if (arg_count != fn_params(fn_idx)) { return set_semantic_error_node(0 - 3308, node); }
   let idx: i32 = alloc_ir();
   ir_set(idx, op_call(), fn_idx);
   return args_ok + 1;
@@ -1829,7 +1866,7 @@ fn emit_ir_int(node: i32) -> i32 {
 fn emit_ir_ident(node: i32) -> i32 {
   let ident_id: i32 = ast_a(node);
   let local_idx: i32 = lookup_local(ident_id);
-  if (local_idx < 0) { return 0 - 4000 - ident_id; }
+  if (local_idx < 0) { return set_semantic_error_node(0 - 4000 - ident_id, node); }
   let idx: i32 = alloc_ir();
   ir_set(idx, op_load(), ident_id);
   return 1;
@@ -1863,11 +1900,11 @@ fn typecheck_call(node: i32) -> i32 {
 
   let expected: i32 = call_param_count(fn_id);
   if (expected >= 0) {
-    if (arg_count != expected) { return 0 - 7202; }
+    if (arg_count != expected) { return set_semantic_error_node(0 - 7202, node); }
   } else {
     let fn_idx: i32 = lookup_fn(fn_id);
-    if (fn_idx < 0) { return 0 - 7201; }
-    if (arg_count != fn_params(fn_idx)) { return 0 - 7202; }
+    if (fn_idx < 0) { return set_semantic_error_node(0 - 7201, node); }
+    if (arg_count != fn_params(fn_idx)) { return set_semantic_error_node(0 - 7202, node); }
   }
 
   let n: i32 = arg_count;
@@ -1876,7 +1913,7 @@ fn typecheck_call(node: i32) -> i32 {
     let expr: i32 = ast_a(cur);
     let ty: i32 = typecheck_expr(expr);
     if (ty < 0) { return ty; }
-    if (ty != type_i32()) { return 0 - 7203; }
+    if (ty != type_i32()) { return set_semantic_error_node(0 - 7203, expr); }
     cur = ast_c(cur);
     n = n - 1;
   }
@@ -1898,7 +1935,7 @@ fn typecheck_expr(node: i32) -> i32 {
     if (l < 0) { return l; }
     let r: i32 = typecheck_expr(right);
     if (r < 0) { return r; }
-    if (l != type_i32() || r != type_i32()) { return 0 - 7210 - kind; }
+    if (l != type_i32() || r != type_i32()) { return set_semantic_error_node(0 - 7210 - kind, node); }
     return type_i32();
   }
 
@@ -1909,7 +1946,7 @@ fn typecheck_expr(node: i32) -> i32 {
     if (l2 < 0) { return l2; }
     let r2: i32 = typecheck_expr(right2);
     if (r2 < 0) { return r2; }
-    if (l2 != type_i32() || r2 != type_i32()) { return 0 - 7220 - kind; }
+    if (l2 != type_i32() || r2 != type_i32()) { return set_semantic_error_node(0 - 7220 - kind, node); }
     return type_bool();
   }
 
@@ -1920,18 +1957,18 @@ fn typecheck_expr(node: i32) -> i32 {
     if (l3 < 0) { return l3; }
     let r3: i32 = typecheck_expr(right3);
     if (r3 < 0) { return r3; }
-    if (!type_is_truthy(l3) || !type_is_truthy(r3)) { return 0 - 7225 - kind; }
+    if (!type_is_truthy(l3) || !type_is_truthy(r3)) { return set_semantic_error_node(0 - 7225 - kind, node); }
     return type_bool();
   }
   if (kind == nk_not()) {
     let inner: i32 = ast_a(node);
     let t: i32 = typecheck_expr(inner);
     if (t < 0) { return t; }
-    if (!type_is_truthy(t)) { return 0 - 7226; }
+    if (!type_is_truthy(t)) { return set_semantic_error_node(0 - 7226, node); }
     return type_bool();
   }
 
-  return 0 - 7100 - kind;
+  return set_semantic_error_node(0 - 7100 - kind, node);
 }
 
 fn type_is_truthy(t: i32) -> i32 {
@@ -2073,14 +2110,14 @@ fn typecheck_stmt(node: i32) -> i32 {
     let expr: i32 = ast_b(node);
     let ty: i32 = typecheck_expr(expr);
     if (ty < 0) { return ty; }
-    if (ty != type_i32()) { return 0 - 7230 - kind; }
+    if (ty != type_i32()) { return set_semantic_error_node(0 - 7230 - kind, expr); }
     return 1;
   }
   if (kind == nk_return()) {
     let expr2: i32 = ast_a(node);
     let ty2: i32 = typecheck_expr(expr2);
     if (ty2 < 0) { return ty2; }
-    if (ty2 != type_i32()) { return 0 - 7231; }
+    if (ty2 != type_i32()) { return set_semantic_error_node(0 - 7231, expr2); }
     return 1;
   }
   if (kind == nk_if()) {
@@ -2089,7 +2126,7 @@ fn typecheck_stmt(node: i32) -> i32 {
     let else_block: i32 = ast_c(node);
     let cty: i32 = typecheck_expr(cond);
     if (cty < 0) { return cty; }
-    if (cty != type_bool()) { return 0 - 7232; }
+    if (cty != type_bool()) { return set_semantic_error_node(0 - 7232, cond); }
     let t: i32 = typecheck_block_node(then_block);
     if (t < 0) { return t; }
     if (else_block >= 0) {
@@ -2103,7 +2140,7 @@ fn typecheck_stmt(node: i32) -> i32 {
     let body: i32 = ast_b(node);
     let cty2: i32 = typecheck_expr(cond2);
     if (cty2 < 0) { return cty2; }
-    if (cty2 != type_bool()) { return 0 - 7233; }
+    if (cty2 != type_bool()) { return set_semantic_error_node(0 - 7233, cond2); }
     let b: i32 = typecheck_block_node(body);
     if (b < 0) { return b; }
     return 1;
@@ -2122,17 +2159,17 @@ fn typecheck_stmt(node: i32) -> i32 {
     return 1;
   }
 
-  return 0 - 7240 - kind;
+  return set_semantic_error_node(0 - 7240 - kind, node);
 }
 
 fn typecheck_block_node(block_node: i32) -> i32 {
-  if (ast_kind(block_node) != nk_block()) { return 0 - 7250; }
+  if (ast_kind(block_node) != nk_block()) { return set_semantic_error_node(0 - 7250, block_node); }
   let first: i32 = ast_a(block_node);
   let count: i32 = ast_b(block_node);
   let cur: i32 = first;
   let n: i32 = count;
   while (n > 0) {
-    if (ast_kind(cur) != nk_stmt()) { return 0 - 7251; }
+    if (ast_kind(cur) != nk_stmt()) { return set_semantic_error_node(0 - 7251, cur); }
     let stmt: i32 = ast_a(cur);
     let r: i32 = typecheck_stmt(stmt);
     if (r < 0) { return r; }
@@ -5909,6 +5946,52 @@ fn test_comments() -> i32 {
   return 1;
 }
 
+// Negative test: parser should reject malformed input and report span.
+fn test_negative_parse() -> i32 {
+  init_src_buffer();
+  load_bad_parse_program();
+
+  set_debug_stage(0);
+  let rc: i32 = compile_program_to_stdout();
+  if (rc >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_code()) >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_line()) < 1) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_col()) < 1) { clear_src_buffer(); return 0; }
+
+  clear_src_buffer();
+  return 1;
+}
+
+// Negative test: semantic/type failures should report line/column spans.
+fn test_negative_semantic() -> i32 {
+  // Unknown function call should fail in semantic checks.
+  init_src_buffer();
+  load_bad_unknown_call_program();
+
+  set_debug_stage(0);
+  let rc1: i32 = compile_program_to_stdout();
+  if (rc1 >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_code()) >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_pos()) < 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_line()) < 1) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_col()) < 1) { clear_src_buffer(); return 0; }
+  clear_src_buffer();
+
+  // Type mismatch in let should also provide a semantic span.
+  init_src_buffer();
+  load_bad_type_program();
+  set_debug_stage(0);
+  let rc2: i32 = compile_program_to_stdout();
+  if (rc2 >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_code()) >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_pos()) < 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_line()) < 1) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_col()) < 1) { clear_src_buffer(); return 0; }
+  clear_src_buffer();
+
+  return 1;
+}
+
 // Test WAT text generation
 fn test_wat_text_gen() -> i32 {
   // Compile a simple program and generate WAT text
@@ -6171,6 +6254,156 @@ fn load_comment_program() -> i32 {
   i = store_str(i, 32);  // space
   i = store_str(i, 52);  // 4
   i = store_str(i, 50);  // 2
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn main() -> i32 { let x: i32 = 1 return x; }"
+fn load_bad_parse_program() -> i32 {
+  let i: i32 = 0;
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 108); // l
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 61);  // =
+  i = store_str(i, 32);  // space
+  i = store_str(i, 49);  // 1
+  // missing ';'
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn main() -> i32 { return foo(); }"
+fn load_bad_unknown_call_program() -> i32 {
+  let i: i32 = 0;
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 102); // f
+  i = store_str(i, 111); // o
+  i = store_str(i, 111); // o
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load: "fn main() -> i32 { let x: i32 = true; return x; }"
+fn load_bad_type_program() -> i32 {
+  let i: i32 = 0;
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 108); // l
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 61);  // =
+  i = store_str(i, 32);  // space
+  i = store_str(i, 116); // t
+  i = store_str(i, 114); // r
+  i = store_str(i, 117); // u
+  i = store_str(i, 101); // e
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
   i = store_str(i, 59);  // ;
   i = store_str(i, 32);  // space
   i = store_str(i, 125); // }
@@ -6984,6 +7217,7 @@ fn alloc_ir() -> i32 {
 fn alloc_ast() -> i32 {
   let idx: i32 = get_ast_count();
   set_ast_count(idx + 1);
+  ast_set_pos(idx, get_pos());
   return idx;
 }
 
