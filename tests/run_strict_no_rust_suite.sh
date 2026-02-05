@@ -118,6 +118,9 @@ COATL_NO_RUST=1 "$ROOT_DIR/tests/run_auto_no_rust_fallback_suite.sh"
 echo "[strict-no-rust] IR-based IR lowerer lane"
 COATL_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
 
+echo "[strict-no-rust] tty intrinsic wiring and WASI graceful fallback"
+COATL_NO_RUST=1 "$ROOT_DIR/tests/run_tty_intrinsics_smoke.sh"
+
 if [[ "$HAVE_C_COMPILER" -eq 1 ]]; then
   echo "[strict-no-rust] no-rust backend parity (wat vs asm)"
   COATL_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_backend_parity_suite.sh"

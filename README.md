@@ -43,6 +43,25 @@ Environment flags:
 - `COATL_TOOLCHAIN=auto|selfhost|ir`
 - `COATL_IR_FIRST_BUILD=1` to force auto mode to skip selfhost-first attempt
 
+## Terminal Raw Mode Intrinsics
+
+For terminal games on Linux x86_64 `--emit=bin`, Coatl now exposes:
+- `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
+- `__tty_set_raw(fd: i32, mode_ptr: i32) -> i32`
+- `__tty_restore(fd: i32, mode_ptr: i32) -> i32`
+
+Behavior:
+- Native (`--emit=bin`, Linux x86_64): backed by `termios` (`ioctl`), returns `0` on success or errno on failure.
+- WASI/IR WAT lowering: unsupported by design, returns nonzero code `58` (graceful failure, no crash).
+- Non-TTY stdin is preserved: calls fail with errno from the OS (for example `ENOTTY`).
+
+Caveats:
+- Raw mode should always be restored before process exit.
+- For robust apps, also restore on signal paths (SIGINT/SIGTERM) via external process supervision/cleanup.
+
+Migration note:
+- Terminal apps no longer need external `stty` wrappers for single-key input.
+
 ## Validation
 
 Primary strict suite:

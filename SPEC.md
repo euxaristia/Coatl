@@ -58,5 +58,17 @@ fn add(a: i32, b: i32) -> i32 {
 - `coatl build <file> --emit=asm` (x86_64 SysV)
 - `coatl build <file> --emit=wasm` (planned)
 
+## Runtime Intrinsics (Current)
+- Memory: `__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`
+- WASI/file I/O: `__fd_read`, `__fd_write`, `__fd_close`, `__path_open`
+- Terminal mode (POSIX/Linux x86_64 native bin lane):
+  - `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
+  - `__tty_set_raw(fd: i32, mode_ptr: i32) -> i32`
+  - `__tty_restore(fd: i32, mode_ptr: i32) -> i32`
+
+Notes:
+- TTY intrinsics return `0` on success, nonzero errno on failure.
+- On unsupported lanes (for example WASI WAT output), TTY intrinsics fail gracefully with nonzero error code.
+
 ## Status
 - This is a draft; features will be staged via ROADMAP.md.

@@ -207,6 +207,12 @@ def collect_features_expr(expr: Node, out: Dict[str, bool]) -> None:
             out["fd_close"] = True
         if callee == "__path_open":
             out["path_open"] = True
+        if callee == "__tty_get_mode":
+            out["tty_mode"] = True
+        if callee == "__tty_set_raw":
+            out["tty_mode"] = True
+        if callee == "__tty_restore":
+            out["tty_mode"] = True
         for arg in e[2:]:
             collect_features_expr(arg, out)
     elif tag == "binary":
@@ -218,7 +224,7 @@ def collect_features_expr(expr: Node, out: Dict[str, bool]) -> None:
 
 def collect_features(block: Node) -> Dict[str, bool]:
     b = as_list(block)
-    out = {"fd_write": False, "fd_read": False, "fd_close": False, "path_open": False}
+    out = {"fd_write": False, "fd_read": False, "fd_close": False, "path_open": False, "tty_mode": False}
     for stmt in b[1:]:
         s = as_list(stmt)
         tag = as_atom(s[0])
@@ -237,6 +243,7 @@ def collect_features(block: Node) -> Dict[str, bool]:
             out["fd_read"] = out["fd_read"] or fb["fd_read"]
             out["fd_close"] = out["fd_close"] or fb["fd_close"]
             out["path_open"] = out["path_open"] or fb["path_open"]
+            out["tty_mode"] = out["tty_mode"] or fb["tty_mode"]
             if len(s) > 3:
                 eb = as_list(s[3])
                 if as_atom(eb[0]) == "else":
@@ -245,6 +252,7 @@ def collect_features(block: Node) -> Dict[str, bool]:
                     out["fd_read"] = out["fd_read"] or fe["fd_read"]
                     out["fd_close"] = out["fd_close"] or fe["fd_close"]
                     out["path_open"] = out["path_open"] or fe["path_open"]
+                    out["tty_mode"] = out["tty_mode"] or fe["tty_mode"]
         elif tag == "while":
             collect_features_expr(s[1], out)
             fw = collect_features(s[2])
@@ -252,6 +260,7 @@ def collect_features(block: Node) -> Dict[str, bool]:
             out["fd_read"] = out["fd_read"] or fw["fd_read"]
             out["fd_close"] = out["fd_close"] or fw["fd_close"]
             out["path_open"] = out["path_open"] or fw["path_open"]
+            out["tty_mode"] = out["tty_mode"] or fw["tty_mode"]
     return out
 
 
@@ -358,6 +367,31 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
             emit_expr(args[7], ctx, out)
             emit_expr(args[8], ctx, out)
             out.append("    call $path_open")
+            return
+        if callee == "__tty_get_mode":
+            if len(args) != 2:
+                raise LowerError("__tty_get_mode expects 2 args")
+            # Not supported in WASI lowering; return a stable nonzero errno-like value.
+            for arg in args:
+                emit_expr(arg, ctx, out)
+                out.append("    drop")
+            out.append("    i32.const 58")
+            return
+        if callee == "__tty_set_raw":
+            if len(args) != 2:
+                raise LowerError("__tty_set_raw expects 2 args")
+            for arg in args:
+                emit_expr(arg, ctx, out)
+                out.append("    drop")
+            out.append("    i32.const 58")
+            return
+        if callee == "__tty_restore":
+            if len(args) != 2:
+                raise LowerError("__tty_restore expects 2 args")
+            for arg in args:
+                emit_expr(arg, ctx, out)
+                out.append("    drop")
+            out.append("    i32.const 58")
             return
         if callee not in ctx.fn_names:
             raise LowerError(f"unsupported call: {callee}")
@@ -521,7 +555,7 @@ def lower_ir(root: Node) -> str:
     if len(mains) != 1:
         raise LowerError("expected exactly one main function")
 
-    features = {"fd_write": False, "fd_read": False, "fd_close": False, "path_open": False}
+    features = {"fd_write": False, "fd_read": False, "fd_close": False, "path_open": False, "tty_mode": False}
     string_tokens: Dict[str, None] = {}
     for _, _, block in parsed:
         fb = collect_features(block)
@@ -529,6 +563,7 @@ def lower_ir(root: Node) -> str:
         features["fd_read"] = features["fd_read"] or fb["fd_read"]
         features["fd_close"] = features["fd_close"] or fb["fd_close"]
         features["path_open"] = features["path_open"] or fb["path_open"]
+        features["tty_mode"] = features["tty_mode"] or fb["tty_mode"]
         for tok in collect_string_literals(block):
             string_tokens[tok] = None
 

@@ -1,0 +1,16 @@
+fn main() -> i32 {
+  let mode: i32 = 512;
+  let rc_get: i32 = __tty_get_mode(0, mode);
+  let rc_raw: i32 = __tty_set_raw(0, mode);
+  let rc_restore: i32 = __tty_restore(0, mode);
+
+  if (rc_get == 58) {
+    if (rc_raw == 58) {
+      if (rc_restore == 58) {
+        return 58;
+      }
+    }
+  }
+
+  return 1;
+}
