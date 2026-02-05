@@ -1981,6 +1981,23 @@ fn type_is_i32ish(t: i32) -> i32 {
   return 0;
 }
 
+fn typecheck_struct_lit(node: i32) -> i32 {
+  let sidx: i32 = ast_a(node);
+  let first_arg: i32 = ast_b(node);
+  let arg_count: i32 = ast_c(node);
+  let cur: i32 = first_arg;
+  let n: i32 = arg_count;
+  while (n > 0) {
+    let expr: i32 = ast_a(cur);
+    let ty: i32 = typecheck_expr(expr);
+    if (ty < 0) { return ty; }
+    if (ty != type_i32()) { return set_semantic_error_node(0 - 7227, expr); }
+    cur = ast_c(cur);
+    n = n - 1;
+  }
+  return type_struct(sidx);
+}
+
 fn typecheck_call(node: i32) -> i32 {
   let fn_id: i32 = ast_a(node);
   let first_arg: i32 = ast_b(node);
@@ -2005,7 +2022,7 @@ fn typecheck_call(node: i32) -> i32 {
       if (want >= 100) {
         if (texp != want) { return set_semantic_error_node(0 - 7203, exprp); }
       } else {
-        if (!type_is_i32ish(texp)) { return set_semantic_error_node(0 - 7203, exprp); }
+        if (texp != type_i32()) { return set_semantic_error_node(0 - 7203, exprp); }
       }
       ccheck = ast_c(ccheck);
       pi = pi + 1;
@@ -2033,7 +2050,7 @@ fn typecheck_expr(node: i32) -> i32 {
   if (kind == nk_string()) { return type_i32(); }
   if (kind == nk_ident()) { return lookup_local_type(ast_a(node)); }
   if (kind == nk_call()) { return typecheck_call(node); }
-  if (kind == nk_struct_lit()) { return type_struct(ast_a(node)); }
+  if (kind == nk_struct_lit()) { return typecheck_struct_lit(node); }
 
   if (kind == nk_add() || kind == nk_sub()) {
     let left: i32 = ast_a(node);
@@ -6395,6 +6412,18 @@ fn test_negative_semantic() -> i32 {
   if (__mem_load(state_err_col()) < 1) { clear_src_buffer(); return 0; }
   clear_src_buffer();
 
+  // Struct value passed to i32 parameter should fail type checks.
+  init_src_buffer();
+  load_bad_struct_to_i32_call_program();
+  set_debug_stage(0);
+  let rc3: i32 = compile_program_to_stdout();
+  if (rc3 >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_code()) >= 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_pos()) < 0) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_line()) < 1) { clear_src_buffer(); return 0; }
+  if (__mem_load(state_err_col()) < 1) { clear_src_buffer(); return 0; }
+  clear_src_buffer();
+
   return 1;
 }
 
@@ -6810,6 +6839,136 @@ fn load_bad_type_program() -> i32 {
   i = store_str(i, 110); // n
   i = store_str(i, 32);  // space
   i = store_str(i, 120); // x
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 0);   // null
+  return 0;
+}
+
+// Load:
+// "struct Point { x } fn id(x: i32) -> i32 { return x; } fn main() -> i32 { let p: Point = Point { x: 1 }; return id(p); }"
+fn load_bad_struct_to_i32_call_program() -> i32 {
+  let i: i32 = 0;
+  // "struct Point { x } "
+  i = store_str(i, 115); // s
+  i = store_str(i, 116); // t
+  i = store_str(i, 114); // r
+  i = store_str(i, 117); // u
+  i = store_str(i, 99);  // c
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 80);  // P
+  i = store_str(i, 111); // o
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 32);  // space
+  // "fn id(x: i32) -> i32 { return x; } "
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 100); // d
+  i = store_str(i, 40);  // (
+  i = store_str(i, 120); // x
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 32);  // space
+  // "fn main() -> i32 { let p: Point = Point { x: 1 }; return id(p); }"
+  i = store_str(i, 102); // f
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 109); // m
+  i = store_str(i, 97);  // a
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 40);  // (
+  i = store_str(i, 41);  // )
+  i = store_str(i, 32);  // space
+  i = store_str(i, 45);  // -
+  i = store_str(i, 62);  // >
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 51);  // 3
+  i = store_str(i, 50);  // 2
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 108); // l
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 112); // p
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 80);  // P
+  i = store_str(i, 111); // o
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 61);  // =
+  i = store_str(i, 32);  // space
+  i = store_str(i, 80);  // P
+  i = store_str(i, 111); // o
+  i = store_str(i, 105); // i
+  i = store_str(i, 110); // n
+  i = store_str(i, 116); // t
+  i = store_str(i, 32);  // space
+  i = store_str(i, 123); // {
+  i = store_str(i, 32);  // space
+  i = store_str(i, 120); // x
+  i = store_str(i, 58);  // :
+  i = store_str(i, 32);  // space
+  i = store_str(i, 49);  // 1
+  i = store_str(i, 32);  // space
+  i = store_str(i, 125); // }
+  i = store_str(i, 59);  // ;
+  i = store_str(i, 32);  // space
+  i = store_str(i, 114); // r
+  i = store_str(i, 101); // e
+  i = store_str(i, 116); // t
+  i = store_str(i, 117); // u
+  i = store_str(i, 114); // r
+  i = store_str(i, 110); // n
+  i = store_str(i, 32);  // space
+  i = store_str(i, 105); // i
+  i = store_str(i, 100); // d
+  i = store_str(i, 40);  // (
+  i = store_str(i, 112); // p
+  i = store_str(i, 41);  // )
   i = store_str(i, 59);  // ;
   i = store_str(i, 32);  // space
   i = store_str(i, 125); // }
