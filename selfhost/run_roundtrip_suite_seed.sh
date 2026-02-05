@@ -60,7 +60,7 @@ check_case "tests/array_sim.mee" "100"
 check_case "tests/byte_test.mee" "389"
 check_case "examples/hello.mee" "0" "Hello, world!"
 
-echo "[seed-roundtrip] Struct runtime suite (no Rust via struct-lowering prepass)"
+echo "[seed-roundtrip] Struct runtime suite (native selfhost structs, no Rust)"
 check_case "tests/struct_param_pass.mee" "9"
 check_case "tests/struct_return_basic.mee" "15"
 check_case "tests/struct_chain_calls.mee" "6"

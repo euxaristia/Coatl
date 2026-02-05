@@ -58,9 +58,7 @@ compile_with_selfhost() {
   local src="$1"
   local out_wat="$2"
   local raw="${out_wat}.raw"
-  local lowered="${out_wat}.lowered.mee"
-  python3 "$ROOT_DIR/selfhost/lower_structs.py" "$src" "$lowered"
-  wasmtime --invoke main "$STAGE1_STDIN_WAT" < "$lowered" > "$raw"
+  wasmtime --invoke main "$STAGE1_STDIN_WAT" < "$src" > "$raw"
   clean_compiler_output "$raw" "$out_wat"
   if ! head -n 1 "$out_wat" | grep -q "^(module"; then
     echo "selfhost compile did not produce WAT for $src"
