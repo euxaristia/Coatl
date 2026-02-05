@@ -42,6 +42,11 @@ By default this installs to `/usr/local/bin/mee`. Override prefix if needed:
 ```bash
 make install PREFIX="$HOME/.local"
 ```
+Convenience aliases:
+```bash
+make local-install
+make local-uninstall
+```
 
 Emit backend-neutral IR (S-expression form, currently Rust-backed):
 ```bash
