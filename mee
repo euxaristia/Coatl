@@ -236,19 +236,22 @@ if [[ "$toolchain" == "ir" ]]; then
 fi
 
 # auto
-if [[ -x "$SELFHOST_BUILD" && -f "$seed" ]] && command -v wasmtime >/dev/null 2>&1; then
+if [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
   if selfhost_build_wat; then
     exit 0
   fi
-  if rust_disabled; then
-    echo "selfhost build failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
-    exit 1
-  fi
-  echo "warning: selfhost build failed, trying ir pipeline before rust backend" >&2
-  if ir_pipeline_build_wat; then
-    exit 0
-  fi
-  echo "warning: ir pipeline failed, falling back to rust backend" >&2
+  echo "warning: selfhost build failed, trying ir pipeline" >&2
 fi
+
+if ir_pipeline_build_wat; then
+  exit 0
+fi
+
+if rust_disabled; then
+  echo "selfhost/ir pipelines failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
+  exit 1
+fi
+
+echo "warning: ir pipeline failed, falling back to rust backend" >&2
 
 rust_build

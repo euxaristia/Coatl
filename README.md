@@ -106,6 +106,7 @@ MEE_NO_RUST=1 ./mee build ./examples/hello.mee --emit=ir --toolchain=ir -o /tmp/
 ```
 Current strict subset coverage includes `hello`, `mem_test`, `byte_test`, and `array_sim` via `./tests/run_ir_subset_backend_suite.sh`.
 It also includes control flow (`if`/`while`) and boolean/comparison operators via `tests/ir_subset_control_flow.mee`, plus `__fd_read` and `__path_open` probes via `tests/run_ir_subset_io_smoke.sh` and `tests/run_ir_subset_path_open_smoke.sh`, and write/close flow via `tests/run_ir_subset_path_open_write_close_smoke.sh`.
+In `--toolchain=auto`, if selfhost WAT compilation fails, `./mee` now tries the non-Rust IR pipeline before any Rust fallback.
 
 ## Hello World (Mee)
 

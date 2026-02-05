@@ -55,6 +55,21 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_path_open_smoke.sh"
 echo "[strict-no-rust] toolchain=ir subset I/O (path_open + fd_write + fd_close)"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_path_open_write_close_smoke.sh"
 
+echo "[strict-no-rust] auto mode fallback: selfhost failure -> ir pipeline"
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=wat --toolchain=auto --compiler /tmp/mee-missing-seed.wat -o "$TMP_DIR/auto-fallback.wat"
+auto_out="$(wasmtime --invoke main "$TMP_DIR/auto-fallback.wat")"
+auto_ret="$(printf '%s\n' "$auto_out" | awk 'NF { line=$0 } END { print line }')"
+if [[ "$auto_ret" != "0" ]]; then
+  echo "[FAIL] auto fallback expected return 0 got $auto_ret"
+  printf '%s\n' "$auto_out"
+  exit 1
+fi
+if ! printf '%s\n' "$auto_out" | grep -Fq "Hello, world!"; then
+  echo "[FAIL] auto fallback output missing Hello, world!"
+  printf '%s\n' "$auto_out"
+  exit 1
+fi
+
 echo "[strict-no-rust] non-Rust IR lowerer lane"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_ir_lowerer_smoke.sh"
 

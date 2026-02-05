@@ -42,6 +42,7 @@ Last updated: 2026-02-05
 - `./mee --toolchain=ir` now exercises Rust frontend + non-Rust WAT backend path for supported programs
 - `./mee --toolchain=ir` can run in strict no-Rust mode via a non-Rust subset frontend (currently limited coverage)
 - Strict no-Rust subset `toolchain=ir` currently covers `hello`, `mem_test`, `byte_test`, `array_sim`, control-flow subset tests, and `__fd_read` / `__path_open` / `__fd_write` / `__fd_close` probes
+- `--toolchain=auto` now attempts non-Rust IR pipeline fallback before Rust backend fallback
 - Strict no-Rust subset frontend now also supports `./mee build --emit=ir --toolchain=ir` for supported programs
 
 ### v0.4 (self-hosting)
