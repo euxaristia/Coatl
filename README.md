@@ -4,6 +4,11 @@ Coatl follows an ancient, sleek serpent aesthetic: fluid paths, precise control,
 
 Coatl is a systems language project with a self-hosting compiler path and an IR-driven native backend path.
 
+## Documentation
+
+- Wiki: https://github.com/euxaristia/Coatl/wiki
+- Language draft/spec: `SPEC.md`
+
 ## Quick Start
 
 Build WAT (default `auto` path prefers selfhost):
