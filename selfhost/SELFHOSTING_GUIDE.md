@@ -4,12 +4,12 @@ This is a short, plain-language primer so you can read the self-hosting work wit
 
 ## 1) Big Picture
 
-There are two compilers in this repo:
+The primary compiler in this repo is:
 
-- **Rust compiler** (`compiler/`): the current "real" compiler.
-- **Bootstrap compiler** (`selfhost/bootstrap.mee`): a compiler written in Mee that will eventually compile itself.
+- **Bootstrap compiler** (`selfhost/bootstrap.mee`): a compiler written in Mee that compiles Mee programs to WAT.
+- Non-Rust IR utility lanes in `tools/` support alternate lowering paths.
 
-The goal of **self-hosting** is for the bootstrap compiler to compile its own source, so Mee can be developed without the Rust compiler.
+The goal of **self-hosting** is for the bootstrap compiler to compile its own source and remain the default development path.
 
 ## 2) What "WAT output" means
 
@@ -51,7 +51,7 @@ __fd_write(fd, iov_ptr, iov_cnt, nwritten_ptr) -> i32
 - `iov_cnt`: how many buffers (usually 1)
 - `nwritten_ptr`: where to store the number of bytes written
 
-The Rust compiler recognizes this intrinsic and emits the right WASI call in WAT.
+The active compiler/lowerer paths recognize this intrinsic and emit the right WASI call in WAT.
 
 ## 5) Output buffer and `out_flush`
 
@@ -83,11 +83,10 @@ Right now it’s **hardcoded**, so you have to edit that function if you want ou
 
 ## 7) Where to look in the code
 
-- Rust compiler WAT codegen: `compiler/src/codegen.rs`
-- Rust compiler type checker: `compiler/src/typecheck.rs`
 - Bootstrap compiler: `selfhost/bootstrap.mee`
   - Output buffer and WAT generation: search for `Stage 5: WAT Text Output`
   - `out_flush()` and `compile_program_to_stdout()` are near the Stage 5 section
+- Non-Rust IR utility paths: `tools/`
 
 ## 8) Glossary (super short)
 
@@ -100,4 +99,3 @@ Right now it’s **hardcoded**, so you have to edit that function if you want ou
 
 We taught the bootstrap compiler how to print its generated WAT text to stdout, by
 adding a `__fd_write` intrinsic and an `out_flush()` function.
-

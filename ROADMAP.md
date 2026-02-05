@@ -76,6 +76,7 @@ Last updated: 2026-02-05
 - strongest pre-delete gate now available via `tests/run_no_rust_build_strict_without_compiler_dir.sh` (runs full strict no-rust suite with `compiler/` temporarily removed, then restores it)
 - rust-legacy helper scripts now degrade cleanly when Rust lane is unavailable (`compiler/` absent or `MEE_NO_RUST_BUILD=1`), reducing friction for actual `compiler/` removal
 - `./mee` now emits explicit \"rust compiler lane unavailable\" error when Rust toolchain is requested but `compiler/` (or `cargo`) is missing; covered by `tests/run_missing_compiler_rust_lane_smoke.sh`
+- Rust compiler source tree (`compiler/`) has been removed from the repository; no-rust-build strict gates are now the primary validation path
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

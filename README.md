@@ -1,9 +1,9 @@
 # Mee
 
 Mee is a draft systems language that aims to be safer than C while staying predictable and portable. This repo contains:
-- A Rust compiler that emits WAT (WebAssembly text) and x86_64 SysV assembly.
 - A self-hosting bootstrap compiler written in Mee (`selfhost/bootstrap.mee`).
 - A growing test suite and roadmap toward full self-hosting.
+- Non-Rust IR lowerers for WAT and x86_64 assembly.
 
 ## Status (High Level)
 - Parser, AST, and basic type checker (i32/bool/char, plus string literals as pointer values).
@@ -248,9 +248,9 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 
 ## Repository Layout
 
-- `compiler/`: Rust compiler (parser, type checker, WAT/x86_64 codegen).
 - `examples/`: Sample programs (`hello.mee`).
 - `selfhost/`: Bootstrap compiler and self-hosting documentation.
+- `tools/`: Non-Rust frontend/lowerer utilities for IR/WAT/ASM lanes.
 - `ROADMAP.md`: High-level milestones.
 - `SPEC.md`: Language notes/spec.
 
@@ -258,7 +258,8 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 
 - No binary WASM emitter yet (WAT only).
 - `--emit=ir` is a typed AST/IR seam intended for external (non-Rust) backend work; native backend production flow is still Rust-owned today.
-- `MEE_NO_RUST=1` forbids Rust compiler usage/fallback in `./mee`; `--emit=asm --toolchain=ir` and `--emit=ir --toolchain=ir` work for the current subset coverage, while `--emit=asm --toolchain=rust` still fails.
+- `MEE_NO_RUST=1` forbids Rust compiler usage/fallback in `./mee`; `--emit=asm --toolchain=ir` and `--emit=ir --toolchain=ir` work for the current subset coverage.
+- `--toolchain=rust` is currently unavailable unless an external Rust compiler lane is reintroduced.
 - Strict no-Rust `--toolchain=ir` coverage now includes scalar/control-flow/I/O plus basic struct params/locals/returns paths.
 - x86_64 backend supports Mee I/O intrinsics (`__fd_write`, `__fd_read`, `__path_open`, `__fd_close`) via Linux syscalls.
 - x86_64 runtime suite covers scalar, memory, I/O, and struct ABI cases.
