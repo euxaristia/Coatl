@@ -2,7 +2,7 @@
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Union
+from typing import Dict, List, Tuple, Union
 
 Node = Union[str, List["Node"]]
 
@@ -83,11 +83,17 @@ def parse_sexpr(tokens: List[str]) -> Node:
 @dataclass
 class Ctx:
     locals: List[str]
+    string_addrs: Dict[str, int]
 
     def local_index(self, name: str) -> int:
         if name not in self.locals:
             raise LowerError(f"unknown local: {name}")
         return self.locals.index(name)
+
+    def string_addr(self, token: str) -> int:
+        if token not in self.string_addrs:
+            raise LowerError("missing string literal in string table")
+        return self.string_addrs[token]
 
 
 WAT_OPS = {
@@ -116,6 +122,112 @@ def as_atom(node: Node) -> str:
     return node
 
 
+def decode_string_token(tok: str) -> bytes:
+    if len(tok) < 2 or tok[0] != '"' or tok[-1] != '"':
+        raise LowerError("invalid string token")
+    inner = tok[1:-1]
+    # IR uses C-like escapes; unicode_escape handles the subset we emit.
+    text = bytes(inner, "utf-8").decode("unicode_escape")
+    return text.encode("utf-8")
+
+
+def wat_escape_bytes(data: bytes) -> str:
+    out: List[str] = []
+    for b in data:
+        if 32 <= b <= 126 and b not in (34, 92):  # printable except " and \
+            out.append(chr(b))
+        else:
+            out.append(f"\\{b:02x}")
+    return "".join(out)
+
+
+def walk_expr_for_strings(expr: Node, out: Dict[str, None]) -> None:
+    e = as_list(expr)
+    tag = as_atom(e[0])
+    if tag == "string":
+        out[as_atom(e[1])] = None
+        return
+    if tag == "unary":
+        walk_expr_for_strings(e[2], out)
+        return
+    if tag == "binary":
+        walk_expr_for_strings(e[2], out)
+        walk_expr_for_strings(e[3], out)
+        return
+    if tag == "call":
+        for arg in e[2:]:
+            walk_expr_for_strings(arg, out)
+        return
+    if tag == "field":
+        walk_expr_for_strings(e[2], out)
+        return
+    if tag == "struct_init":
+        for fld in e[2:]:
+            f = as_list(fld)
+            walk_expr_for_strings(f[2], out)
+        return
+
+
+def collect_string_literals(block: Node) -> List[str]:
+    b = as_list(block)
+    if as_atom(b[0]) != "block":
+        raise LowerError("expected block")
+    found: Dict[str, None] = {}
+    for stmt in b[1:]:
+        s = as_list(stmt)
+        tag = as_atom(s[0])
+        if tag == "let":
+            walk_expr_for_strings(s[3], found)
+        elif tag == "assign":
+            walk_expr_for_strings(s[2], found)
+        elif tag == "field_assign":
+            walk_expr_for_strings(s[3], found)
+        elif tag == "return":
+            walk_expr_for_strings(s[1], found)
+        elif tag == "expr":
+            walk_expr_for_strings(s[1], found)
+        elif tag == "if":
+            walk_expr_for_strings(s[1], found)
+        elif tag == "while":
+            walk_expr_for_strings(s[1], found)
+    return list(found.keys())
+
+
+def collect_features_expr(expr: Node, out: Dict[str, bool]) -> None:
+    e = as_list(expr)
+    tag = as_atom(e[0])
+    if tag == "call":
+        callee = as_atom(e[1])
+        if callee == "__fd_write":
+            out["fd_write"] = True
+        for arg in e[2:]:
+            collect_features_expr(arg, out)
+    elif tag == "binary":
+        collect_features_expr(e[2], out)
+        collect_features_expr(e[3], out)
+    elif tag == "unary":
+        collect_features_expr(e[2], out)
+
+
+def collect_features(block: Node) -> Dict[str, bool]:
+    b = as_list(block)
+    out = {"fd_write": False}
+    for stmt in b[1:]:
+        s = as_list(stmt)
+        tag = as_atom(s[0])
+        if tag == "let":
+            collect_features_expr(s[3], out)
+        elif tag == "assign":
+            collect_features_expr(s[2], out)
+        elif tag == "field_assign":
+            collect_features_expr(s[3], out)
+        elif tag == "return":
+            collect_features_expr(s[1], out)
+        elif tag == "expr":
+            collect_features_expr(s[1], out)
+    return out
+
+
 def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
     e = as_list(expr)
     if not e:
@@ -131,6 +243,10 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
         idx = ctx.local_index(as_atom(e[1]))
         out.append(f"    local.get {idx}")
         return
+    if tag == "string":
+        addr = ctx.string_addr(as_atom(e[1]))
+        out.append(f"    i32.const {addr}")
+        return
     if tag == "binary":
         op = as_atom(e[1])
         op_wat = WAT_OPS.get(op)
@@ -140,6 +256,25 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
         emit_expr(e[3], ctx, out)
         out.append(f"    {op_wat}")
         return
+    if tag == "call":
+        callee = as_atom(e[1])
+        args = e[2:]
+        if callee == "__mem_store":
+            if len(args) != 2:
+                raise LowerError("__mem_store expects 2 args")
+            emit_expr(args[0], ctx, out)
+            emit_expr(args[1], ctx, out)
+            out.append("    i32.store")
+            out.append("    i32.const 0")
+            return
+        if callee == "__fd_write":
+            if len(args) != 4:
+                raise LowerError("__fd_write expects 4 args")
+            for arg in args:
+                emit_expr(arg, ctx, out)
+            out.append("    call $fd_write")
+            return
+        raise LowerError(f"unsupported call: {callee}")
     raise LowerError(f"unsupported expr: {tag}")
 
 
@@ -192,8 +327,21 @@ def lower_main_fn(main_fn: List[Node]) -> str:
         raise LowerError("only (ret i32) supported")
     block = as_list(main_fn[4])
 
+    string_tokens = collect_string_literals(block)
+    string_addrs: Dict[str, int] = {}
+    data_segments: List[Tuple[int, bytes]] = []
+    cur_addr = 1024
+    for tok in string_tokens:
+        b = decode_string_token(tok)
+        string_addrs[tok] = cur_addr
+        data_segments.append((cur_addr, b))
+        cur_addr += len(b)
+        if cur_addr % 4 != 0:
+            cur_addr += 4 - (cur_addr % 4)
+
     locals_ = collect_locals(block)
-    ctx = Ctx(locals_)
+    ctx = Ctx(locals_, string_addrs)
+    features = collect_features(block)
 
     body: List[str] = []
     for stmt in block[1:]:
@@ -201,6 +349,12 @@ def lower_main_fn(main_fn: List[Node]) -> str:
 
     lines: List[str] = []
     lines.append("(module")
+    if features["fd_write"]:
+        lines.append("  (import \"wasi_snapshot_preview1\" \"fd_write\"")
+        lines.append("    (func $fd_write (param i32 i32 i32 i32) (result i32)))")
+    lines.append("  (memory (export \"memory\") 2)")
+    for addr, data in data_segments:
+        lines.append(f"  (data (i32.const {addr}) \"{wat_escape_bytes(data)}\")")
     lines.append("  (func $main (result i32)")
     for _ in locals_:
         lines.append("    (local i32)")

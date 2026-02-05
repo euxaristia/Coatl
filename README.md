@@ -54,6 +54,11 @@ Run strict no-Rust mode checks:
 ./tests/run_strict_no_rust_suite.sh
 ```
 
+Run Rust-frontend + external-backend (`toolchain=ir`) smoke suite:
+```bash
+./tests/run_ir_backend_smoke.sh
+```
+
 Check Rust compile-entrypoint centralization:
 ```bash
 ./tests/check_rust_entrypoint_centralization.sh
@@ -62,6 +67,11 @@ Check Rust compile-entrypoint centralization:
 Lower IR to WAT via external (non-Rust) backend lane:
 ```bash
 ./mee lower-ir /tmp/prog.ir -o /tmp/prog.wat
+```
+
+Compile Mee source with Rust frontend + external non-Rust WAT backend:
+```bash
+./mee build ./examples/hello.mee --emit=wat --toolchain=ir -o /tmp/hello-ir-backend.wat
 ```
 
 ## Hello World (Mee)

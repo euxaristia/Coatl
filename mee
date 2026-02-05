@@ -9,11 +9,12 @@ SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
 usage() {
   cat <<'EOF'
 usage:
-  ./mee build <input.mee> [--emit=wat|asm|ir] [-o <output>] [--toolchain=auto|selfhost|rust] [--compiler <seed.wat>]
+  ./mee build <input.mee> [--emit=wat|asm|ir] [-o <output>] [--toolchain=auto|selfhost|rust|ir] [--compiler <seed.wat>]
   ./mee lower-ir <input.ir> -o <output.wat>
 
 notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
+  - toolchain=ir uses Rust frontend (--emit=ir) + external non-Rust lowerer (subset)
   - --emit=asm and --emit=ir currently require the Rust compiler toolchain
   - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
 EOF
@@ -64,6 +65,7 @@ if [[ ! -f "$input" ]]; then
   echo "input file not found: $input"
   exit 1
 fi
+input_abs="$(realpath "$input")"
 
 emit="wat"
 out=""
@@ -101,9 +103,13 @@ if [[ "$emit" != "wat" && "$emit" != "asm" && "$emit" != "ir" ]]; then
   echo "unsupported emit target: $emit"
   exit 1
 fi
-if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "rust" ]]; then
+if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "rust" && "$toolchain" != "ir" ]]; then
   echo "unsupported toolchain: $toolchain"
   exit 1
+fi
+out_abs=""
+if [[ -n "$out" ]]; then
+  out_abs="$(realpath -m "$out")"
 fi
 
 rust_disabled() {
@@ -120,28 +126,44 @@ ensure_rust_allowed() {
 rust_build() {
   ensure_rust_allowed
   local emit_flag="--emit=$emit"
-  if [[ -n "$out" ]]; then
-    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input" "$emit_flag" -o "$out")
+  if [[ -n "$out_abs" ]]; then
+    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" "$emit_flag" -o "$out_abs")
   else
-    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input" "$emit_flag")
+    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" "$emit_flag")
   fi
 }
 
 selfhost_build_wat() {
   local tmp_out=""
-  if [[ -n "$out" ]]; then
-    "$SELFHOST_BUILD" build "$input" -o "$out" --compiler "$seed" >/dev/null
+  if [[ -n "$out_abs" ]]; then
+    "$SELFHOST_BUILD" build "$input_abs" -o "$out_abs" --compiler "$seed" >/dev/null
   else
     tmp_out="$(mktemp /tmp/mee-selfhost-out.XXXXXX.wat)"
-    trap 'rm -f "$tmp_out"' EXIT
-    "$SELFHOST_BUILD" build "$input" -o "$tmp_out" --compiler "$seed" >/dev/null
+    "$SELFHOST_BUILD" build "$input_abs" -o "$tmp_out" --compiler "$seed" >/dev/null
     cat "$tmp_out"
+    rm -f "$tmp_out"
   fi
 }
 
+ir_pipeline_build_wat() {
+  ensure_rust_allowed
+  local tmp_ir
+  local tmp_wat
+  tmp_ir="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.ir)"
+  tmp_wat="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.wat)"
+  (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir")
+  "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat"
+  if [[ -n "$out_abs" ]]; then
+    cp "$tmp_wat" "$out_abs"
+  else
+    cat "$tmp_wat"
+  fi
+  rm -f "$tmp_ir" "$tmp_wat"
+}
+
 if [[ "$emit" != "wat" ]]; then
-  if [[ "$toolchain" == "selfhost" ]]; then
-    echo "--emit=$emit is not supported by selfhost toolchain yet"
+  if [[ "$toolchain" == "selfhost" || "$toolchain" == "ir" ]]; then
+    echo "--emit=$emit is not supported by toolchain=$toolchain"
     exit 1
   fi
   rust_build
@@ -158,6 +180,11 @@ if [[ "$toolchain" == "selfhost" ]]; then
   exit 0
 fi
 
+if [[ "$toolchain" == "ir" ]]; then
+  ir_pipeline_build_wat
+  exit 0
+fi
+
 # auto
 if [[ -x "$SELFHOST_BUILD" && -f "$seed" ]] && command -v wasmtime >/dev/null 2>&1; then
   if selfhost_build_wat; then
@@ -167,7 +194,11 @@ if [[ -x "$SELFHOST_BUILD" && -f "$seed" ]] && command -v wasmtime >/dev/null 2>
     echo "selfhost build failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
     exit 1
   fi
-  echo "warning: selfhost build failed, falling back to rust toolchain" >&2
+  echo "warning: selfhost build failed, trying ir pipeline before rust backend" >&2
+  if ir_pipeline_build_wat; then
+    exit 0
+  fi
+  echo "warning: ir pipeline failed, falling back to rust backend" >&2
 fi
 
 rust_build
