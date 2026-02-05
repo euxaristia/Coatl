@@ -49,6 +49,24 @@ mem_rc=$?
 set -e
 assert_rc 142 "$mem_rc" "mem_test"
 
+echo "[ir-x86-subset-asm] array_sim"
+ARR_BIN="$TMP_DIR/array"
+build_bin "$ROOT_DIR/tests/array_sim.mee" "$ARR_BIN"
+set +e
+"$ARR_BIN"
+arr_rc=$?
+set -e
+assert_rc 100 "$arr_rc" "array_sim"
+
+echo "[ir-x86-subset-asm] control_flow"
+CF_BIN="$TMP_DIR/control"
+build_bin "$ROOT_DIR/tests/ir_subset_control_flow.mee" "$CF_BIN"
+set +e
+"$CF_BIN"
+cf_rc=$?
+set -e
+assert_rc 77 "$cf_rc" "ir_subset_control_flow"
+
 echo "[ir-x86-subset-asm] struct chain"
 STRUCT_BIN="$TMP_DIR/struct"
 build_bin "$ROOT_DIR/tests/struct_chain_calls.mee" "$STRUCT_BIN"
@@ -57,6 +75,33 @@ set +e
 struct_rc=$?
 set -e
 assert_rc 6 "$struct_rc" "struct_chain_calls"
+
+echo "[ir-x86-subset-asm] struct nested arg"
+NEST_BIN="$TMP_DIR/struct-nested"
+build_bin "$ROOT_DIR/tests/struct_nested_arg_subset.mee" "$NEST_BIN"
+set +e
+"$NEST_BIN"
+nest_rc=$?
+set -e
+assert_rc 6 "$nest_rc" "struct_nested_arg_subset"
+
+echo "[ir-x86-subset-asm] struct return if"
+SIF_BIN="$TMP_DIR/struct-if"
+build_bin "$ROOT_DIR/tests/struct_return_if_subset.mee" "$SIF_BIN"
+set +e
+"$SIF_BIN"
+sif_rc=$?
+set -e
+assert_rc 36 "$sif_rc" "struct_return_if_subset"
+
+echo "[ir-x86-subset-asm] struct return while"
+SWH_BIN="$TMP_DIR/struct-while"
+build_bin "$ROOT_DIR/tests/struct_return_while_subset.mee" "$SWH_BIN"
+set +e
+"$SWH_BIN"
+swh_rc=$?
+set -e
+assert_rc 9 "$swh_rc" "struct_return_while_subset"
 
 echo "[ir-x86-subset-asm] fd_read"
 READ_BIN="$TMP_DIR/read"

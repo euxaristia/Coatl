@@ -72,6 +72,7 @@ Run no-Rust subset x86_64 asm smoke suite:
 ```bash
 ./tests/run_ir_x86_subset_asm_smoke.sh
 ```
+This suite currently covers scalar/memory/control-flow, struct flows, and Linux I/O intrinsics (`__fd_read`, `__path_open`, `__fd_write`, `__fd_close`).
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
 ./tests/run_ir_subset_io_smoke.sh
