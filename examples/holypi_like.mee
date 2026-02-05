@@ -1,0 +1,49 @@
+fn write_stdout(msg: i32, len: i32) -> i32 {
+  let iov: i32 = 64;
+  let nwritten: i32 = 72;
+  __mem_store(iov, msg);
+  __mem_store(iov + 4, len);
+  __mem_store(nwritten, 0);
+  let rc: i32 = __fd_write(1, iov, 1, nwritten);
+  if (rc != 0) {
+    return rc;
+  }
+  return __mem_load(nwritten);
+}
+
+fn main() -> i32 {
+  let iterations: i32 = 100000;
+  let scale: i32 = 100000;
+  let target_pi_scaled: i32 = 314159;
+
+  let k: i32 = 0;
+  let sum: i32 = 0;
+  let sign: i32 = 1;
+  while (k < iterations) {
+    let denom: i32 = k * 2 + 1;
+    let term: i32 = scale / denom;
+    if (sign > 0) {
+      sum = sum + term;
+    } else {
+      sum = sum - term;
+    }
+    sign = 0 - sign;
+    k = k + 1;
+  }
+
+  let pi_scaled: i32 = sum * 4;
+  let diff: i32 = 0;
+  if (pi_scaled >= target_pi_scaled) {
+    diff = pi_scaled - target_pi_scaled;
+  } else {
+    diff = target_pi_scaled - pi_scaled;
+  }
+
+  if (diff < 200) {
+    write_stdout("HolyPi-style integer Leibniz OK\n", 32);
+    return 0;
+  } else {
+    write_stdout("HolyPi-style integer Leibniz FAIL\n", 34);
+    return 2;
+  }
+}
