@@ -14,6 +14,7 @@ usage:
 notes:
   - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
   - --emit=asm and --emit=ir currently require the Rust compiler toolchain
+  - set MEE_NO_RUST=1 to forbid any Rust compiler usage/fallback
 EOF
 }
 
@@ -75,7 +76,19 @@ if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "r
   exit 1
 fi
 
+rust_disabled() {
+  [[ "${MEE_NO_RUST:-0}" == "1" ]]
+}
+
+ensure_rust_allowed() {
+  if rust_disabled; then
+    echo "rust-disabled mode: this operation requires Rust compiler usage" >&2
+    exit 1
+  fi
+}
+
 rust_build() {
+  ensure_rust_allowed
   local emit_flag="--emit=$emit"
   if [[ -n "$out" ]]; then
     (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input" "$emit_flag" -o "$out")
@@ -119,6 +132,10 @@ fi
 if [[ -x "$SELFHOST_BUILD" && -f "$seed" ]] && command -v wasmtime >/dev/null 2>&1; then
   if selfhost_build_wat; then
     exit 0
+  fi
+  if rust_disabled; then
+    echo "selfhost build failed and Rust fallback is disabled (MEE_NO_RUST=1)" >&2
+    exit 1
   fi
   echo "warning: selfhost build failed, falling back to rust toolchain" >&2
 fi

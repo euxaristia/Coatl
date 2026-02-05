@@ -22,6 +22,7 @@ Last updated: 2026-02-05
   - Round-trip suite automated
   - Struct-aware semantic checks in bootstrap compiler (including call argument typing)
   - Top-level `./mee` driver now defaults WAT builds to selfhost (`auto` toolchain mode)
+  - Strict no-Rust mode available via `MEE_NO_RUST=1` for enforcing Rust-free compile paths
 
 ## Current Focus (next roadmap slice)
 

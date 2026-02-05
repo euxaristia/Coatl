@@ -49,6 +49,11 @@ Run the no-Rust CLI smoke suite:
 ./tests/run_cli_no_rust_smoke.sh
 ```
 
+Run strict no-Rust mode checks:
+```bash
+./tests/run_strict_no_rust_suite.sh
+```
+
 ## Hello World (Mee)
 
 ```mee
@@ -85,6 +90,7 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 
 - No binary WASM emitter yet (WAT only).
 - `--emit=ir` is a typed AST/IR seam intended for external (non-Rust) backend work; native backend production flow is still Rust-owned today.
+- `MEE_NO_RUST=1` forbids Rust compiler usage/fallback in `./mee`; `--emit=asm` and `--emit=ir` currently fail in this mode.
 - x86_64 backend supports Mee I/O intrinsics (`__fd_write`, `__fd_read`, `__path_open`, `__fd_close`) via Linux syscalls.
 - x86_64 runtime suite covers scalar, memory, I/O, and struct ABI cases.
 - x86_64 runtime helper path is Linux-oriented today; AArch64 backend is not implemented yet.
