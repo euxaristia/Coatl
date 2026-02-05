@@ -97,6 +97,7 @@ Rust-free convergence + runtime checks:
 ./selfhost/check_self_compile_seed.sh
 ./selfhost/run_selfhost_runtime_suite.sh
 ./selfhost/run_roundtrip_suite_seed.sh
+./selfhost/run_no_rust_ci.sh
 ```
 
 Refresh the committed seed (default: no Rust):
