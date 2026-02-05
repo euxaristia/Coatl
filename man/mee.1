@@ -1,0 +1,78 @@
+.TH MEE 1 "February 2026" "Mee" "User Commands"
+.SH NAME
+mee \- build Mee sources via selfhost, IR, or Rust lanes
+.SH SYNOPSIS
+.B mee
+.I build input.mee
+[\fB--emit=\fRwat|asm|ir]
+[\fB-o\fR \fIoutput\fR]
+[\fB--toolchain=\fRauto|selfhost|rust|ir]
+[\fB--compiler\fR \fIseed.wat\fR]
+.br
+.B mee
+.I lower-ir input.ir
+\fB-o\fR \fIoutput.wat\fR
+.br
+.B mee
+[\fB--help\fR|\fB-h\fR]
+.br
+.B mee
+[\fB--version\fR|\fB-V\fR]
+.SH DESCRIPTION
+\fBmee\fR is the command-line launcher for the Mee compiler pipeline.
+It dispatches to selfhost and IR-based toolchains by default and can use
+a Rust lane when available and not disabled by environment settings.
+.SH COMMANDS
+.TP
+.B build
+Compile a \fI.mee\fR source file. The default emission is WAT.
+.TP
+.B lower-ir
+Lower textual Mee IR into WAT using the external lowerer.
+.SH OPTIONS
+.TP
+\fB--emit=\fRwat|asm|ir
+Choose emitted output kind (default: \fBwat\fR).
+.TP
+\fB-o\fR \fIoutput\fR
+Write output to the given path. If omitted, output is written to stdout.
+.TP
+\fB--toolchain=\fRauto|selfhost|rust|ir
+Select compilation lane. Default is \fBauto\fR.
+.TP
+\fB--compiler\fR \fIseed.wat\fR
+Path to seed compiler module for selfhost lane.
+.TP
+\fB--help\fR, \fB-h\fR
+Show usage help.
+.TP
+\fB--version\fR, \fB-V\fR
+Show version string.
+.SH ENVIRONMENT
+.TP
+\fBMEE_TOOLCHAIN\fR
+Default toolchain when \fB--toolchain\fR is omitted.
+.TP
+\fBMEE_NO_RUST=1\fR
+Forbid Rust compiler usage and fallback.
+.TP
+\fBMEE_NO_RUST_BUILD=1\fR
+Force no-Rust behavior for branch-mode development.
+.TP
+\fBMEE_VERSION\fR
+Fallback version string if Git metadata is unavailable.
+.SH EXIT STATUS
+Returns 0 on success and non-zero on error.
+.SH EXAMPLES
+.TP
+\fBmee build examples/hello.mee --emit=wat -o /tmp/hello.wat\fR
+Compile to WAT.
+.TP
+\fBmee build examples/hello.mee --emit=asm --toolchain=ir -o /tmp/hello.s\fR
+Compile through the non-Rust IR pipeline to x86_64 assembly.
+.TP
+\fBmee lower-ir /tmp/prog.ir -o /tmp/prog.wat\fR
+Lower IR to WAT.
+.TP
+\fBmee --version\fR
+Print version.

@@ -1,6 +1,2 @@
 # Generated bootstrap artifact: keep tracked, but exclude from language stats.
 selfhost/bootstrap.seed.wat linguist-generated=true
-
-# Mee is the primary source language in this repo.
-# Map to an existing Linguist language for classification.
-*.mee linguist-language=Rust
