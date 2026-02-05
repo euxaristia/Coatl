@@ -21,6 +21,7 @@ Last updated: 2026-02-05
   - Self-compile convergence checks automated
   - Round-trip suite automated
   - Struct-aware semantic checks in bootstrap compiler (including call argument typing)
+  - Top-level `./mee` driver now defaults WAT builds to selfhost (`auto` toolchain mode)
 
 ## Current Focus (next roadmap slice)
 

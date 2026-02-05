@@ -14,10 +14,9 @@ Mee is a draft systems language that aims to be safer than C while staying predi
 
 ## Quick Start
 
-Build WAT:
+Build WAT (default path prefers selfhost, no Rust required):
 ```bash
-cd compiler
-cargo run --quiet -- build ../examples/hello.mee --emit=wat
+./mee build ./examples/hello.mee --emit=wat -o /tmp/hello.wat
 ```
 
 Run the WAT with wasmtime:
@@ -25,19 +24,14 @@ Run the WAT with wasmtime:
 wasmtime --invoke main /tmp/hello.wat
 ```
 
-Build x86_64 assembly:
+Build x86_64 assembly (currently Rust-backed):
 ```bash
-cargo run --quiet -- build ../examples/hello.mee --emit=asm
+./mee build ./examples/hello.mee --emit=asm --toolchain=rust -o /tmp/hello.s
 ```
 
-Emit backend-neutral IR (S-expression form):
+Emit backend-neutral IR (S-expression form, currently Rust-backed):
 ```bash
-cargo run --quiet -- build ../examples/hello.mee --emit=ir
-```
-
-Write output to a file:
-```bash
-cargo run --quiet -- build ../examples/hello.mee --emit=wat -o /tmp/hello.wat
+./mee build ./examples/hello.mee --emit=ir --toolchain=rust -o /tmp/hello.ir
 ```
 
 Run the x86_64 runtime suite (Linux):
@@ -48,6 +42,11 @@ Run the x86_64 runtime suite (Linux):
 Run the IR seam smoke suite:
 ```bash
 ./tests/run_ir_smoke.sh
+```
+
+Run the no-Rust CLI smoke suite:
+```bash
+./tests/run_cli_no_rust_smoke.sh
 ```
 
 ## Hello World (Mee)

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-COMPILER_DIR="$ROOT_DIR/compiler"
 TMP_DIR="$(mktemp -d /tmp/mee-x86-suite.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -10,7 +9,7 @@ build_bin() {
   local src="$1"
   local out="$2"
   local asm="$TMP_DIR/$(basename "$out").s"
-  (cd "$COMPILER_DIR" && cargo run --quiet -- build "$src" --emit=asm -o "$asm")
+  "$ROOT_DIR/mee" build "$src" --emit=asm --toolchain=rust -o "$asm"
   gcc -no-pie "$asm" -o "$out"
 }
 

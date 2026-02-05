@@ -2,14 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-COMPILER_DIR="$ROOT_DIR/compiler"
 TMP_DIR="$(mktemp -d /tmp/mee-ir-smoke.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 emit_ir() {
   local src="$1"
   local out="$2"
-  (cd "$COMPILER_DIR" && cargo run --quiet -- build "$src" --emit=ir -o "$out")
+  "$ROOT_DIR/mee" build "$src" --emit=ir --toolchain=rust -o "$out"
 }
 
 echo "[ir-smoke] hello"

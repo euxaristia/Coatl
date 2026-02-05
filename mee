@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
+RUST_COMPILER_DIR="$ROOT_DIR/compiler"
+SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
+
+usage() {
+  cat <<'EOF'
+usage:
+  ./mee build <input.mee> [--emit=wat|asm|ir] [-o <output>] [--toolchain=auto|selfhost|rust] [--compiler <seed.wat>]
+
+notes:
+  - default toolchain is "auto" (or $MEE_TOOLCHAIN), preferring selfhost for --emit=wat
+  - --emit=asm and --emit=ir currently require the Rust compiler toolchain
+EOF
+}
+
+if [[ $# -lt 2 ]]; then
+  usage
+  exit 1
+fi
+
+cmd="$1"
+if [[ "$cmd" != "build" ]]; then
+  usage
+  exit 1
+fi
+
+input="$2"
+if [[ ! -f "$input" ]]; then
+  echo "input file not found: $input"
+  exit 1
+fi
+
+emit="wat"
+out=""
+toolchain="${MEE_TOOLCHAIN:-auto}"
+seed="$SEED_DEFAULT"
+
+shift 2
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --emit=*)
+      emit="${1#--emit=}"
+      shift
+      ;;
+    -o)
+      out="${2:-}"
+      shift 2
+      ;;
+    --toolchain=*)
+      toolchain="${1#--toolchain=}"
+      shift
+      ;;
+    --compiler)
+      seed="${2:-}"
+      shift 2
+      ;;
+    *)
+      echo "unknown arg: $1"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$emit" != "wat" && "$emit" != "asm" && "$emit" != "ir" ]]; then
+  echo "unsupported emit target: $emit"
+  exit 1
+fi
+if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "rust" ]]; then
+  echo "unsupported toolchain: $toolchain"
+  exit 1
+fi
+
+rust_build() {
+  local emit_flag="--emit=$emit"
+  if [[ -n "$out" ]]; then
+    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input" "$emit_flag" -o "$out")
+  else
+    (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input" "$emit_flag")
+  fi
+}
+
+selfhost_build_wat() {
+  local tmp_out=""
+  if [[ -n "$out" ]]; then
+    "$SELFHOST_BUILD" build "$input" -o "$out" --compiler "$seed" >/dev/null
+  else
+    tmp_out="$(mktemp /tmp/mee-selfhost-out.XXXXXX.wat)"
+    trap 'rm -f "$tmp_out"' EXIT
+    "$SELFHOST_BUILD" build "$input" -o "$tmp_out" --compiler "$seed" >/dev/null
+    cat "$tmp_out"
+  fi
+}
+
+if [[ "$emit" != "wat" ]]; then
+  if [[ "$toolchain" == "selfhost" ]]; then
+    echo "--emit=$emit is not supported by selfhost toolchain yet"
+    exit 1
+  fi
+  rust_build
+  exit 0
+fi
+
+if [[ "$toolchain" == "rust" ]]; then
+  rust_build
+  exit 0
+fi
+
+if [[ "$toolchain" == "selfhost" ]]; then
+  selfhost_build_wat
+  exit 0
+fi
+
+# auto
+if [[ -x "$SELFHOST_BUILD" && -f "$seed" ]] && command -v wasmtime >/dev/null 2>&1; then
+  if selfhost_build_wat; then
+    exit 0
+  fi
+  echo "warning: selfhost build failed, falling back to rust toolchain" >&2
+fi
+
+rust_build
