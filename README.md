@@ -93,6 +93,7 @@ And for IR output itself:
 MEE_NO_RUST=1 ./mee build ./examples/hello.mee --emit=ir --toolchain=ir -o /tmp/hello.ir
 ```
 Current strict subset coverage includes `hello`, `mem_test`, `byte_test`, and `array_sim` via `./tests/run_ir_subset_backend_suite.sh`.
+It also includes control flow (`if`/`while`) and boolean/comparison operators via `tests/ir_subset_control_flow.mee`.
 
 ## Hello World (Mee)
 

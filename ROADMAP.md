@@ -41,7 +41,7 @@ Last updated: 2026-02-05
 - External non-Rust `lower-ir` -> WAT lane established (subset), expand coverage incrementally
 - `./mee --toolchain=ir` now exercises Rust frontend + non-Rust WAT backend path for supported programs
 - `./mee --toolchain=ir` can run in strict no-Rust mode via a non-Rust subset frontend (currently limited coverage)
-- Strict no-Rust subset `toolchain=ir` currently covers `hello`, `mem_test`, `byte_test`, and `array_sim`
+- Strict no-Rust subset `toolchain=ir` currently covers `hello`, `mem_test`, `byte_test`, `array_sim`, and control-flow subset tests
 - Strict no-Rust subset frontend now also supports `./mee build --emit=ir --toolchain=ir` for supported programs
 
 ### v0.4 (self-hosting)

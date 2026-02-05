@@ -108,6 +108,8 @@ WAT_OPS = {
     "gt": "i32.gt_s",
     "le": "i32.le_s",
     "ge": "i32.ge_s",
+    "and": "i32.and",
+    "or": "i32.or",
 }
 
 
@@ -147,6 +149,9 @@ def walk_expr_for_strings(expr: Node, out: Dict[str, None]) -> None:
     if tag == "string":
         out[as_atom(e[1])] = None
         return
+    if tag == "unary":
+        walk_expr_for_strings(e[2], out)
+        return
     if tag == "binary":
         walk_expr_for_strings(e[2], out)
         walk_expr_for_strings(e[3], out)
@@ -173,6 +178,19 @@ def collect_string_literals(block: Node) -> List[str]:
             walk_expr_for_strings(s[1], found)
         elif tag == "expr":
             walk_expr_for_strings(s[1], found)
+        elif tag == "if":
+            walk_expr_for_strings(s[1], found)
+            for tok in collect_string_literals(s[2]):
+                found[tok] = None
+            if len(s) > 3:
+                eb = as_list(s[3])
+                if as_atom(eb[0]) == "else":
+                    for tok in collect_string_literals(eb[1]):
+                        found[tok] = None
+        elif tag == "while":
+            walk_expr_for_strings(s[1], found)
+            for tok in collect_string_literals(s[2]):
+                found[tok] = None
     return list(found.keys())
 
 
@@ -188,6 +206,8 @@ def collect_features_expr(expr: Node, out: Dict[str, bool]) -> None:
     elif tag == "binary":
         collect_features_expr(e[2], out)
         collect_features_expr(e[3], out)
+    elif tag == "unary":
+        collect_features_expr(e[2], out)
 
 
 def collect_features(block: Node) -> Dict[str, bool]:
@@ -204,6 +224,19 @@ def collect_features(block: Node) -> Dict[str, bool]:
             collect_features_expr(s[1], out)
         elif tag == "expr":
             collect_features_expr(s[1], out)
+        elif tag == "if":
+            collect_features_expr(s[1], out)
+            fb = collect_features(s[2])
+            out["fd_write"] = out["fd_write"] or fb["fd_write"]
+            if len(s) > 3:
+                eb = as_list(s[3])
+                if as_atom(eb[0]) == "else":
+                    fe = collect_features(eb[1])
+                    out["fd_write"] = out["fd_write"] or fe["fd_write"]
+        elif tag == "while":
+            collect_features_expr(s[1], out)
+            fw = collect_features(s[2])
+            out["fd_write"] = out["fd_write"] or fw["fd_write"]
     return out
 
 
@@ -234,6 +267,13 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
         emit_expr(e[2], ctx, out)
         emit_expr(e[3], ctx, out)
         out.append(f"    {op_wat}")
+        return
+    if tag == "unary":
+        op = as_atom(e[1])
+        if op != "not":
+            raise LowerError(f"unsupported unary op: {op}")
+        emit_expr(e[2], ctx, out)
+        out.append("    i32.eqz")
         return
     if tag == "call":
         callee = as_atom(e[1])
@@ -308,7 +348,37 @@ def emit_stmt(stmt: Node, ctx: Ctx, out: List[str]) -> None:
         emit_expr(s[1], ctx, out)
         out.append("    drop")
         return
+    if tag == "if":
+        emit_expr(s[1], ctx, out)
+        out.append("    if")
+        emit_block(s[2], ctx, out)
+        if len(s) > 3:
+            eb = as_list(s[3])
+            if as_atom(eb[0]) == "else":
+                out.append("    else")
+                emit_block(eb[1], ctx, out)
+        out.append("    end")
+        return
+    if tag == "while":
+        out.append("    block")
+        out.append("    loop")
+        emit_expr(s[1], ctx, out)
+        out.append("    i32.eqz")
+        out.append("    br_if 1")
+        emit_block(s[2], ctx, out)
+        out.append("    br 0")
+        out.append("    end")
+        out.append("    end")
+        return
     raise LowerError(f"unsupported stmt: {tag}")
+
+
+def emit_block(block: Node, ctx: Ctx, out: List[str]) -> None:
+    b = as_list(block)
+    if as_atom(b[0]) != "block":
+        raise LowerError("expected block")
+    for stmt in b[1:]:
+        emit_stmt(stmt, ctx, out)
 
 
 def collect_locals(block: Node) -> List[str]:
@@ -361,6 +431,9 @@ def lower_function(name: str, params: List[str], block: Node, string_addrs: Dict
     for _ in let_locals:
         lines.append("    (local i32)")
     lines.extend(body)
+    # Ensure a valid i32 return on any non-explicit path.
+    lines.append("    i32.const 0")
+    lines.append("    return")
     lines.append("  )")
     return lines
 

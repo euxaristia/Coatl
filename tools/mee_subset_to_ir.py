@@ -34,7 +34,11 @@ def tokenize(src: str) -> List[Tok]:
             toks.append(Tok('sym', '->'))
             i += 2
             continue
-        if c in '(){}:,;=+-*/':
+        if src.startswith('<=', i) or src.startswith('>=', i) or src.startswith('==', i) or src.startswith('!=', i) or src.startswith('&&', i) or src.startswith('||', i):
+            toks.append(Tok('sym', src[i:i + 2]))
+            i += 2
+            continue
+        if c in '(){}:,;=+-*/<>!':
             toks.append(Tok('sym', c))
             i += 1
             continue
@@ -171,6 +175,24 @@ class Parser:
             expr = self.parse_expr_ir()
             self.expect('sym', ';')
             return f'        (return\n{expr}        )\n'
+        if t.kind == 'ident' and t.text == 'if':
+            self.next()
+            self.expect('sym', '(')
+            cond = self.parse_expr_ir()
+            self.expect('sym', ')')
+            then_block = self.parse_block_ir()
+            if self.peek().kind == 'ident' and self.peek().text == 'else':
+                self.next()
+                else_block = self.parse_block_ir()
+                return f'        (if\n{cond}{then_block}          (else\n{else_block}          )\n        )\n'
+            return f'        (if\n{cond}{then_block}        )\n'
+        if t.kind == 'ident' and t.text == 'while':
+            self.next()
+            self.expect('sym', '(')
+            cond = self.parse_expr_ir()
+            self.expect('sym', ')')
+            body = self.parse_block_ir()
+            return f'        (while\n{cond}{body}        )\n'
         if t.kind == 'ident':
             t1 = self.toks[self.i + 1]
             if t1.kind == 'sym' and t1.text == '=':
@@ -184,7 +206,54 @@ class Parser:
         return f'        (expr\n{expr}        )\n'
 
     def parse_expr_ir(self) -> str:
+        left = self.parse_or_ir()
+        return left
+
+    def parse_or_ir(self) -> str:
+        left = self.parse_and_ir()
+        while self.peek().kind == 'sym' and self.peek().text == '||':
+            self.next()
+            right = self.parse_and_ir()
+            left = (
+                '          (binary or\n'
+                f'{left}'
+                f'{right}'
+                '          )\n'
+            )
+        return left
+
+    def parse_and_ir(self) -> str:
+        left = self.parse_cmp_ir()
+        while self.peek().kind == 'sym' and self.peek().text == '&&':
+            self.next()
+            right = self.parse_cmp_ir()
+            left = (
+                '          (binary and\n'
+                f'{left}'
+                f'{right}'
+                '          )\n'
+            )
+        return left
+
+    def parse_cmp_ir(self) -> str:
         left = self.parse_add_ir()
+        while self.peek().kind == 'sym' and self.peek().text in ('<', '>', '<=', '>=', '==', '!='):
+            op = self.next().text
+            right = self.parse_add_ir()
+            op_name = {
+                '<': 'lt',
+                '>': 'gt',
+                '<=': 'le',
+                '>=': 'ge',
+                '==': 'eq',
+                '!=': 'ne',
+            }[op]
+            left = (
+                f'          (binary {op_name}\n'
+                f'{left}'
+                f'{right}'
+                '          )\n'
+            )
         return left
 
     def parse_add_ir(self) -> str:
@@ -225,6 +294,10 @@ class Parser:
             return f'          (string {t.text})\n'
         if t.kind == 'ident':
             name = self.next().text
+            if name == 'true':
+                return '          (bool 1)\n'
+            if name == 'false':
+                return '          (bool 0)\n'
             if self.peek().kind == 'sym' and self.peek().text == '(':
                 self.next()
                 args: List[str] = []
@@ -244,6 +317,15 @@ class Parser:
             e = self.parse_expr_ir()
             self.expect('sym', ')')
             return e
+        if t.kind == 'sym' and t.text == '!':
+            self.next()
+            e = self.parse_term_ir()
+            return (
+                '          (binary eq\n'
+                f'{e}'
+                '          (int 0)\n'
+                '          )\n'
+            )
         raise ParseError(f'unexpected token in expression: {t.kind}:{t.text}')
 
 

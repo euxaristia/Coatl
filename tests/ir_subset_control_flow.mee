@@ -1,0 +1,16 @@
+fn bump_to(x: i32, limit: i32) -> i32 {
+  let cur: i32 = x;
+  while (cur < limit) {
+    cur = cur + 1;
+  }
+  return cur;
+}
+
+fn main() -> i32 {
+  let v: i32 = bump_to(3, 7);
+  if (v == 7 && !(v != 7)) {
+    return 77;
+  } else {
+    return 99;
+  }
+}
