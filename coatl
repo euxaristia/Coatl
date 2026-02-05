@@ -1,7 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if command -v realpath >/dev/null 2>&1; then
+  SCRIPT_PATH="$(realpath "$SCRIPT_PATH")"
+fi
+ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
+if [[ ! -x "$ROOT_DIR/tools/coatl_subset_to_ir.py" || ! -f "$ROOT_DIR/selfhost/bootstrap.seed.wat" ]]; then
+  for candidate in \
+    "${COATL_HOME:-}" \
+    "$ROOT_DIR/../share/coatl" \
+    "/usr/local/share/coatl" \
+    "$HOME/.local/share/coatl"; do
+    if [[ -n "$candidate" && -x "$candidate/tools/coatl_subset_to_ir.py" && -f "$candidate/selfhost/bootstrap.seed.wat" ]]; then
+      ROOT_DIR="$(cd "$candidate" && pwd)"
+      break
+    fi
+  done
+fi
+
 SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
 SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
 SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.py"
@@ -22,6 +40,7 @@ notes:
   - --emit=bin links x86_64 Linux executable from asm output
   - --emit=ir supports toolchain=ir (subset frontend)
   - set COATL_IR_FIRST_BUILD=1 to force auto mode to skip selfhost-first attempt
+  - set COATL_HOME to a Coatl repo/install root if tools are not found beside this script
 EOF
 }
 
@@ -294,7 +313,12 @@ ir_pipeline_build_wat() {
     fi
   fi
 
-  echo "subset frontend failed for toolchain=ir" >&2
+  if [[ ! -x "$SUBSET_FRONTEND" ]]; then
+    echo "subset frontend not found: $SUBSET_FRONTEND" >&2
+    echo "set COATL_HOME to a Coatl root containing tools/ and selfhost/" >&2
+  else
+    echo "subset frontend failed for toolchain=ir" >&2
+  fi
   rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
   return 1
 }
@@ -341,7 +365,12 @@ ir_pipeline_build_asm() {
     fi
   fi
 
-  echo "subset frontend failed for --emit=asm --toolchain=ir" >&2
+  if [[ ! -x "$SUBSET_FRONTEND" ]]; then
+    echo "subset frontend not found: $SUBSET_FRONTEND" >&2
+    echo "set COATL_HOME to a Coatl root containing tools/ and selfhost/" >&2
+  else
+    echo "subset frontend failed for --emit=asm --toolchain=ir" >&2
+  fi
   rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
   return 1
 }
