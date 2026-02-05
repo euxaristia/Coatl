@@ -554,6 +554,9 @@ def main() -> int:
     ap.add_argument('-o', '--output', required=True, help='output .ir file')
     args = ap.parse_args()
 
+    if not args.input.endswith('.coatl'):
+        raise SystemExit(f'input file must use .coatl extension: {args.input}')
+
     src = Path(args.input).read_text()
     toks = tokenize(src)
     p = Parser(toks)

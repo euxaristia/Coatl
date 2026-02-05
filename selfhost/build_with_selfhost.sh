@@ -58,6 +58,10 @@ if [[ ! -f "$in_file" ]]; then
   echo "input file not found: $in_file"
   exit 1
 fi
+if [[ "$in_file" != *.coatl ]]; then
+  echo "input file must use .coatl extension: $in_file"
+  exit 1
+fi
 if [[ ! -f "$compiler_wat" ]]; then
   echo "compiler seed not found: $compiler_wat"
   exit 1
