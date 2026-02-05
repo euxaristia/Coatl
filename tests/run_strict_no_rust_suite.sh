@@ -138,6 +138,9 @@ MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_bootstrap_ir_compile.sh"
 echo "[strict-no-rust] full no-rust toolchain=ir compile coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_compile_coverage.sh"
 
+echo "[strict-no-rust] full no-rust emit=ir coverage"
+MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_emit_full_coverage.sh"
+
 echo "[strict-no-rust] full no-rust toolchain=ir asm compile coverage"
 MEE_NO_RUST=1 "$ROOT_DIR/tests/run_no_rust_ir_full_asm_compile_coverage.sh"
 

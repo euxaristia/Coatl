@@ -62,6 +62,7 @@ Last updated: 2026-02-05
 - Non-Rust WAT lowerer now supports nested-block `let` locals (function-wide WASM local predeclaration), covered by `tests/nested_let_scope_subset.mee`
 - strict no-Rust now verifies `selfhost/bootstrap.mee` compiles via `--toolchain=ir` through `tests/run_no_rust_bootstrap_ir_compile.sh`
 - strict no-Rust now verifies full `--toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_compile_coverage.sh`
+- strict no-Rust now verifies full `--emit=ir --toolchain=ir` coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_emit_full_coverage.sh`
 - strict no-Rust now verifies full `--emit=asm --toolchain=ir` compile coverage across `tests/`, `examples/`, and `selfhost/` via `tests/run_no_rust_ir_full_asm_compile_coverage.sh`
 
 ### v0.4 (self-hosting)
