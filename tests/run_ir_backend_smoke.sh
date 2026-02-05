@@ -37,4 +37,15 @@ if ! printf '%s\n' "$out" | grep -Fq "Hello, world!"; then
   exit 1
 fi
 
+echo "[ir-backend] compile struct case via toolchain=ir (fallback-capable)"
+STRUCT_WAT="$TMP_DIR/struct_ir_backend.wat"
+./mee build ./tests/struct_param_pass.mee --emit=wat --toolchain=ir -o "$STRUCT_WAT"
+struct_out="$(wasmtime --invoke main "$STRUCT_WAT")"
+struct_ret="$(printf '%s\n' "$struct_out" | awk 'NF { line=$0 } END { print line }')"
+if [[ "$struct_ret" != "9" ]]; then
+  echo "[FAIL] expected struct return 9, got $struct_ret"
+  printf '%s\n' "$struct_out"
+  exit 1
+fi
+
 echo "ir backend smoke suite passed"

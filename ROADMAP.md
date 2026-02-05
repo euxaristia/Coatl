@@ -45,6 +45,7 @@ Last updated: 2026-02-05
 - `--toolchain=auto` now attempts non-Rust IR pipeline fallback before Rust backend fallback
 - `--emit=ir --toolchain=auto` now attempts subset non-Rust frontend before Rust fallback
 - Strict suite now verifies auto-mode no-Rust fallback across multiple runtime cases (not just hello)
+- `--toolchain=ir` now tries subset non-Rust frontend first and falls back to Rust frontend only when needed
 - Strict no-Rust subset frontend now also supports `./mee build --emit=ir --toolchain=ir` for supported programs
 
 ### v0.4 (self-hosting)

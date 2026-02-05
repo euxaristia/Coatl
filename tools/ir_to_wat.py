@@ -449,11 +449,15 @@ def parse_fn(fn_node: List[Node]) -> Tuple[str, List[str], Node]:
     params: List[str] = []
     for p in params_node[1:]:
         pl = as_list(p)
-        if len(pl) != 3 or as_atom(pl[0]) != "param" or as_atom(pl[2]) != "i32":
+        if len(pl) != 3 or as_atom(pl[0]) != "param":
+            raise LowerError("only i32 params supported")
+        if isinstance(pl[2], list) or as_atom(pl[2]) != "i32":
             raise LowerError("only i32 params supported")
         params.append(as_atom(pl[1]))
     ret = as_list(fn_node[3])
-    if len(ret) != 2 or as_atom(ret[0]) != "ret" or as_atom(ret[1]) != "i32":
+    if len(ret) != 2 or as_atom(ret[0]) != "ret":
+        raise LowerError("only (ret i32) supported")
+    if isinstance(ret[1], list) or as_atom(ret[1]) != "i32":
         raise LowerError("only (ret i32) supported")
     block = as_list(fn_node[4])
     return name, params, block

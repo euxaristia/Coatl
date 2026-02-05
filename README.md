@@ -112,6 +112,7 @@ In `--toolchain=auto`, `--emit=ir` now also prefers the subset frontend before a
 Current strict subset coverage includes `hello`, `mem_test`, `byte_test`, and `array_sim` via `./tests/run_ir_subset_backend_suite.sh`.
 It also includes control flow (`if`/`while`) and boolean/comparison operators via `tests/ir_subset_control_flow.mee`, plus `__fd_read` and `__path_open` probes via `tests/run_ir_subset_io_smoke.sh` and `tests/run_ir_subset_path_open_smoke.sh`, and write/close flow via `tests/run_ir_subset_path_open_write_close_smoke.sh`.
 In `--toolchain=auto`, if selfhost WAT compilation fails, `./mee` now tries the non-Rust IR pipeline before any Rust fallback.
+For `--toolchain=ir`, `./mee` now prefers the subset non-Rust frontend and uses Rust frontend only as a fallback for unsupported programs.
 
 ## Hello World (Mee)
 
@@ -149,7 +150,7 @@ wasmtime --dir . --invoke main /tmp/hello.wat
 
 - No binary WASM emitter yet (WAT only).
 - `--emit=ir` is a typed AST/IR seam intended for external (non-Rust) backend work; native backend production flow is still Rust-owned today.
-- `MEE_NO_RUST=1` forbids Rust compiler usage/fallback in `./mee`; `--emit=asm` and `--emit=ir` currently fail in this mode.
+- `MEE_NO_RUST=1` forbids Rust compiler usage/fallback in `./mee`; `--emit=asm` fails, while `--emit=ir` works for the current subset frontend coverage.
 - x86_64 backend supports Mee I/O intrinsics (`__fd_write`, `__fd_read`, `__path_open`, `__fd_close`) via Linux syscalls.
 - x86_64 runtime suite covers scalar, memory, I/O, and struct ABI cases.
 - x86_64 runtime helper path is Linux-oriented today; AArch64 backend is not implemented yet.

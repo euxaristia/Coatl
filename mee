@@ -149,36 +149,60 @@ selfhost_build_wat() {
 ir_pipeline_build_wat() {
   local tmp_ir
   local tmp_wat
+  local subset_err
+  local lower_err
   tmp_ir="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.ir)"
   tmp_wat="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.wat)"
-  if rust_disabled; then
-    if [[ ! -x "$SUBSET_FRONTEND" ]]; then
-      echo "subset frontend missing: $SUBSET_FRONTEND" >&2
-      return 1
-    fi
-    if ! "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"; then
-      echo "subset frontend failed for toolchain=ir" >&2
-      return 1
-    fi
-  else
-    if ! (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir"); then
-      if [[ -x "$SUBSET_FRONTEND" ]]; then
-        if ! "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"; then
-          echo "both rust and subset frontends failed for toolchain=ir" >&2
-          return 1
+  subset_err="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.subset.err)"
+  lower_err="$(mktemp /tmp/mee-ir-pipeline.XXXXXX.lower.err)"
+  if [[ -x "$SUBSET_FRONTEND" ]]; then
+    if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
+      if "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat" 2>"$lower_err"; then
+        if [[ -n "$out_abs" ]]; then
+          cp "$tmp_wat" "$out_abs"
+        else
+          cat "$tmp_wat"
         fi
-      else
+        rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
+        return 0
+      fi
+      if rust_disabled; then
+        echo "subset frontend produced unsupported IR for lowerer and Rust is disabled" >&2
+        rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
         return 1
       fi
+      echo "warning: subset IR lowering failed, trying Rust frontend in ir pipeline" >&2
     fi
   fi
-  "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat"
-  if [[ -n "$out_abs" ]]; then
-    cp "$tmp_wat" "$out_abs"
-  else
-    cat "$tmp_wat"
+
+  if rust_disabled; then
+    echo "subset frontend failed for toolchain=ir and Rust is disabled" >&2
+    rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
+    return 1
   fi
-  rm -f "$tmp_ir" "$tmp_wat"
+
+  if ! (cd "$RUST_COMPILER_DIR" && cargo run --quiet -- build "$input_abs" --emit=ir -o "$tmp_ir"); then
+    echo "rust frontend failed for toolchain=ir" >&2
+    rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
+    return 1
+  fi
+
+  if "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat" 2>"$lower_err"; then
+    if [[ -n "$out_abs" ]]; then
+      cp "$tmp_wat" "$out_abs"
+    else
+      cat "$tmp_wat"
+    fi
+    rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
+    return 0
+  fi
+
+  echo "warning: rust IR could not be lowered by external backend, falling back to rust backend" >&2
+  rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
+  if rust_build; then
+    return 0
+  fi
+  return 1
 }
 
 subset_emit_ir() {
