@@ -78,6 +78,24 @@ if [[ "$struct_ir_ret" != "9" ]]; then
   exit 1
 fi
 
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/tests/struct_return_basic.mee" --emit=wat --toolchain=ir -o "$TMP_DIR/struct-ret-ir.wat"
+struct_ret_ir_out="$(wasmtime --invoke main "$TMP_DIR/struct-ret-ir.wat")"
+struct_ret_ir="$(printf '%s\n' "$struct_ret_ir_out" | awk 'NF { line=$0 } END { print line }')"
+if [[ "$struct_ret_ir" != "15" ]]; then
+  echo "[FAIL] expected struct return ir no-rust return 15 got $struct_ret_ir"
+  printf '%s\n' "$struct_ret_ir_out"
+  exit 1
+fi
+
+MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/tests/struct_chain_calls.mee" --emit=wat --toolchain=ir -o "$TMP_DIR/struct-chain-ir.wat"
+struct_chain_ir_out="$(wasmtime --invoke main "$TMP_DIR/struct-chain-ir.wat")"
+struct_chain_ir="$(printf '%s\n' "$struct_chain_ir_out" | awk 'NF { line=$0 } END { print line }')"
+if [[ "$struct_chain_ir" != "6" ]]; then
+  echo "[FAIL] expected struct chain ir no-rust return 6 got $struct_chain_ir"
+  printf '%s\n' "$struct_chain_ir_out"
+  exit 1
+fi
+
 echo "[strict-no-rust] auto mode fallback: selfhost failure -> ir pipeline"
 MEE_NO_RUST=1 "$ROOT_DIR/mee" build "$ROOT_DIR/examples/hello.mee" --emit=wat --toolchain=auto --compiler /tmp/mee-missing-seed.wat -o "$TMP_DIR/auto-fallback.wat"
 auto_out="$(wasmtime --invoke main "$TMP_DIR/auto-fallback.wat")"

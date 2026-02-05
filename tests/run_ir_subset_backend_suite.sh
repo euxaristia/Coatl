@@ -45,4 +45,10 @@ check_case "tests/ir_subset_control_flow.mee" "77"
 echo "[ir-subset] struct_param_pass"
 check_case "tests/struct_param_pass.mee" "9"
 
+echo "[ir-subset] struct_return_basic"
+check_case "tests/struct_return_basic.mee" "15"
+
+echo "[ir-subset] struct_chain_calls"
+check_case "tests/struct_chain_calls.mee" "6"
+
 echo "ir subset backend suite passed"
