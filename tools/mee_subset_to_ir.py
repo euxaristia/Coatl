@@ -239,6 +239,19 @@ class Parser:
             return f'        (while\n{cond}{body}        )\n'
         if t.kind == 'ident':
             t1 = self.toks[self.i + 1]
+            if t1.kind == 'sym' and t1.text == '.':
+                name = self.next().text
+                self.expect('sym', '.')
+                fld = self.expect_ident().text
+                self.expect('sym', '=')
+                fields = self.struct_var_fields(name)
+                if fields is None:
+                    raise ParseError(f'field assignment on non-struct value: {name}')
+                if fld not in fields:
+                    raise ParseError(f'unknown field {fld} on struct value: {name}')
+                expr = self.parse_expr_ir()
+                self.expect('sym', ';')
+                return f'        (assign {name}__{fld}\n{expr}        )\n'
             if t1.kind == 'sym' and t1.text == '=':
                 name = self.next().text
                 if name in self.local_structs or name in self.param_structs:
