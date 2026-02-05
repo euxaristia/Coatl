@@ -2,6 +2,15 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+MODE="selfhost"
+if [[ "${1:-}" == "--with-rust" ]]; then
+  MODE="rust"
+fi
+
+if [[ "$MODE" == "selfhost" ]]; then
+  exec "$ROOT_DIR/selfhost/run_roundtrip_suite_seed.sh"
+fi
+
 SELFHOST_CHECK="$ROOT_DIR/selfhost/check_self_compile.sh"
 STAGE1_WAT="/tmp/mee-bootstrap-stage1.wat"
 STAGE1_STDIN_WAT="/tmp/mee-bootstrap-stage1-stdin.wat"
