@@ -35,4 +35,13 @@ grep -Fq "__tty_get_mode:" "$ASM"
 grep -Fq "__tty_set_raw:" "$ASM"
 grep -Fq "__tty_restore:" "$ASM"
 
+echo "[tty-intrinsics] verify ioctl syscall ABI register mapping"
+grep -Fq "  mov esi, 0x5401" "$ASM"
+grep -Fq "  mov esi, 0x5402" "$ASM"
+grep -Fq "  lea rdx, [rsp]" "$ASM"
+if grep -Fq "  lea rsi, [rsp]" "$ASM"; then
+  echo "[FAIL] found legacy ioctl argp register mapping (rsi) in tty shims"
+  exit 1
+fi
+
 echo "tty intrinsic smoke suite passed"
