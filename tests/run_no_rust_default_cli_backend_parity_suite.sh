@@ -103,10 +103,11 @@ run_case() {
 echo "[no-rust-default-parity] hello"
 run_case "examples/hello.mee" "0"
 
-echo "[no-rust-default-parity] mem/byte/array"
+echo "[no-rust-default-parity] mem/byte/array/control"
 run_case "tests/mem_test.mee" "142"
 run_case "tests/byte_test.mee" "389"
 run_case "tests/array_sim.mee" "100"
+run_case "tests/ir_subset_control_flow.mee" "77"
 
 echo "[no-rust-default-parity] struct subset"
 run_case "tests/struct_param_pass.mee" "9"

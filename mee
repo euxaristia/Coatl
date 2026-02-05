@@ -138,11 +138,30 @@ rust_build() {
 
 selfhost_build_wat() {
   local tmp_out=""
+  local validate_tmp=""
+  validate_tmp="$(mktemp /tmp/mee-selfhost-validate.XXXXXX.cwasm)"
+  rm -f "$validate_tmp"
   if [[ -n "$out_abs" ]]; then
     "$SELFHOST_BUILD" build "$input_abs" -o "$out_abs" --compiler "$seed" >/dev/null
+    if command -v wasmtime >/dev/null 2>&1; then
+      if ! wasmtime compile "$out_abs" -o "$validate_tmp" >/dev/null 2>&1; then
+        rm -f "$validate_tmp"
+        echo "self-host compile produced invalid WAT module" >&2
+        return 1
+      fi
+      rm -f "$validate_tmp"
+    fi
   else
     tmp_out="$(mktemp /tmp/mee-selfhost-out.XXXXXX.wat)"
     "$SELFHOST_BUILD" build "$input_abs" -o "$tmp_out" --compiler "$seed" >/dev/null
+    if command -v wasmtime >/dev/null 2>&1; then
+      if ! wasmtime compile "$tmp_out" -o "$validate_tmp" >/dev/null 2>&1; then
+        rm -f "$tmp_out" "$validate_tmp"
+        echo "self-host compile produced invalid WAT module" >&2
+        return 1
+      fi
+      rm -f "$validate_tmp"
+    fi
     cat "$tmp_out"
     rm -f "$tmp_out"
   fi

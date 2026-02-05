@@ -135,7 +135,6 @@ Run default-CLI no-Rust backend parity suite (WAT vs ASM):
 ```bash
 ./tests/run_no_rust_default_cli_backend_parity_suite.sh
 ```
-This currently covers hello/memory/array/struct/I-O cases on the default path; control-flow parity is tracked separately in toolchain-specific suites.
 Run no-Rust subset I/O smoke (`__fd_read`):
 ```bash
 ./tests/run_ir_subset_io_smoke.sh
@@ -196,6 +195,7 @@ Strict no-Rust also guards full `--toolchain=auto` WAT compile coverage through 
 Strict no-Rust also guards against accidental Cargo invocation in no-Rust paths via `tests/run_no_rust_no_cargo_guard.sh`.
 Strict no-Rust also guards full default CLI (`./mee build ...` without explicit `--toolchain`) no-Rust coverage for WAT/IR/ASM via `tests/run_no_rust_default_cli_full_wat_compile_coverage.sh`, `tests/run_no_rust_default_cli_full_ir_emit_coverage.sh`, and `tests/run_no_rust_default_cli_full_asm_compile_coverage.sh`.
 Strict no-Rust also guards default-CLI no-Rust runtime parity between WAT and ASM via `tests/run_no_rust_default_cli_backend_parity_suite.sh`.
+In `--toolchain=auto` WAT mode, `./mee` now validates selfhost output as a compilable module (`wasmtime compile`) and falls back to the IR pipeline if selfhost emits invalid WAT.
 The forced auto no-Rust fallback suite also includes these struct cases, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
 ## Hello World (Mee)

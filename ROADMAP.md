@@ -69,7 +69,7 @@ Last updated: 2026-02-05
 - strict no-Rust now also enforces no accidental Cargo invocation in no-Rust compile lanes via `tests/run_no_rust_no_cargo_guard.sh`
 - strict no-Rust now also verifies full default CLI (`./mee build ...` without explicit `--toolchain`) no-Rust coverage for WAT/IR/ASM via `tests/run_no_rust_default_cli_full_wat_compile_coverage.sh`, `tests/run_no_rust_default_cli_full_ir_emit_coverage.sh`, and `tests/run_no_rust_default_cli_full_asm_compile_coverage.sh`
 - strict no-Rust now also verifies default-CLI no-Rust backend parity (WAT vs ASM runtime behavior) via `tests/run_no_rust_default_cli_backend_parity_suite.sh`
-- default-CLI parity suite currently excludes `tests/ir_subset_control_flow.mee`; fixing default selfhost-path control-flow WAT validity remains open
+- `./mee --toolchain=auto --emit=wat` now validates selfhost output as a compilable module and falls back to IR pipeline when selfhost emits invalid WAT, closing default-path control-flow parity gap
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler
