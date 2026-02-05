@@ -7,7 +7,19 @@ if [[ "${1:-}" == "--with-rust" ]]; then
   MODE="rust"
 fi
 
+rust_mode_available() {
+  [[ -d "$ROOT_DIR/compiler" ]] || return 1
+  [[ "${MEE_NO_RUST_BUILD:-0}" != "1" ]] || return 1
+  command -v cargo >/dev/null 2>&1 || return 1
+  return 0
+}
+
 if [[ "$MODE" == "selfhost" ]]; then
+  exec "$ROOT_DIR/selfhost/check_self_compile_seed.sh"
+fi
+
+if ! rust_mode_available; then
+  echo "[check-self-compile] rust mode unavailable; running seed mode"
   exec "$ROOT_DIR/selfhost/check_self_compile_seed.sh"
 fi
 

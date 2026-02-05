@@ -5,6 +5,11 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/mee-ir-smoke.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+if [[ ! -d "$ROOT_DIR/compiler" || "${MEE_NO_RUST_BUILD:-0}" == "1" ]] || ! command -v cargo >/dev/null 2>&1; then
+  echo "ir smoke suite skipped: rust compiler lane unavailable"
+  exit 0
+fi
+
 emit_ir() {
   local src="$1"
   local out="$2"
