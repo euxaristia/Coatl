@@ -2000,8 +2000,13 @@ fn typecheck_call(node: i32) -> i32 {
       let exprp: i32 = ast_a(ccheck);
       let texp: i32 = typecheck_expr(exprp);
       if (texp < 0) { return texp; }
-      // Params are currently lowered/passed as i32 pointers or scalars.
-      // Keep runtime model permissive until full typed ABI lands.
+      let pty: i32 = fn_param_type(fn_idx, pi);
+      let want: i32 = pty;
+      if (want >= 100) {
+        if (texp != want) { return set_semantic_error_node(0 - 7203, exprp); }
+      } else {
+        if (!type_is_i32ish(texp)) { return set_semantic_error_node(0 - 7203, exprp); }
+      }
       ccheck = ast_c(ccheck);
       pi = pi + 1;
     }
@@ -2683,6 +2688,11 @@ fn set_fn_ret_type(idx: i32, ty: i32) -> i32 {
 fn register_fn(ident_id: i32, param_cnt: i32) -> i32 {
   let idx: i32 = get_fn_count();
   fn_set(idx, ident_id, param_cnt, 0, 1);
+  let i: i32 = 0;
+  while (i < param_cnt) {
+    fn_set_param_type(idx, i, type_i32());
+    i = i + 1;
+  }
   set_fn_count(idx + 1);
   return idx;
 }
@@ -4283,6 +4293,10 @@ fn parse_param_list_dyn(count: i32) -> i32 {
   // Parse : type
   if (expect_dyn(tok_colon()) != 1) { return 0 - 1; }
   if (parse_type_dyn() != 1) { return 0 - 1; }
+  let fn_idx: i32 = get_current_fn();
+  if (fn_idx >= 0) {
+    fn_set_param_type(fn_idx, count, get_last_type());
+  }
 
   // Register parameter as a local (params come first in local indices)
   add_local_typed(param_id, get_last_type());
@@ -4631,11 +4645,23 @@ fn fn_local_stride() -> i32 { return 512; }
 fn fn_local_entry_addr(fn_idx: i32, local_idx: i32) -> i32 {
   return fn_local_table_addr() + fn_idx * fn_local_stride() * 4 + local_idx * 4;
 }
+fn fn_param_table_addr() -> i32 { return fn_table_addr() + 24576; }
+fn fn_param_stride() -> i32 { return 64; }
+fn fn_param_type_addr(fn_idx: i32, param_idx: i32) -> i32 {
+  return fn_param_table_addr() + fn_idx * fn_param_stride() * 4 + param_idx * 4;
+}
 fn fn_local_ident(fn_idx: i32, local_idx: i32) -> i32 {
   return __mem_load(fn_local_entry_addr(fn_idx, local_idx));
 }
 fn fn_set_local_ident(fn_idx: i32, local_idx: i32, ident_id: i32) -> i32 {
   __mem_store(fn_local_entry_addr(fn_idx, local_idx), ident_id);
+  return 0;
+}
+fn fn_param_type(fn_idx: i32, param_idx: i32) -> i32 {
+  return __mem_load(fn_param_type_addr(fn_idx, param_idx));
+}
+fn fn_set_param_type(fn_idx: i32, param_idx: i32, ty: i32) -> i32 {
+  __mem_store(fn_param_type_addr(fn_idx, param_idx), ty);
   return 0;
 }
 
