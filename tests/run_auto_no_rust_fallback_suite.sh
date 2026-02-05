@@ -83,6 +83,9 @@ check_case "tests/mem_test.mee" "142"
 echo "[auto-no-rust-fallback] control_flow"
 check_case "tests/ir_subset_control_flow.mee" "77"
 
+echo "[auto-no-rust-fallback] struct_param_pass"
+check_case "tests/struct_param_pass.mee" "9"
+
 echo "[auto-no-rust-fallback] fd_read"
 check_case_stdin "tests/x86_fd_read_test.mee" "4" "abcd"
 

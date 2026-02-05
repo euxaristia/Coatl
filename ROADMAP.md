@@ -48,6 +48,7 @@ Last updated: 2026-02-05
 - `--toolchain=ir` now tries subset non-Rust frontend first and falls back to Rust frontend only when needed
 - Strict no-Rust subset frontend now also supports `./mee build --emit=ir --toolchain=ir` for supported programs
 - Strict no-Rust subset coverage now includes a basic struct param/local path (`tests/struct_param_pass.mee`) in `--toolchain=ir`
+- Strict no-Rust auto-fallback suite now also exercises `tests/struct_param_pass.mee` through forced selfhost-failure -> IR pipeline fallback
 
 ### v0.4 (self-hosting)
 - Make Mee-in-Mee compiler the default development compiler

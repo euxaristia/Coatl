@@ -114,6 +114,7 @@ It also includes control flow (`if`/`while`) and boolean/comparison operators vi
 In `--toolchain=auto`, if selfhost WAT compilation fails, `./mee` now tries the non-Rust IR pipeline before any Rust fallback.
 For `--toolchain=ir`, `./mee` now prefers the subset non-Rust frontend and uses Rust frontend only as a fallback for unsupported programs.
 The strict subset frontend now includes a basic struct path (`tests/struct_param_pass.mee`) by flattening struct params/locals into i32 field locals for IR emission.
+The forced auto no-Rust fallback suite now includes this struct path as well, so struct coverage is validated through fallback-to-IR, not only direct `--toolchain=ir`.
 
 ## Hello World (Mee)
 
