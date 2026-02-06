@@ -2,9 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PY_SCRIPT="$ROOT_DIR/tools/ir_to_wat.py"
-ORIG_ARGS=("$@")
-COATL_PYTHON="${COATL_PYTHON:-}"
 COATL_BIN="${COATL_BIN:-$(command -v coatl || true)}"
 
 if [[ -z "$COATL_BIN" && -x "$ROOT_DIR/coatl" ]]; then
@@ -53,81 +50,37 @@ if [[ -z "$output" ]]; then
   exit 1
 fi
 
-build_module() {
+if [[ -z "$COATL_BIN" || ! -x "$COATL_BIN" ]]; then
+  echo "ir_to_wat: coatl binary not found" >&2
+  exit 1
+fi
+if ! command -v wasmtime >/dev/null 2>&1; then
+  echo "ir_to_wat: wasmtime not found" >&2
+  exit 1
+fi
+
+if [[ ! -f "$MODULE" ]]; then
   "$COATL_BIN" build "$ROOT_DIR/tools/ir_to_wat.coatl" --emit=wat --toolchain=selfhost -o "$MODULE" >/dev/null
-}
-
-try_coatl_backend() {
-  if [[ -z "$COATL_BIN" || ! -x "$COATL_BIN" ]]; then
-    return 1
-  fi
-  if ! command -v wasmtime >/dev/null 2>&1; then
-    return 1
-  fi
-  if [[ ! -f "$MODULE" ]]; then
-    build_module
-  fi
-  # WASI path_open uses fd 3 as base directory.
-  # With --dir, wasmtime maps the host dir to fd 3. Paths must be relative to it.
-  # We resolve both input and output to absolute paths, find a common base,
-  # and use paths relative to that base.
-  local abs_input abs_output input_dir output_dir base_dir rel_input rel_output
-  abs_input="$(cd "$(dirname "$input")" && pwd)/$(basename "$input")"
-  abs_output="$(cd "$(dirname "$output")" && pwd)/$(basename "$output")"
-  input_dir="$(dirname "$abs_input")"
-  output_dir="$(dirname "$abs_output")"
-  if [[ "$input_dir" == "$output_dir" ]]; then
-    base_dir="$input_dir"
-    rel_input="$(basename "$abs_input")"
-    rel_output="$(basename "$abs_output")"
-  else
-    # Use / as common base
-    base_dir="/"
-    rel_input="${abs_input#/}"
-    rel_output="${abs_output#/}"
-  fi
-  local ret
-  ret="$(printf '%s -o %s\n' "$rel_input" "$rel_output" | wasmtime --dir "$base_dir" --invoke main "$MODULE" 2>/dev/null)"
-  if [[ "$ret" != "0" ]]; then
-    return 1
-  fi
-}
-
-find_python_cmd() {
-  if [[ -n "$COATL_PYTHON" ]]; then
-    if command -v "$COATL_PYTHON" >/dev/null 2>&1; then
-      printf '%s' "$COATL_PYTHON"
-      return 0
-    fi
-  fi
-  for cand in python3 python; do
-    if command -v "$cand" >/dev/null 2>&1; then
-      printf '%s' "$cand"
-      return 0
-    fi
-  done
-  return 1
-}
-
-try_python_backend() {
-  if [[ ! -f "$PY_SCRIPT" ]]; then
-    return 1
-  fi
-  local python_cmd
-  if ! python_cmd="$(find_python_cmd)"; then
-    echo "python3/python interpreter not found for fallback backend" >&2
-    return 1
-  fi
-  exec "$python_cmd" "$PY_SCRIPT" "${ORIG_ARGS[@]}"
-}
-
-if try_coatl_backend; then
-  exit 0
 fi
 
-if try_python_backend; then
-  exit 0
+# WASI path_open uses fd 3 as base directory.
+# With --dir, wasmtime maps the host dir to fd 3. Paths must be relative to it.
+abs_input="$(cd "$(dirname "$input")" && pwd)/$(basename "$input")"
+abs_output="$(cd "$(dirname "$output")" && pwd)/$(basename "$output")"
+input_dir="$(dirname "$abs_input")"
+output_dir="$(dirname "$abs_output")"
+if [[ "$input_dir" == "$output_dir" ]]; then
+  base_dir="$input_dir"
+  rel_input="$(basename "$abs_input")"
+  rel_output="$(basename "$abs_output")"
+else
+  base_dir="/"
+  rel_input="${abs_input#/}"
+  rel_output="${abs_output#/}"
 fi
 
-echo "ir_to_wat failed: no working backend found" >&2
-exit 1
+ret="$(printf '%s -o %s\n' "$rel_input" "$rel_output" | wasmtime --dir "$base_dir" --invoke main "$MODULE" 2>/dev/null)"
+if [[ "$ret" != "0" ]]; then
+  echo "ir_to_wat: lowering failed (rc=$ret)" >&2
+  exit 1
+fi

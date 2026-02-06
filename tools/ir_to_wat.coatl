@@ -761,7 +761,7 @@ fn reset_features() -> i32 {
 
 // String table: array of (atom_off, atom_len, data_addr)
 // Up to 256 strings
-fn str_table_base() -> i32 { return 7340032; }
+fn str_table_base() -> i32 { return 9437184; }  // 9MB
 fn str_table_entry_size() -> i32 { return 12; }
 fn str_count_addr() -> i32 { return state_base() + 8440; }
 fn str_next_data_addr_addr() -> i32 { return state_base() + 8444; }
@@ -844,7 +844,7 @@ fn str_data_addr(idx: i32) -> i32 {
 
 // Locals table: per-function, up to 128 locals
 // Each entry is (atom_off, atom_len) - 8 bytes
-fn locals_table_base() -> i32 { return 7344128; }
+fn locals_table_base() -> i32 { return 9441280; }  // str_table_base + 4096
 fn locals_entry_size() -> i32 { return 8; }
 fn locals_count_addr() -> i32 { return state_base() + 8448; }
 fn locals_param_count_addr() -> i32 { return state_base() + 8452; }
@@ -878,7 +878,7 @@ fn add_local(atom_off: i32, atom_len: i32) -> i32 {
     }
     i = i + 1;
   }
-  if (count >= 128) { return 0 - 1; }
+  if (count >= 256) { return 0 - 1; }
   let entry: i32 = locals_entry_addr(count);
   __mem_store(entry, atom_off);
   __mem_store(entry + 4, atom_len);
@@ -912,7 +912,7 @@ fn local_index(name_node: i32) -> i32 {
 }
 
 // Function names table: up to 256 functions
-fn fn_names_base() -> i32 { return 7348224; }
+fn fn_names_base() -> i32 { return 9445376; }  // locals_table_base + 4096
 fn fn_names_entry_size() -> i32 { return 8; }
 fn fn_names_count_addr() -> i32 { return state_base() + 8456; }
 
@@ -925,7 +925,7 @@ fn reset_fn_names() -> i32 {
 
 fn add_fn_name(atom_off: i32, atom_len: i32) -> i32 {
   let count: i32 = __mem_load(fn_names_count_addr());
-  if (count >= 256) { return 0 - 1; }
+  if (count >= 1024) { return 0 - 1; }
   let entry: i32 = fn_names_entry_addr(count);
   __mem_store(entry, atom_off);
   __mem_store(entry + 4, atom_len);
@@ -1993,7 +1993,7 @@ fn node_addr(idx: i32) -> i32 { return node_base() + idx * node_slot_size(); }
 fn node_alloc() -> i32 {
   let count: i32 = __mem_load(node_count_addr());
   let next: i32 = count + 1;
-  if (next >= 4096) { return 0; }
+  if (next >= 131072) { return 0; }
   __mem_store(node_count_addr(), next);
   return next;
 }
@@ -2177,7 +2177,7 @@ fn atom_equals(idx: i32, text_ptr: i32, text_len: i32) -> i32 {
   return 1;
 }
 
-fn literals_base() -> i32 { return 9437184; }
+fn literals_base() -> i32 { return 9453568; }  // fn_names_base + 8192
 fn literals_inited_addr() -> i32 { return state_base() + 8384; }
 
 fn literal_coatl_ir_ptr() -> i32 { return literals_base(); }
