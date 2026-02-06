@@ -2,7 +2,27 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PY_SCRIPT="$ROOT_DIR/tools/coatl_subset_to_ir.py"
+COATL_PYTHON="${COATL_PYTHON:-}"
+if [[ -f "$PY_SCRIPT" ]]; then
+  if [[ -z "$COATL_PYTHON" ]]; then
+    for cand in python3 python; do
+      if command -v "$cand" >/dev/null 2>&1; then
+        COATL_PYTHON="$cand"
+        break
+      fi
+    done
+  fi
+  if [[ -n "$COATL_PYTHON" ]]; then
+    exec "$COATL_PYTHON" "$PY_SCRIPT" "$@"
+  fi
+fi
+
 COATL_BIN="${COATL_BIN:-$(command -v coatl || true)}"
+
+if [[ -z "$COATL_BIN" && -x "$ROOT_DIR/coatl" ]]; then
+  COATL_BIN="$ROOT_DIR/coatl"
+fi
 MODULE="/tmp/coatl-subset-to-ir.wat"
 
 if ! command -v wasmtime >/dev/null 2>&1; then
