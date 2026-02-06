@@ -114,3 +114,12 @@ Refresh committed seed:
 - `tools/` IR frontend/lowerer/linker utilities
 - `ROADMAP.md` near-term milestones
 - `SPEC.md` language notes
+
+## Safety & Memory Model
+
+Coatl is a low-level systems bootstrapping language. It is **not memory safe** and provides fewer guardrails than C.
+
+- **Manual Memory:** Memory is accessed via raw intrinsics (__mem_load/__mem_store) with integer addresses. No pointers or bounds checks.
+- **Sandboxing:** Security is provided via the **WASI backend**, which isolates memory in a linear buffer.
+
+For more details on how to write Coatl, see the [Syntax Guide](./SYNTAX.md).
