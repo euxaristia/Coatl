@@ -89,7 +89,7 @@ fn read_file_into_buf(path_ptr: i32, path_len: i32) -> i32 {
 
 fn write_output(path_ptr: i32, path_len: i32, out_sz: i32) -> i32 {
   __mem_store(fd_slot(), 0);
-  let rc_open: i32 = __path_open(3, 0, path_ptr, path_len, 577, 65, 0, 0, fd_slot());
+  let rc_open: i32 = __path_open(3, 0, path_ptr, path_len, 9, 64, 0, 0, fd_slot());
   if (rc_open != 0) { return 0 - 30; }
   let fd: i32 = __mem_load(fd_slot());
   let written: i32 = 0;
@@ -116,9 +116,1812 @@ fn write_output(path_ptr: i32, path_len: i32, out_sz: i32) -> i32 {
   return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Output buffer helpers
+// ---------------------------------------------------------------------------
+
+fn out_pos_addr() -> i32 { return state_base() + 8400; }
+
+fn out_len() -> i32 { return __mem_load(out_pos_addr()); }
+fn out_reset() -> i32 { __mem_store(out_pos_addr(), 0); return 0; }
+
+fn out_char(c: i32) -> i32 {
+  let pos: i32 = out_len();
+  if (pos >= out_buf_max()) { return 0 - 1; }
+  __mem_store8(out_buf_base() + pos, c);
+  __mem_store(out_pos_addr(), pos + 1);
+  return 0;
+}
+
+fn out_str(ptr: i32, len: i32) -> i32 {
+  let i: i32 = 0;
+  while (i < len) {
+    let rc: i32 = out_char(__mem_load8(ptr + i));
+    if (rc != 0) { return rc; }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn out_nl() -> i32 { return out_char(10); }
+
+fn out_spaces(n: i32) -> i32 {
+  let i: i32 = 0;
+  while (i < n) {
+    let rc: i32 = out_char(32);
+    if (rc != 0) { return rc; }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn out_int(val: i32) -> i32 {
+  if (val < 0) {
+    out_char(45);
+    return out_int(0 - val);
+  }
+  if (val >= 10) {
+    let rc: i32 = out_int(val / 10);
+    if (rc != 0) { return rc; }
+  }
+  return out_char(48 + val - (val / 10) * 10);
+}
+
+fn out_atom(idx: i32) -> i32 {
+  let off: i32 = node_atom_off(idx);
+  let len: i32 = node_atom_len(idx);
+  return out_str(ir_buf_base() + off, len);
+}
+
+// ---------------------------------------------------------------------------
+// WAT snippet literals (stored at literals_base() + 512)
+// ---------------------------------------------------------------------------
+
+fn wat_lit_base() -> i32 { return literals_base() + 512; }
+fn wat_lit_inited_addr() -> i32 { return state_base() + 8404; }
+
+fn store_wat_str(off: i32, s_ptr: i32, s_len: i32) -> i32 {
+  let i: i32 = 0;
+  while (i < s_len) {
+    __mem_store8(wat_lit_base() + off + i, __mem_load8(s_ptr + i));
+    i = i + 1;
+  }
+  return 0;
+}
+
+// WAT literal offsets and lengths - each snippet at a fixed offset
+// We store them byte-by-byte in init_wat_literals
+
+fn wl_module_ptr() -> i32 { return wat_lit_base() + 0; }
+fn wl_module_len() -> i32 { return 7; }
+fn wl_paren_close_ptr() -> i32 { return wat_lit_base() + 7; }
+fn wl_paren_close_len() -> i32 { return 1; }
+fn wl_import_wasi_ptr() -> i32 { return wat_lit_base() + 8; }
+fn wl_import_wasi_len() -> i32 { return 37; }
+fn wl_fd_write_name_ptr() -> i32 { return wat_lit_base() + 48; }
+fn wl_fd_write_name_len() -> i32 { return 10; }
+fn wl_fd_read_name_ptr() -> i32 { return wat_lit_base() + 58; }
+fn wl_fd_read_name_len() -> i32 { return 9; }
+fn wl_fd_close_name_ptr() -> i32 { return wat_lit_base() + 67; }
+fn wl_fd_close_name_len() -> i32 { return 10; }
+fn wl_path_open_name_ptr() -> i32 { return wat_lit_base() + 77; }
+fn wl_path_open_name_len() -> i32 { return 11; }
+fn wl_func_dollar_ptr() -> i32 { return wat_lit_base() + 96; }
+fn wl_func_dollar_len() -> i32 { return 7; }
+fn wl_param_i32_ptr() -> i32 { return wat_lit_base() + 103; }
+fn wl_param_i32_len() -> i32 { return 10; }
+fn wl_result_i32_ptr() -> i32 { return wat_lit_base() + 113; }
+fn wl_result_i32_len() -> i32 { return 12; }
+fn wl_local_i32_ptr() -> i32 { return wat_lit_base() + 128; }
+fn wl_local_i32_len() -> i32 { return 10; }
+fn wl_local_get_ptr() -> i32 { return wat_lit_base() + 144; }
+fn wl_local_get_len() -> i32 { return 10; }
+fn wl_local_set_ptr() -> i32 { return wat_lit_base() + 160; }
+fn wl_local_set_len() -> i32 { return 10; }
+fn wl_i32_const_ptr() -> i32 { return wat_lit_base() + 176; }
+fn wl_i32_const_len() -> i32 { return 10; }
+fn wl_i32_add_ptr() -> i32 { return wat_lit_base() + 192; }
+fn wl_i32_add_len() -> i32 { return 7; }
+fn wl_i32_sub_ptr() -> i32 { return wat_lit_base() + 200; }
+fn wl_i32_sub_len() -> i32 { return 7; }
+fn wl_i32_mul_ptr() -> i32 { return wat_lit_base() + 208; }
+fn wl_i32_mul_len() -> i32 { return 7; }
+fn wl_i32_div_s_ptr() -> i32 { return wat_lit_base() + 216; }
+fn wl_i32_div_s_len() -> i32 { return 9; }
+fn wl_i32_eq_ptr() -> i32 { return wat_lit_base() + 228; }
+fn wl_i32_eq_len() -> i32 { return 6; }
+fn wl_i32_ne_ptr() -> i32 { return wat_lit_base() + 234; }
+fn wl_i32_ne_len() -> i32 { return 6; }
+fn wl_i32_lt_s_ptr() -> i32 { return wat_lit_base() + 240; }
+fn wl_i32_lt_s_len() -> i32 { return 8; }
+fn wl_i32_gt_s_ptr() -> i32 { return wat_lit_base() + 248; }
+fn wl_i32_gt_s_len() -> i32 { return 8; }
+fn wl_i32_le_s_ptr() -> i32 { return wat_lit_base() + 256; }
+fn wl_i32_le_s_len() -> i32 { return 8; }
+fn wl_i32_ge_s_ptr() -> i32 { return wat_lit_base() + 264; }
+fn wl_i32_ge_s_len() -> i32 { return 8; }
+fn wl_i32_and_ptr() -> i32 { return wat_lit_base() + 272; }
+fn wl_i32_and_len() -> i32 { return 7; }
+fn wl_i32_or_ptr() -> i32 { return wat_lit_base() + 280; }
+fn wl_i32_or_len() -> i32 { return 6; }
+fn wl_i32_eqz_ptr() -> i32 { return wat_lit_base() + 288; }
+fn wl_i32_eqz_len() -> i32 { return 7; }
+fn wl_i32_store_ptr() -> i32 { return wat_lit_base() + 296; }
+fn wl_i32_store_len() -> i32 { return 9; }
+fn wl_i32_store8_ptr() -> i32 { return wat_lit_base() + 308; }
+fn wl_i32_store8_len() -> i32 { return 10; }
+fn wl_i32_load_ptr() -> i32 { return wat_lit_base() + 320; }
+fn wl_i32_load_len() -> i32 { return 8; }
+fn wl_i32_load8_u_ptr() -> i32 { return wat_lit_base() + 328; }
+fn wl_i32_load8_u_len() -> i32 { return 10; }
+fn wl_call_dollar_ptr() -> i32 { return wat_lit_base() + 344; }
+fn wl_call_dollar_len() -> i32 { return 6; }
+fn wl_return_ptr() -> i32 { return wat_lit_base() + 352; }
+fn wl_return_len() -> i32 { return 6; }
+fn wl_drop_ptr() -> i32 { return wat_lit_base() + 360; }
+fn wl_drop_len() -> i32 { return 4; }
+fn wl_if_ptr() -> i32 { return wat_lit_base() + 368; }
+fn wl_if_len() -> i32 { return 2; }
+fn wl_else_ptr() -> i32 { return wat_lit_base() + 376; }
+fn wl_else_len() -> i32 { return 4; }
+fn wl_end_ptr() -> i32 { return wat_lit_base() + 384; }
+fn wl_end_len() -> i32 { return 3; }
+fn wl_block_ptr() -> i32 { return wat_lit_base() + 392; }
+fn wl_block_len() -> i32 { return 5; }
+fn wl_loop_ptr() -> i32 { return wat_lit_base() + 400; }
+fn wl_loop_len() -> i32 { return 4; }
+fn wl_br_if_1_ptr() -> i32 { return wat_lit_base() + 408; }
+fn wl_br_if_1_len() -> i32 { return 6; }
+fn wl_br_0_ptr() -> i32 { return wat_lit_base() + 416; }
+fn wl_br_0_len() -> i32 { return 4; }
+fn wl_memory_export_ptr() -> i32 { return wat_lit_base() + 424; }
+fn wl_memory_export_len() -> i32 { return 30; }
+fn wl_data_prefix_ptr() -> i32 { return wat_lit_base() + 464; }
+fn wl_data_prefix_len() -> i32 { return 16; }
+fn wl_export_start_ptr() -> i32 { return wat_lit_base() + 480; }
+fn wl_export_start_len() -> i32 { return 34; }
+fn wl_fd_write_import_ptr() -> i32 { return wat_lit_base() + 528; }
+fn wl_fd_write_import_len() -> i32 { return 93; }
+fn wl_fd_read_import_ptr() -> i32 { return wat_lit_base() + 624; }
+fn wl_fd_read_import_len() -> i32 { return 91; }
+fn wl_fd_close_import_ptr() -> i32 { return wat_lit_base() + 720; }
+fn wl_fd_close_import_len() -> i32 { return 75; }
+fn wl_path_open_import_ptr() -> i32 { return wat_lit_base() + 800; }
+fn wl_path_open_import_len() -> i32 { return 104; }
+fn wl_i64_extend_ptr() -> i32 { return wat_lit_base() + 912; }
+fn wl_i64_extend_len() -> i32 { return 16; }
+fn wl_param_i32_sp_ptr() -> i32 { return wat_lit_base() + 928; }
+fn wl_param_i32_sp_len() -> i32 { return 11; }
+fn wl_unary_ptr() -> i32 { return wat_lit_base() + 944; }
+fn wl_unary_len() -> i32 { return 5; }
+fn wl_true_ptr() -> i32 { return wat_lit_base() + 952; }
+fn wl_true_len() -> i32 { return 4; }
+fn wl_false_ptr() -> i32 { return wat_lit_base() + 960; }
+fn wl_false_len() -> i32 { return 5; }
+
+fn init_wat_byte(off: i32, val: i32) -> i32 {
+  __mem_store8(wat_lit_base() + off, val);
+  return 0;
+}
+
+fn init_wat_literals() -> i32 {
+  if (__mem_load(wat_lit_inited_addr()) != 0) { return 0; }
+
+  // "(module" at offset 0
+  init_wat_byte(0, 40);   // (
+  init_wat_byte(1, 109);  // m
+  init_wat_byte(2, 111);  // o
+  init_wat_byte(3, 100);  // d
+  init_wat_byte(4, 117);  // u
+  init_wat_byte(5, 108);  // l
+  init_wat_byte(6, 101);  // e
+
+  // ")" at offset 7
+  init_wat_byte(7, 41);
+
+  // "(import \"wasi_snapshot_preview1\" " at offset 8 (37 bytes)
+  // We won't use this directly - use the full import lines instead
+
+  // "(func $" at offset 96
+  init_wat_byte(96, 40);   // (
+  init_wat_byte(97, 102);  // f
+  init_wat_byte(98, 117);  // u
+  init_wat_byte(99, 110);  // n
+  init_wat_byte(100, 99);  // c
+  init_wat_byte(101, 32);  // ' '
+  init_wat_byte(102, 36);  // $
+
+  // "(param i32)" at offset 103 (10 bytes)
+  init_wat_byte(103, 40);  // (
+  init_wat_byte(104, 112); // p
+  init_wat_byte(105, 97);  // a
+  init_wat_byte(106, 114); // r
+  init_wat_byte(107, 97);  // a
+  init_wat_byte(108, 109); // m
+  init_wat_byte(109, 32);  // ' '
+  init_wat_byte(110, 105); // i
+  init_wat_byte(111, 51);  // 3
+  init_wat_byte(112, 50);  // 2
+
+  // " (result i32)" at offset 113 (12 bytes) - note leading space missing, we emit it
+  init_wat_byte(113, 32);  // ' '
+  init_wat_byte(114, 40);  // (
+  init_wat_byte(115, 114); // r
+  init_wat_byte(116, 101); // e
+  init_wat_byte(117, 115); // s
+  init_wat_byte(118, 117); // u
+  init_wat_byte(119, 108); // l
+  init_wat_byte(120, 116); // t
+  init_wat_byte(121, 32);  // ' '
+  init_wat_byte(122, 105); // i
+  init_wat_byte(123, 51);  // 3
+  init_wat_byte(124, 50);  // 2
+
+  // "(local i32)" at offset 128 (10 bytes)
+  init_wat_byte(128, 40);  // (
+  init_wat_byte(129, 108); // l
+  init_wat_byte(130, 111); // o
+  init_wat_byte(131, 99);  // c
+  init_wat_byte(132, 97);  // a
+  init_wat_byte(133, 108); // l
+  init_wat_byte(134, 32);  // ' '
+  init_wat_byte(135, 105); // i
+  init_wat_byte(136, 51);  // 3
+  init_wat_byte(137, 50);  // 2
+
+  // "local.get " at offset 144 (10 bytes)
+  init_wat_byte(144, 108); // l
+  init_wat_byte(145, 111); // o
+  init_wat_byte(146, 99);  // c
+  init_wat_byte(147, 97);  // a
+  init_wat_byte(148, 108); // l
+  init_wat_byte(149, 46);  // .
+  init_wat_byte(150, 103); // g
+  init_wat_byte(151, 101); // e
+  init_wat_byte(152, 116); // t
+  init_wat_byte(153, 32);  // ' '
+
+  // "local.set " at offset 160 (10 bytes)
+  init_wat_byte(160, 108); // l
+  init_wat_byte(161, 111); // o
+  init_wat_byte(162, 99);  // c
+  init_wat_byte(163, 97);  // a
+  init_wat_byte(164, 108); // l
+  init_wat_byte(165, 46);  // .
+  init_wat_byte(166, 115); // s
+  init_wat_byte(167, 101); // e
+  init_wat_byte(168, 116); // t
+  init_wat_byte(169, 32);  // ' '
+
+  // "i32.const " at offset 176 (10 bytes)
+  init_wat_byte(176, 105); // i
+  init_wat_byte(177, 51);  // 3
+  init_wat_byte(178, 50);  // 2
+  init_wat_byte(179, 46);  // .
+  init_wat_byte(180, 99);  // c
+  init_wat_byte(181, 111); // o
+  init_wat_byte(182, 110); // n
+  init_wat_byte(183, 115); // s
+  init_wat_byte(184, 116); // t
+  init_wat_byte(185, 32);  // ' '
+
+  // "i32.add" at offset 192 (7 bytes)
+  init_wat_byte(192, 105); init_wat_byte(193, 51); init_wat_byte(194, 50);
+  init_wat_byte(195, 46); init_wat_byte(196, 97); init_wat_byte(197, 100);
+  init_wat_byte(198, 100);
+
+  // "i32.sub" at offset 200 (7 bytes)
+  init_wat_byte(200, 105); init_wat_byte(201, 51); init_wat_byte(202, 50);
+  init_wat_byte(203, 46); init_wat_byte(204, 115); init_wat_byte(205, 117);
+  init_wat_byte(206, 98);
+
+  // "i32.mul" at offset 208 (7 bytes)
+  init_wat_byte(208, 105); init_wat_byte(209, 51); init_wat_byte(210, 50);
+  init_wat_byte(211, 46); init_wat_byte(212, 109); init_wat_byte(213, 117);
+  init_wat_byte(214, 108);
+
+  // "i32.div_s" at offset 216 (9 bytes)
+  init_wat_byte(216, 105); init_wat_byte(217, 51); init_wat_byte(218, 50);
+  init_wat_byte(219, 46); init_wat_byte(220, 100); init_wat_byte(221, 105);
+  init_wat_byte(222, 118); init_wat_byte(223, 95); init_wat_byte(224, 115);
+
+  // "i32.eq" at offset 228 (6 bytes)
+  init_wat_byte(228, 105); init_wat_byte(229, 51); init_wat_byte(230, 50);
+  init_wat_byte(231, 46); init_wat_byte(232, 101); init_wat_byte(233, 113);
+
+  // "i32.ne" at offset 234 (6 bytes)
+  init_wat_byte(234, 105); init_wat_byte(235, 51); init_wat_byte(236, 50);
+  init_wat_byte(237, 46); init_wat_byte(238, 110); init_wat_byte(239, 101);
+
+  // "i32.lt_s" at offset 240 (8 bytes)
+  init_wat_byte(240, 105); init_wat_byte(241, 51); init_wat_byte(242, 50);
+  init_wat_byte(243, 46); init_wat_byte(244, 108); init_wat_byte(245, 116);
+  init_wat_byte(246, 95); init_wat_byte(247, 115);
+
+  // "i32.gt_s" at offset 248 (8 bytes)
+  init_wat_byte(248, 105); init_wat_byte(249, 51); init_wat_byte(250, 50);
+  init_wat_byte(251, 46); init_wat_byte(252, 103); init_wat_byte(253, 116);
+  init_wat_byte(254, 95); init_wat_byte(255, 115);
+
+  // "i32.le_s" at offset 256 (8 bytes)
+  init_wat_byte(256, 105); init_wat_byte(257, 51); init_wat_byte(258, 50);
+  init_wat_byte(259, 46); init_wat_byte(260, 108); init_wat_byte(261, 101);
+  init_wat_byte(262, 95); init_wat_byte(263, 115);
+
+  // "i32.ge_s" at offset 264 (8 bytes)
+  init_wat_byte(264, 105); init_wat_byte(265, 51); init_wat_byte(266, 50);
+  init_wat_byte(267, 46); init_wat_byte(268, 103); init_wat_byte(269, 101);
+  init_wat_byte(270, 95); init_wat_byte(271, 115);
+
+  // "i32.and" at offset 272 (7 bytes)
+  init_wat_byte(272, 105); init_wat_byte(273, 51); init_wat_byte(274, 50);
+  init_wat_byte(275, 46); init_wat_byte(276, 97); init_wat_byte(277, 110);
+  init_wat_byte(278, 100);
+
+  // "i32.or" at offset 280 (6 bytes)
+  init_wat_byte(280, 105); init_wat_byte(281, 51); init_wat_byte(282, 50);
+  init_wat_byte(283, 46); init_wat_byte(284, 111); init_wat_byte(285, 114);
+
+  // "i32.eqz" at offset 288 (7 bytes)
+  init_wat_byte(288, 105); init_wat_byte(289, 51); init_wat_byte(290, 50);
+  init_wat_byte(291, 46); init_wat_byte(292, 101); init_wat_byte(293, 113);
+  init_wat_byte(294, 122);
+
+  // "i32.store" at offset 296 (9 bytes)
+  init_wat_byte(296, 105); init_wat_byte(297, 51); init_wat_byte(298, 50);
+  init_wat_byte(299, 46); init_wat_byte(300, 115); init_wat_byte(301, 116);
+  init_wat_byte(302, 111); init_wat_byte(303, 114); init_wat_byte(304, 101);
+
+  // "i32.store8" at offset 308 (10 bytes)
+  init_wat_byte(308, 105); init_wat_byte(309, 51); init_wat_byte(310, 50);
+  init_wat_byte(311, 46); init_wat_byte(312, 115); init_wat_byte(313, 116);
+  init_wat_byte(314, 111); init_wat_byte(315, 114); init_wat_byte(316, 101);
+  init_wat_byte(317, 56);
+
+  // "i32.load" at offset 320 (8 bytes)
+  init_wat_byte(320, 105); init_wat_byte(321, 51); init_wat_byte(322, 50);
+  init_wat_byte(323, 46); init_wat_byte(324, 108); init_wat_byte(325, 111);
+  init_wat_byte(326, 97); init_wat_byte(327, 100);
+
+  // "i32.load8_u" at offset 328 (10 bytes - actually 11)
+  init_wat_byte(328, 105); init_wat_byte(329, 51); init_wat_byte(330, 50);
+  init_wat_byte(331, 46); init_wat_byte(332, 108); init_wat_byte(333, 111);
+  init_wat_byte(334, 97); init_wat_byte(335, 100); init_wat_byte(336, 56);
+  init_wat_byte(337, 95); init_wat_byte(338, 117);
+
+  // "call $" at offset 344 (6 bytes)
+  init_wat_byte(344, 99); init_wat_byte(345, 97); init_wat_byte(346, 108);
+  init_wat_byte(347, 108); init_wat_byte(348, 32); init_wat_byte(349, 36);
+
+  // "return" at offset 352 (6 bytes)
+  init_wat_byte(352, 114); init_wat_byte(353, 101); init_wat_byte(354, 116);
+  init_wat_byte(355, 117); init_wat_byte(356, 114); init_wat_byte(357, 110);
+
+  // "drop" at offset 360 (4 bytes)
+  init_wat_byte(360, 100); init_wat_byte(361, 114); init_wat_byte(362, 111);
+  init_wat_byte(363, 112);
+
+  // "if" at offset 368 (2 bytes)
+  init_wat_byte(368, 105); init_wat_byte(369, 102);
+
+  // "else" at offset 376 (4 bytes)
+  init_wat_byte(376, 101); init_wat_byte(377, 108); init_wat_byte(378, 115);
+  init_wat_byte(379, 101);
+
+  // "end" at offset 384 (3 bytes)
+  init_wat_byte(384, 101); init_wat_byte(385, 110); init_wat_byte(386, 100);
+
+  // "block" at offset 392 (5 bytes)
+  init_wat_byte(392, 98); init_wat_byte(393, 108); init_wat_byte(394, 111);
+  init_wat_byte(395, 99); init_wat_byte(396, 107);
+
+  // "loop" at offset 400 (4 bytes)
+  init_wat_byte(400, 108); init_wat_byte(401, 111); init_wat_byte(402, 111);
+  init_wat_byte(403, 112);
+
+  // "br_if 1" at offset 408 (6 bytes) -- actually 7
+  init_wat_byte(408, 98); init_wat_byte(409, 114); init_wat_byte(410, 95);
+  init_wat_byte(411, 105); init_wat_byte(412, 102); init_wat_byte(413, 32);
+  init_wat_byte(414, 49);
+
+  // "br 0" at offset 416 (4 bytes)
+  init_wat_byte(416, 98); init_wat_byte(417, 114); init_wat_byte(418, 32);
+  init_wat_byte(419, 48);
+
+  // "(memory (export \"memory\") 2)" at offset 424 (30 bytes)
+  // (memory (export "memory") 2)
+  init_wat_byte(424, 40); init_wat_byte(425, 109); init_wat_byte(426, 101);
+  init_wat_byte(427, 109); init_wat_byte(428, 111); init_wat_byte(429, 114);
+  init_wat_byte(430, 121); init_wat_byte(431, 32); init_wat_byte(432, 40);
+  init_wat_byte(433, 101); init_wat_byte(434, 120); init_wat_byte(435, 112);
+  init_wat_byte(436, 111); init_wat_byte(437, 114); init_wat_byte(438, 116);
+  init_wat_byte(439, 32); init_wat_byte(440, 34); init_wat_byte(441, 109);
+  init_wat_byte(442, 101); init_wat_byte(443, 109); init_wat_byte(444, 111);
+  init_wat_byte(445, 114); init_wat_byte(446, 121); init_wat_byte(447, 34);
+  init_wat_byte(448, 41); init_wat_byte(449, 32); init_wat_byte(450, 50);
+  init_wat_byte(451, 41);
+
+  // "(data (i32.const " at offset 464 (16 bytes) -- actually 17
+  init_wat_byte(464, 40); init_wat_byte(465, 100); init_wat_byte(466, 97);
+  init_wat_byte(467, 116); init_wat_byte(468, 97); init_wat_byte(469, 32);
+  init_wat_byte(470, 40); init_wat_byte(471, 105); init_wat_byte(472, 51);
+  init_wat_byte(473, 50); init_wat_byte(474, 46); init_wat_byte(475, 99);
+  init_wat_byte(476, 111); init_wat_byte(477, 110); init_wat_byte(478, 115);
+  init_wat_byte(479, 116); init_wat_byte(480, 32);
+
+  // (export "_start" (func $_start)) at offset 480 -> moved to 496
+  // Actually let me re-layout: data_prefix is 17 bytes at 464
+
+  // Export line: '(export "_start" (func $_start))' at offset 496 (34 bytes)
+  // (export "_start" (func $_start))
+  init_wat_byte(496, 40);  // (
+  init_wat_byte(497, 101);  // e
+  init_wat_byte(498, 120);  // x
+  init_wat_byte(499, 112);  // p
+  init_wat_byte(500, 111);  // o
+  init_wat_byte(501, 114);  // r
+  init_wat_byte(502, 116);  // t
+  init_wat_byte(503, 32);   // ' '
+  init_wat_byte(504, 34);   // "
+  init_wat_byte(505, 95);   // _
+  init_wat_byte(506, 115);  // s
+  init_wat_byte(507, 116);  // t
+  init_wat_byte(508, 97);   // a
+  init_wat_byte(509, 114);  // r
+  init_wat_byte(510, 116);  // t
+  init_wat_byte(511, 34);   // "
+  init_wat_byte(512, 32);   // ' '
+  init_wat_byte(513, 40);   // (
+  init_wat_byte(514, 102);  // f
+  init_wat_byte(515, 117);  // u
+  init_wat_byte(516, 110);  // n
+  init_wat_byte(517, 99);   // c
+  init_wat_byte(518, 32);   // ' '
+  init_wat_byte(519, 36);   // $
+  init_wat_byte(520, 95);   // _
+  init_wat_byte(521, 115);  // s
+  init_wat_byte(522, 116);  // t
+  init_wat_byte(523, 97);   // a
+  init_wat_byte(524, 114);  // r
+  init_wat_byte(525, 116);  // t
+  init_wat_byte(526, 41);   // )
+  init_wat_byte(527, 41);   // )
+
+  // Full WASI import lines at offset 528+
+  // fd_write import: (import "wasi_snapshot_preview1" "fd_write"\n    (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  // We'll store each full import line and emit them directly
+
+  // fd_write import line 1: '(import "wasi_snapshot_preview1" "fd_write"'
+  // 43 chars
+  init_wat_byte(528, 40);   // (
+  init_wat_byte(529, 105);  // i
+  init_wat_byte(530, 109);  // m
+  init_wat_byte(531, 112);  // p
+  init_wat_byte(532, 111);  // o
+  init_wat_byte(533, 114);  // r
+  init_wat_byte(534, 116);  // t
+  init_wat_byte(535, 32);   // ' '
+  init_wat_byte(536, 34);   // "
+  init_wat_byte(537, 119);  // w
+  init_wat_byte(538, 97);   // a
+  init_wat_byte(539, 115);  // s
+  init_wat_byte(540, 105);  // i
+  init_wat_byte(541, 95);   // _
+  init_wat_byte(542, 115);  // s
+  init_wat_byte(543, 110);  // n
+  init_wat_byte(544, 97);   // a
+  init_wat_byte(545, 112);  // p
+  init_wat_byte(546, 115);  // s
+  init_wat_byte(547, 104);  // h
+  init_wat_byte(548, 111);  // o
+  init_wat_byte(549, 116);  // t
+  init_wat_byte(550, 95);   // _
+  init_wat_byte(551, 112);  // p
+  init_wat_byte(552, 114);  // r
+  init_wat_byte(553, 101);  // e
+  init_wat_byte(554, 118);  // v
+  init_wat_byte(555, 105);  // i
+  init_wat_byte(556, 101);  // e
+  init_wat_byte(557, 119);  // w
+  init_wat_byte(558, 49);   // 1
+  init_wat_byte(559, 34);   // "
+  init_wat_byte(560, 32);   // ' '
+  init_wat_byte(561, 34);   // "
+  init_wat_byte(562, 102);  // f
+  init_wat_byte(563, 100);  // d
+  init_wat_byte(564, 95);   // _
+  init_wat_byte(565, 119);  // w
+  init_wat_byte(566, 114);  // r
+  init_wat_byte(567, 105);  // i
+  init_wat_byte(568, 116);  // t
+  init_wat_byte(569, 101);  // e
+  init_wat_byte(570, 34);   // "
+
+  // fd_read import line 1: '(import "wasi_snapshot_preview1" "fd_read"'
+  // Reuse bytes 528..559 for the shared prefix, then just the name differs
+  // For simplicity, store complete line 2 fragments separately
+  // Let me use a different approach - emit imports programmatically
+
+  // "i64.extend_i32_u" at offset 912 (16 bytes) -- actually 15
+  init_wat_byte(912, 105); // i
+  init_wat_byte(913, 54);  // 6
+  init_wat_byte(914, 52);  // 4
+  init_wat_byte(915, 46);  // .
+  init_wat_byte(916, 101); // e
+  init_wat_byte(917, 120); // x
+  init_wat_byte(918, 116); // t
+  init_wat_byte(919, 101); // e
+  init_wat_byte(920, 110); // n
+  init_wat_byte(921, 100); // d
+  init_wat_byte(922, 95); // _
+  init_wat_byte(923, 105); // i
+  init_wat_byte(924, 51);  // 3
+  init_wat_byte(925, 50);  // 2
+  init_wat_byte(926, 95); // _
+  init_wat_byte(927, 117); // u
+
+  // " (param i32)" at offset 928 (11 bytes) - with leading space
+  init_wat_byte(928, 32);  // ' '
+  init_wat_byte(929, 40);  // (
+  init_wat_byte(930, 112); // p
+  init_wat_byte(931, 97);  // a
+  init_wat_byte(932, 114); // r
+  init_wat_byte(933, 97);  // a
+  init_wat_byte(934, 109); // m
+  init_wat_byte(935, 32);  // ' '
+  init_wat_byte(936, 105); // i
+  init_wat_byte(937, 51);  // 3
+  init_wat_byte(938, 50);  // 2
+
+  // "unary" at offset 944 (5 bytes)
+  init_wat_byte(944, 117); // u
+  init_wat_byte(945, 110); // n
+  init_wat_byte(946, 97);  // a
+  init_wat_byte(947, 114); // r
+  init_wat_byte(948, 121); // y
+
+  // "true" at offset 952 (4 bytes)
+  init_wat_byte(952, 116); // t
+  init_wat_byte(953, 114); // r
+  init_wat_byte(954, 117); // u
+  init_wat_byte(955, 101); // e
+
+  // "false" at offset 960 (5 bytes)
+  init_wat_byte(960, 102); // f
+  init_wat_byte(961, 97);  // a
+  init_wat_byte(962, 108); // l
+  init_wat_byte(963, 115); // s
+  init_wat_byte(964, 101); // e
+
+  // "i32 i32 i32 i32" at offset 976 (15 bytes)
+  init_wat_byte(976, 105); init_wat_byte(977, 51); init_wat_byte(978, 50);  // i32
+  init_wat_byte(979, 32);  // ' '
+  init_wat_byte(980, 105); init_wat_byte(981, 51); init_wat_byte(982, 50);  // i32
+  init_wat_byte(983, 32);
+  init_wat_byte(984, 105); init_wat_byte(985, 51); init_wat_byte(986, 50);  // i32
+  init_wat_byte(987, 32);
+  init_wat_byte(988, 105); init_wat_byte(989, 51); init_wat_byte(990, 50);  // i32
+
+  // "i32" at offset 992 (3 bytes)
+  init_wat_byte(992, 105); init_wat_byte(993, 51); init_wat_byte(994, 50);
+
+  // "i32 i32 i32 i32 i32 i64 i64 i32 i32" at offset 1000 (37 bytes)
+  init_wat_byte(1000, 105); init_wat_byte(1001, 51); init_wat_byte(1002, 50); // i32
+  init_wat_byte(1003, 32);
+  init_wat_byte(1004, 105); init_wat_byte(1005, 51); init_wat_byte(1006, 50); // i32
+  init_wat_byte(1007, 32);
+  init_wat_byte(1008, 105); init_wat_byte(1009, 51); init_wat_byte(1010, 50); // i32
+  init_wat_byte(1011, 32);
+  init_wat_byte(1012, 105); init_wat_byte(1013, 51); init_wat_byte(1014, 50); // i32
+  init_wat_byte(1015, 32);
+  init_wat_byte(1016, 105); init_wat_byte(1017, 51); init_wat_byte(1018, 50); // i32
+  init_wat_byte(1019, 32);
+  init_wat_byte(1020, 105); init_wat_byte(1021, 54); init_wat_byte(1022, 52); // i64
+  init_wat_byte(1023, 32);
+  init_wat_byte(1024, 105); init_wat_byte(1025, 54); init_wat_byte(1026, 52); // i64
+  init_wat_byte(1027, 32);
+  init_wat_byte(1028, 105); init_wat_byte(1029, 51); init_wat_byte(1030, 50); // i32
+  init_wat_byte(1031, 32);
+  init_wat_byte(1032, 105); init_wat_byte(1033, 51); init_wat_byte(1034, 50); // i32
+  // = 35 chars (i32=3, space=1, ×4 + i32=3 + space + i64=3 + space + i64=3 + space + i32=3 + space + i32=3 = 3+1+3+1+3+1+3+1+3+1+3+1+3+1+3+1+3 = 35)
+  // Actually: "i32 i32 i32 i32 i32 i64 i64 i32 i32" = 37 chars
+  // Let me recount: i(1)3(2)2(3) (4)i(5)3(6)2(7) (8)i(9)3(10)2(11) (12)i(13)3(14)2(15) (16)i(17)3(18)2(19) (20)i(21)6(22)4(23) (24)i(25)6(26)4(27) (28)i(29)3(30)2(31) (32)i(33)3(34)2(35)
+  // That's 35 characters, not 37. Let me fix the len.
+
+  __mem_store(wat_lit_inited_addr(), 1);
+  return 0;
+}
+
+// Fix up literal lengths that were miscounted
+fn wl_i32_load8_u_real_len() -> i32 { return 11; }
+fn wl_br_if_1_real_len() -> i32 { return 7; }
+fn wl_data_prefix_real_len() -> i32 { return 17; }
+fn wl_export_start_real_ptr() -> i32 { return wat_lit_base() + 496; }
+fn wl_export_start_real_len() -> i32 { return 32; }
+fn wl_memory_export_real_len() -> i32 { return 28; }
+
+// ---------------------------------------------------------------------------
+// State: feature flags, string table, locals table, fn names
+// ---------------------------------------------------------------------------
+
+fn feat_fd_write_addr() -> i32 { return state_base() + 8416; }
+fn feat_fd_read_addr() -> i32 { return state_base() + 8420; }
+fn feat_fd_close_addr() -> i32 { return state_base() + 8424; }
+fn feat_path_open_addr() -> i32 { return state_base() + 8428; }
+fn feat_tty_mode_addr() -> i32 { return state_base() + 8432; }
+
+fn reset_features() -> i32 {
+  __mem_store(feat_fd_write_addr(), 0);
+  __mem_store(feat_fd_read_addr(), 0);
+  __mem_store(feat_fd_close_addr(), 0);
+  __mem_store(feat_path_open_addr(), 0);
+  __mem_store(feat_tty_mode_addr(), 0);
+  return 0;
+}
+
+// String table: array of (atom_off, atom_len, data_addr)
+// Up to 256 strings
+fn str_table_base() -> i32 { return 7340032; }
+fn str_table_entry_size() -> i32 { return 12; }
+fn str_count_addr() -> i32 { return state_base() + 8440; }
+fn str_next_data_addr_addr() -> i32 { return state_base() + 8444; }
+
+fn str_entry_addr(i: i32) -> i32 { return str_table_base() + i * str_table_entry_size(); }
+
+fn reset_str_table() -> i32 {
+  __mem_store(str_count_addr(), 0);
+  __mem_store(str_next_data_addr_addr(), 1024);
+  return 0;
+}
+
+fn str_table_find(atom_off: i32, atom_len: i32) -> i32 {
+  let count: i32 = __mem_load(str_count_addr());
+  let i: i32 = 0;
+  while (i < count) {
+    let entry: i32 = str_entry_addr(i);
+    let eo: i32 = __mem_load(entry);
+    let el: i32 = __mem_load(entry + 4);
+    if (el == atom_len) {
+      let match: i32 = 1;
+      let j: i32 = 0;
+      while (j < el && match == 1) {
+        if (__mem_load8(ir_buf_base() + eo + j) != __mem_load8(ir_buf_base() + atom_off + j)) {
+          match = 0;
+        }
+        j = j + 1;
+      }
+      if (match == 1) { return i; }
+    }
+    i = i + 1;
+  }
+  return 0 - 1;
+}
+
+fn str_table_add(atom_off: i32, atom_len: i32) -> i32 {
+  let existing: i32 = str_table_find(atom_off, atom_len);
+  if (existing >= 0) { return existing; }
+  let count: i32 = __mem_load(str_count_addr());
+  if (count >= 256) { return 0 - 1; }
+  let data_addr: i32 = __mem_load(str_next_data_addr_addr());
+  let entry: i32 = str_entry_addr(count);
+  __mem_store(entry, atom_off);
+  __mem_store(entry + 4, atom_len);
+  __mem_store(entry + 8, data_addr);
+
+  // Compute decoded length: walk the string token (with quotes)
+  // The atom includes quotes: "..."
+  let decoded_len: i32 = decode_str_len(atom_off, atom_len);
+  let next_addr: i32 = data_addr + decoded_len;
+  // Align to 4
+  let rem: i32 = next_addr - (next_addr / 4) * 4;
+  if (rem != 0) { next_addr = next_addr + 4 - rem; }
+  __mem_store(str_next_data_addr_addr(), next_addr);
+  __mem_store(str_count_addr(), count + 1);
+  return count;
+}
+
+fn decode_str_len(atom_off: i32, atom_len: i32) -> i32 {
+  // The atom is like "hello\nworld" including quotes
+  let len: i32 = 0;
+  let i: i32 = 1;
+  let end: i32 = atom_len - 1;
+  while (i < end) {
+    let c: i32 = __mem_load8(ir_buf_base() + atom_off + i);
+    if (c == 92) {
+      // backslash escape - counts as one byte
+      i = i + 2;
+    } else {
+      i = i + 1;
+    }
+    len = len + 1;
+  }
+  return len;
+}
+
+fn str_data_addr(idx: i32) -> i32 {
+  return __mem_load(str_entry_addr(idx) + 8);
+}
+
+// Locals table: per-function, up to 128 locals
+// Each entry is (atom_off, atom_len) - 8 bytes
+fn locals_table_base() -> i32 { return 7344128; }
+fn locals_entry_size() -> i32 { return 8; }
+fn locals_count_addr() -> i32 { return state_base() + 8448; }
+fn locals_param_count_addr() -> i32 { return state_base() + 8452; }
+
+fn locals_entry_addr(i: i32) -> i32 { return locals_table_base() + i * locals_entry_size(); }
+
+fn reset_locals() -> i32 {
+  __mem_store(locals_count_addr(), 0);
+  __mem_store(locals_param_count_addr(), 0);
+  return 0;
+}
+
+fn add_local(atom_off: i32, atom_len: i32) -> i32 {
+  let count: i32 = __mem_load(locals_count_addr());
+  // Check for duplicates
+  let i: i32 = 0;
+  while (i < count) {
+    let entry: i32 = locals_entry_addr(i);
+    let eo: i32 = __mem_load(entry);
+    let el: i32 = __mem_load(entry + 4);
+    if (el == atom_len) {
+      let match: i32 = 1;
+      let j: i32 = 0;
+      while (j < el && match == 1) {
+        if (__mem_load8(ir_buf_base() + eo + j) != __mem_load8(ir_buf_base() + atom_off + j)) {
+          match = 0;
+        }
+        j = j + 1;
+      }
+      if (match == 1) { return i; }
+    }
+    i = i + 1;
+  }
+  if (count >= 128) { return 0 - 1; }
+  let entry: i32 = locals_entry_addr(count);
+  __mem_store(entry, atom_off);
+  __mem_store(entry + 4, atom_len);
+  __mem_store(locals_count_addr(), count + 1);
+  return count;
+}
+
+fn local_index(name_node: i32) -> i32 {
+  let ao: i32 = node_atom_off(name_node);
+  let al: i32 = node_atom_len(name_node);
+  let count: i32 = __mem_load(locals_count_addr());
+  let i: i32 = 0;
+  while (i < count) {
+    let entry: i32 = locals_entry_addr(i);
+    let eo: i32 = __mem_load(entry);
+    let el: i32 = __mem_load(entry + 4);
+    if (el == al) {
+      let match: i32 = 1;
+      let j: i32 = 0;
+      while (j < el && match == 1) {
+        if (__mem_load8(ir_buf_base() + eo + j) != __mem_load8(ir_buf_base() + ao + j)) {
+          match = 0;
+        }
+        j = j + 1;
+      }
+      if (match == 1) { return i; }
+    }
+    i = i + 1;
+  }
+  return 0 - 1;
+}
+
+// Function names table: up to 256 functions
+fn fn_names_base() -> i32 { return 7348224; }
+fn fn_names_entry_size() -> i32 { return 8; }
+fn fn_names_count_addr() -> i32 { return state_base() + 8456; }
+
+fn fn_names_entry_addr(i: i32) -> i32 { return fn_names_base() + i * fn_names_entry_size(); }
+
+fn reset_fn_names() -> i32 {
+  __mem_store(fn_names_count_addr(), 0);
+  return 0;
+}
+
+fn add_fn_name(atom_off: i32, atom_len: i32) -> i32 {
+  let count: i32 = __mem_load(fn_names_count_addr());
+  if (count >= 256) { return 0 - 1; }
+  let entry: i32 = fn_names_entry_addr(count);
+  __mem_store(entry, atom_off);
+  __mem_store(entry + 4, atom_len);
+  __mem_store(fn_names_count_addr(), count + 1);
+  return count;
+}
+
+fn is_known_fn(name_node: i32) -> i32 {
+  let ao: i32 = node_atom_off(name_node);
+  let al: i32 = node_atom_len(name_node);
+  let count: i32 = __mem_load(fn_names_count_addr());
+  let i: i32 = 0;
+  while (i < count) {
+    let entry: i32 = fn_names_entry_addr(i);
+    let eo: i32 = __mem_load(entry);
+    let el: i32 = __mem_load(entry + 4);
+    if (el == al) {
+      let match: i32 = 1;
+      let j: i32 = 0;
+      while (j < el && match == 1) {
+        if (__mem_load8(ir_buf_base() + eo + j) != __mem_load8(ir_buf_base() + ao + j)) {
+          match = 0;
+        }
+        j = j + 1;
+      }
+      if (match == 1) { return 1; }
+    }
+    i = i + 1;
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Tree helpers
+// ---------------------------------------------------------------------------
+
+fn list_child_at(node: i32, idx: i32) -> i32 {
+  let c: i32 = node_child_head(node);
+  let i: i32 = 0;
+  while (i < idx && c != 0) {
+    c = node_next(c);
+    i = i + 1;
+  }
+  return c;
+}
+
+fn list_child_count(node: i32) -> i32 {
+  let c: i32 = node_child_head(node);
+  let n: i32 = 0;
+  while (c != 0) {
+    n = n + 1;
+    c = node_next(c);
+  }
+  return n;
+}
+
+fn child_tag_equals(node: i32, ptr: i32, len: i32) -> i32 {
+  let first: i32 = list_child_at(node, 0);
+  if (first == 0) { return 0; }
+  return atom_equals(first, ptr, len);
+}
+
+// ---------------------------------------------------------------------------
+// Feature collection
+// ---------------------------------------------------------------------------
+
+fn collect_features_expr(node: i32) -> i32 {
+  if (node_kind(node) != 1) { return 0; }
+  let tag: i32 = list_child_at(node, 0);
+  if (tag == 0) { return 0; }
+
+  if (atom_equals(tag, literal_call_ptr(), literal_call_len()) == 1) {
+    let callee: i32 = list_child_at(node, 1);
+    if (callee != 0) {
+      if (atom_equals(callee, literal_fd_write_ptr(), literal_fd_write_len()) == 1) {
+        __mem_store(feat_fd_write_addr(), 1);
+      }
+      if (atom_equals(callee, literal_fd_read_ptr(), literal_fd_read_len()) == 1) {
+        __mem_store(feat_fd_read_addr(), 1);
+      }
+      if (atom_equals(callee, literal_fd_close_ptr(), literal_fd_close_len()) == 1) {
+        __mem_store(feat_fd_close_addr(), 1);
+      }
+      if (atom_equals(callee, literal_path_open_ptr(), literal_path_open_len()) == 1) {
+        __mem_store(feat_path_open_addr(), 1);
+      }
+      if (atom_equals(callee, literal_tty_get_mode_ptr(), literal_tty_get_mode_len()) == 1) {
+        __mem_store(feat_tty_mode_addr(), 1);
+      }
+      if (atom_equals(callee, literal_tty_set_raw_ptr(), literal_tty_set_raw_len()) == 1) {
+        __mem_store(feat_tty_mode_addr(), 1);
+      }
+      if (atom_equals(callee, literal_tty_restore_ptr(), literal_tty_restore_len()) == 1) {
+        __mem_store(feat_tty_mode_addr(), 1);
+      }
+    }
+    // Recurse into args
+    let arg: i32 = list_child_at(node, 2);
+    while (arg != 0) {
+      collect_features_expr(arg);
+      arg = node_next(arg);
+    }
+  } else {
+    if (atom_equals(tag, literal_binary_ptr(), literal_binary_len()) == 1) {
+      collect_features_expr(list_child_at(node, 2));
+      collect_features_expr(list_child_at(node, 3));
+    }
+    if (atom_equals(tag, wl_unary_ptr(), wl_unary_len()) == 1) {
+      collect_features_expr(list_child_at(node, 2));
+    }
+  }
+  return 0;
+}
+
+fn collect_features_block(node: i32) -> i32 {
+  let stmt: i32 = node_next(list_child_at(node, 0));
+  while (stmt != 0) {
+    let s_tag: i32 = list_child_at(stmt, 0);
+    if (s_tag != 0) {
+      if (atom_equals(s_tag, literal_let_ptr(), literal_let_len()) == 1) {
+        collect_features_expr(list_child_at(stmt, 3));
+      }
+      if (atom_equals(s_tag, literal_assign_ptr(), literal_assign_len()) == 1) {
+        collect_features_expr(list_child_at(stmt, 2));
+      }
+      if (atom_equals(s_tag, literal_return_ptr(), literal_return_len()) == 1) {
+        collect_features_expr(list_child_at(stmt, 1));
+      }
+      if (atom_equals(s_tag, literal_expr_ptr(), literal_expr_len()) == 1) {
+        collect_features_expr(list_child_at(stmt, 1));
+      }
+      if (atom_equals(s_tag, literal_if_ptr(), literal_if_len()) == 1) {
+        collect_features_expr(list_child_at(stmt, 1));
+        collect_features_block(list_child_at(stmt, 2));
+        let else_node: i32 = list_child_at(stmt, 3);
+        if (else_node != 0) {
+          if (child_tag_equals(else_node, literal_else_ptr(), literal_else_len()) == 1) {
+            collect_features_block(list_child_at(else_node, 1));
+          }
+        }
+      }
+      if (atom_equals(s_tag, literal_while_ptr(), literal_while_len()) == 1) {
+        collect_features_expr(list_child_at(stmt, 1));
+        collect_features_block(list_child_at(stmt, 2));
+      }
+    }
+    stmt = node_next(stmt);
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// String literal collection
+// ---------------------------------------------------------------------------
+
+fn collect_strings_expr(node: i32) -> i32 {
+  if (node_kind(node) != 1) { return 0; }
+  let tag: i32 = list_child_at(node, 0);
+  if (tag == 0) { return 0; }
+
+  if (atom_equals(tag, literal_string_ptr(), literal_string_len()) == 1) {
+    let str_tok: i32 = list_child_at(node, 1);
+    if (str_tok != 0) {
+      str_table_add(node_atom_off(str_tok), node_atom_len(str_tok));
+    }
+    return 0;
+  }
+  if (atom_equals(tag, literal_binary_ptr(), literal_binary_len()) == 1) {
+    collect_strings_expr(list_child_at(node, 2));
+    collect_strings_expr(list_child_at(node, 3));
+    return 0;
+  }
+  if (atom_equals(tag, wl_unary_ptr(), wl_unary_len()) == 1) {
+    collect_strings_expr(list_child_at(node, 2));
+    return 0;
+  }
+  if (atom_equals(tag, literal_call_ptr(), literal_call_len()) == 1) {
+    let arg: i32 = list_child_at(node, 2);
+    while (arg != 0) {
+      collect_strings_expr(arg);
+      arg = node_next(arg);
+    }
+    return 0;
+  }
+  return 0;
+}
+
+fn collect_strings_block(node: i32) -> i32 {
+  let stmt: i32 = node_next(list_child_at(node, 0));
+  while (stmt != 0) {
+    let s_tag: i32 = list_child_at(stmt, 0);
+    if (s_tag != 0) {
+      if (atom_equals(s_tag, literal_let_ptr(), literal_let_len()) == 1) {
+        collect_strings_expr(list_child_at(stmt, 3));
+      }
+      if (atom_equals(s_tag, literal_assign_ptr(), literal_assign_len()) == 1) {
+        collect_strings_expr(list_child_at(stmt, 2));
+      }
+      if (atom_equals(s_tag, literal_return_ptr(), literal_return_len()) == 1) {
+        collect_strings_expr(list_child_at(stmt, 1));
+      }
+      if (atom_equals(s_tag, literal_expr_ptr(), literal_expr_len()) == 1) {
+        collect_strings_expr(list_child_at(stmt, 1));
+      }
+      if (atom_equals(s_tag, literal_if_ptr(), literal_if_len()) == 1) {
+        collect_strings_expr(list_child_at(stmt, 1));
+        collect_strings_block(list_child_at(stmt, 2));
+        let else_node: i32 = list_child_at(stmt, 3);
+        if (else_node != 0) {
+          if (child_tag_equals(else_node, literal_else_ptr(), literal_else_len()) == 1) {
+            collect_strings_block(list_child_at(else_node, 1));
+          }
+        }
+      }
+      if (atom_equals(s_tag, literal_while_ptr(), literal_while_len()) == 1) {
+        collect_strings_expr(list_child_at(stmt, 1));
+        collect_strings_block(list_child_at(stmt, 2));
+      }
+    }
+    stmt = node_next(stmt);
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Local variable collection
+// ---------------------------------------------------------------------------
+
+fn collect_locals_block(node: i32) -> i32 {
+  let stmt: i32 = node_next(list_child_at(node, 0));
+  while (stmt != 0) {
+    let s_tag: i32 = list_child_at(stmt, 0);
+    if (s_tag != 0) {
+      if (atom_equals(s_tag, literal_let_ptr(), literal_let_len()) == 1) {
+        let name: i32 = list_child_at(stmt, 1);
+        add_local(node_atom_off(name), node_atom_len(name));
+      }
+      if (atom_equals(s_tag, literal_if_ptr(), literal_if_len()) == 1) {
+        collect_locals_block(list_child_at(stmt, 2));
+        let else_node: i32 = list_child_at(stmt, 3);
+        if (else_node != 0) {
+          if (child_tag_equals(else_node, literal_else_ptr(), literal_else_len()) == 1) {
+            collect_locals_block(list_child_at(else_node, 1));
+          }
+        }
+      }
+      if (atom_equals(s_tag, literal_while_ptr(), literal_while_len()) == 1) {
+        collect_locals_block(list_child_at(stmt, 2));
+      }
+    }
+    stmt = node_next(stmt);
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// WAT output helpers
+// ---------------------------------------------------------------------------
+
+fn emit_wat_line(indent: i32, ptr: i32, len: i32) -> i32 {
+  out_spaces(indent);
+  out_str(ptr, len);
+  return out_nl();
+}
+
+fn emit_wat_opcode(ptr: i32, len: i32) -> i32 {
+  out_spaces(4);
+  out_str(ptr, len);
+  return out_nl();
+}
+
+// ---------------------------------------------------------------------------
+// Expression emitter
+// ---------------------------------------------------------------------------
+
+fn emit_expr(node: i32) -> i32 {
+  if (node == 0) { return 0 - 100; }
+  if (node_kind(node) != 1) { return 0 - 101; }
+  let tag: i32 = list_child_at(node, 0);
+  if (tag == 0) { return 0 - 102; }
+
+  // (int N)
+  if (atom_equals(tag, literal_int_ptr(), literal_int_len()) == 1) {
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_atom(list_child_at(node, 1));
+    out_nl();
+    return 0;
+  }
+
+  // (bool N)
+  if (atom_equals(tag, literal_bool_ptr(), literal_bool_len()) == 1) {
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_atom(list_child_at(node, 1));
+    out_nl();
+    return 0;
+  }
+
+  // (ident name)
+  if (atom_equals(tag, literal_ident_ptr(), literal_ident_len()) == 1) {
+    let idx: i32 = local_index(list_child_at(node, 1));
+    if (idx < 0) { return 0 - 110; }
+    out_spaces(4);
+    out_str(wl_local_get_ptr(), wl_local_get_len());
+    out_int(idx);
+    out_nl();
+    return 0;
+  }
+
+  // (string "...")
+  if (atom_equals(tag, literal_string_ptr(), literal_string_len()) == 1) {
+    let str_tok: i32 = list_child_at(node, 1);
+    let si: i32 = str_table_find(node_atom_off(str_tok), node_atom_len(str_tok));
+    if (si < 0) { return 0 - 111; }
+    let addr: i32 = str_data_addr(si);
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(addr);
+    out_nl();
+    return 0;
+  }
+
+  // (binary op lhs rhs)
+  if (atom_equals(tag, literal_binary_ptr(), literal_binary_len()) == 1) {
+    let op: i32 = list_child_at(node, 1);
+    let lhs: i32 = list_child_at(node, 2);
+    let rhs: i32 = list_child_at(node, 3);
+    let rc1: i32 = emit_expr(lhs);
+    if (rc1 != 0) { return rc1; }
+    let rc2: i32 = emit_expr(rhs);
+    if (rc2 != 0) { return rc2; }
+    // Emit the WAT opcode based on op
+    if (atom_equals(op, literal_add_ptr(), literal_add_len()) == 1) {
+      emit_wat_opcode(wl_i32_add_ptr(), wl_i32_add_len());
+    } else {
+      if (atom_equals(op, literal_sub_ptr(), literal_sub_len()) == 1) {
+        emit_wat_opcode(wl_i32_sub_ptr(), wl_i32_sub_len());
+      } else {
+        if (atom_equals(op, literal_mul_ptr(), literal_mul_len()) == 1) {
+          emit_wat_opcode(wl_i32_mul_ptr(), wl_i32_mul_len());
+        } else {
+          if (atom_equals(op, literal_div_ptr(), literal_div_len()) == 1) {
+            emit_wat_opcode(wl_i32_div_s_ptr(), wl_i32_div_s_len());
+          } else {
+            if (atom_equals(op, literal_eq_ptr(), literal_eq_len()) == 1) {
+              emit_wat_opcode(wl_i32_eq_ptr(), wl_i32_eq_len());
+            } else {
+              if (atom_equals(op, literal_ne_ptr(), literal_ne_len()) == 1) {
+                emit_wat_opcode(wl_i32_ne_ptr(), wl_i32_ne_len());
+              } else {
+                if (atom_equals(op, literal_lt_ptr(), literal_lt_len()) == 1) {
+                  emit_wat_opcode(wl_i32_lt_s_ptr(), wl_i32_lt_s_len());
+                } else {
+                  if (atom_equals(op, literal_gt_ptr(), literal_gt_len()) == 1) {
+                    emit_wat_opcode(wl_i32_gt_s_ptr(), wl_i32_gt_s_len());
+                  } else {
+                    if (atom_equals(op, literal_le_ptr(), literal_le_len()) == 1) {
+                      emit_wat_opcode(wl_i32_le_s_ptr(), wl_i32_le_s_len());
+                    } else {
+                      if (atom_equals(op, literal_ge_ptr(), literal_ge_len()) == 1) {
+                        emit_wat_opcode(wl_i32_ge_s_ptr(), wl_i32_ge_s_len());
+                      } else {
+                        if (atom_equals(op, literal_and_ptr(), literal_and_len()) == 1) {
+                          emit_wat_opcode(wl_i32_and_ptr(), wl_i32_and_len());
+                        } else {
+                          if (atom_equals(op, literal_or_ptr(), literal_or_len()) == 1) {
+                            emit_wat_opcode(wl_i32_or_ptr(), wl_i32_or_len());
+                          } else {
+                            return 0 - 120;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return 0;
+  }
+
+  // (unary op expr) - only "not" supported
+  if (atom_equals(tag, wl_unary_ptr(), wl_unary_len()) == 1) {
+    let rc: i32 = emit_expr(list_child_at(node, 2));
+    if (rc != 0) { return rc; }
+    emit_wat_opcode(wl_i32_eqz_ptr(), wl_i32_eqz_len());
+    return 0;
+  }
+
+  // (call callee args...)
+  if (atom_equals(tag, literal_call_ptr(), literal_call_len()) == 1) {
+    let callee: i32 = list_child_at(node, 1);
+
+    // __mem_store(addr, val)
+    if (atom_equals(callee, literal_mem_store_ptr(), literal_mem_store_len()) == 1) {
+      emit_expr(list_child_at(node, 2));
+      emit_expr(list_child_at(node, 3));
+      emit_wat_opcode(wl_i32_store_ptr(), wl_i32_store_len());
+      out_spaces(4);
+      out_str(wl_i32_const_ptr(), wl_i32_const_len());
+      out_char(48);
+      out_nl();
+      return 0;
+    }
+
+    // __mem_store8(addr, val)
+    if (atom_equals(callee, literal_mem_store8_ptr(), literal_mem_store8_len()) == 1) {
+      emit_expr(list_child_at(node, 2));
+      emit_expr(list_child_at(node, 3));
+      emit_wat_opcode(wl_i32_store8_ptr(), wl_i32_store8_len());
+      out_spaces(4);
+      out_str(wl_i32_const_ptr(), wl_i32_const_len());
+      out_char(48);
+      out_nl();
+      return 0;
+    }
+
+    // __mem_load(addr)
+    if (atom_equals(callee, literal_mem_load_ptr(), literal_mem_load_len()) == 1) {
+      emit_expr(list_child_at(node, 2));
+      emit_wat_opcode(wl_i32_load_ptr(), wl_i32_load_len());
+      return 0;
+    }
+
+    // __mem_load8(addr)
+    if (atom_equals(callee, literal_mem_load8_ptr(), literal_mem_load8_len()) == 1) {
+      emit_expr(list_child_at(node, 2));
+      emit_wat_opcode(wl_i32_load8_u_ptr(), wl_i32_load8_u_real_len());
+      return 0;
+    }
+
+    // __fd_write(fd, iovs, iovs_len, nwritten)
+    if (atom_equals(callee, literal_fd_write_ptr(), literal_fd_write_len()) == 1) {
+      let arg: i32 = list_child_at(node, 2);
+      while (arg != 0) {
+        emit_expr(arg);
+        arg = node_next(arg);
+      }
+      out_spaces(4);
+      out_str(wl_call_dollar_ptr(), wl_call_dollar_len());
+      // "fd_write"
+      out_str(literal_fd_write_ptr() + 2, literal_fd_write_len() - 2);
+      out_nl();
+      return 0;
+    }
+
+    // __fd_read(fd, iovs, iovs_len, nread)
+    if (atom_equals(callee, literal_fd_read_ptr(), literal_fd_read_len()) == 1) {
+      let arg: i32 = list_child_at(node, 2);
+      while (arg != 0) {
+        emit_expr(arg);
+        arg = node_next(arg);
+      }
+      out_spaces(4);
+      out_str(wl_call_dollar_ptr(), wl_call_dollar_len());
+      out_str(literal_fd_read_ptr() + 2, literal_fd_read_len() - 2);
+      out_nl();
+      return 0;
+    }
+
+    // __fd_close(fd)
+    if (atom_equals(callee, literal_fd_close_ptr(), literal_fd_close_len()) == 1) {
+      emit_expr(list_child_at(node, 2));
+      out_spaces(4);
+      out_str(wl_call_dollar_ptr(), wl_call_dollar_len());
+      out_str(literal_fd_close_ptr() + 2, literal_fd_close_len() - 2);
+      out_nl();
+      return 0;
+    }
+
+    // __path_open(dirfd, dirflags, path, path_len, oflags, rights, rights_inh, fdflags, fd_out)
+    if (atom_equals(callee, literal_path_open_ptr(), literal_path_open_len()) == 1) {
+      // First 5 args as i32
+      let arg: i32 = list_child_at(node, 2);
+      let arg_idx: i32 = 0;
+      while (arg != 0 && arg_idx < 9) {
+        emit_expr(arg);
+        if (arg_idx == 5 || arg_idx == 6) {
+          // rights_base and rights_inheriting need i64.extend_i32_u
+          emit_wat_opcode(wl_i64_extend_ptr(), wl_i64_extend_len());
+        }
+        arg = node_next(arg);
+        arg_idx = arg_idx + 1;
+      }
+      out_spaces(4);
+      out_str(wl_call_dollar_ptr(), wl_call_dollar_len());
+      out_str(literal_path_open_ptr() + 2, literal_path_open_len() - 2);
+      out_nl();
+      return 0;
+    }
+
+    // __tty_get_mode(fd, buf) - stub: drop args, return 58
+    if (atom_equals(callee, literal_tty_get_mode_ptr(), literal_tty_get_mode_len()) == 1) {
+      let arg: i32 = list_child_at(node, 2);
+      while (arg != 0) {
+        emit_expr(arg);
+        emit_wat_opcode(wl_drop_ptr(), wl_drop_len());
+        arg = node_next(arg);
+      }
+      out_spaces(4);
+      out_str(wl_i32_const_ptr(), wl_i32_const_len());
+      out_char(53); out_char(56); // 58
+      out_nl();
+      return 0;
+    }
+
+    // __tty_set_raw(a, b, c, d) - stub: drop args, return 58
+    if (atom_equals(callee, literal_tty_set_raw_ptr(), literal_tty_set_raw_len()) == 1) {
+      let arg: i32 = list_child_at(node, 2);
+      while (arg != 0) {
+        emit_expr(arg);
+        emit_wat_opcode(wl_drop_ptr(), wl_drop_len());
+        arg = node_next(arg);
+      }
+      out_spaces(4);
+      out_str(wl_i32_const_ptr(), wl_i32_const_len());
+      out_char(53); out_char(56); // 58
+      out_nl();
+      return 0;
+    }
+
+    // __tty_restore(fd, buf) - stub: drop args, return 58
+    if (atom_equals(callee, literal_tty_restore_ptr(), literal_tty_restore_len()) == 1) {
+      let arg: i32 = list_child_at(node, 2);
+      while (arg != 0) {
+        emit_expr(arg);
+        emit_wat_opcode(wl_drop_ptr(), wl_drop_len());
+        arg = node_next(arg);
+      }
+      out_spaces(4);
+      out_str(wl_i32_const_ptr(), wl_i32_const_len());
+      out_char(53); out_char(56); // 58
+      out_nl();
+      return 0;
+    }
+
+    // User-defined function call
+    if (is_known_fn(callee) == 1) {
+      let arg: i32 = list_child_at(node, 2);
+      while (arg != 0) {
+        emit_expr(arg);
+        arg = node_next(arg);
+      }
+      out_spaces(4);
+      out_str(wl_call_dollar_ptr(), wl_call_dollar_len());
+      out_atom(callee);
+      out_nl();
+      return 0;
+    }
+
+    return 0 - 130;
+  }
+
+  return 0 - 140;
+}
+
+// ---------------------------------------------------------------------------
+// Statement emitter
+// ---------------------------------------------------------------------------
+
+fn emit_stmt(node: i32) -> i32 {
+  let tag: i32 = list_child_at(node, 0);
+  if (tag == 0) { return 0 - 200; }
+
+  // (let name type expr)
+  if (atom_equals(tag, literal_let_ptr(), literal_let_len()) == 1) {
+    let rc: i32 = emit_expr(list_child_at(node, 3));
+    if (rc != 0) { return rc; }
+    let idx: i32 = local_index(list_child_at(node, 1));
+    if (idx < 0) { return 0 - 210; }
+    out_spaces(4);
+    out_str(wl_local_set_ptr(), wl_local_set_len());
+    out_int(idx);
+    out_nl();
+    return 0;
+  }
+
+  // (assign name expr)
+  if (atom_equals(tag, literal_assign_ptr(), literal_assign_len()) == 1) {
+    let rc: i32 = emit_expr(list_child_at(node, 2));
+    if (rc != 0) { return rc; }
+    let idx: i32 = local_index(list_child_at(node, 1));
+    if (idx < 0) { return 0 - 211; }
+    out_spaces(4);
+    out_str(wl_local_set_ptr(), wl_local_set_len());
+    out_int(idx);
+    out_nl();
+    return 0;
+  }
+
+  // (return expr)
+  if (atom_equals(tag, literal_return_ptr(), literal_return_len()) == 1) {
+    let rc: i32 = emit_expr(list_child_at(node, 1));
+    if (rc != 0) { return rc; }
+    emit_wat_opcode(wl_return_ptr(), wl_return_len());
+    return 0;
+  }
+
+  // (expr e)
+  if (atom_equals(tag, literal_expr_ptr(), literal_expr_len()) == 1) {
+    let rc: i32 = emit_expr(list_child_at(node, 1));
+    if (rc != 0) { return rc; }
+    emit_wat_opcode(wl_drop_ptr(), wl_drop_len());
+    return 0;
+  }
+
+  // (if cond block [else_block])
+  if (atom_equals(tag, literal_if_ptr(), literal_if_len()) == 1) {
+    let rc: i32 = emit_expr(list_child_at(node, 1));
+    if (rc != 0) { return rc; }
+    emit_wat_opcode(wl_if_ptr(), wl_if_len());
+    let rc2: i32 = emit_block(list_child_at(node, 2));
+    if (rc2 != 0) { return rc2; }
+    let else_node: i32 = list_child_at(node, 3);
+    if (else_node != 0) {
+      if (child_tag_equals(else_node, literal_else_ptr(), literal_else_len()) == 1) {
+        emit_wat_opcode(wl_else_ptr(), wl_else_len());
+        let rc3: i32 = emit_block(list_child_at(else_node, 1));
+        if (rc3 != 0) { return rc3; }
+      }
+    }
+    emit_wat_opcode(wl_end_ptr(), wl_end_len());
+    return 0;
+  }
+
+  // (while cond block)
+  if (atom_equals(tag, literal_while_ptr(), literal_while_len()) == 1) {
+    emit_wat_opcode(wl_block_ptr(), wl_block_len());
+    emit_wat_opcode(wl_loop_ptr(), wl_loop_len());
+    let rc: i32 = emit_expr(list_child_at(node, 1));
+    if (rc != 0) { return rc; }
+    emit_wat_opcode(wl_i32_eqz_ptr(), wl_i32_eqz_len());
+    emit_wat_opcode(wl_br_if_1_ptr(), wl_br_if_1_real_len());
+    let rc2: i32 = emit_block(list_child_at(node, 2));
+    if (rc2 != 0) { return rc2; }
+    emit_wat_opcode(wl_br_0_ptr(), wl_br_0_len());
+    emit_wat_opcode(wl_end_ptr(), wl_end_len());
+    emit_wat_opcode(wl_end_ptr(), wl_end_len());
+    return 0;
+  }
+
+  return 0 - 250;
+}
+
+fn emit_block(node: i32) -> i32 {
+  if (node == 0) { return 0 - 300; }
+  let stmt: i32 = node_next(list_child_at(node, 0));
+  while (stmt != 0) {
+    let rc: i32 = emit_stmt(stmt);
+    if (rc != 0) { return rc; }
+    stmt = node_next(stmt);
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Data segment emission
+// ---------------------------------------------------------------------------
+
+fn hex_digit(v: i32) -> i32 {
+  if (v < 10) { return 48 + v; }
+  return 97 + v - 10;
+}
+
+fn emit_data_segment(str_idx: i32) -> i32 {
+  let entry: i32 = str_entry_addr(str_idx);
+  let atom_off: i32 = __mem_load(entry);
+  let atom_len: i32 = __mem_load(entry + 4);
+  let data_addr: i32 = __mem_load(entry + 8);
+
+  out_spaces(2);
+  out_str(wl_data_prefix_real_ptr(), wl_data_prefix_real_len());
+  out_int(data_addr);
+  out_char(41); // )
+  out_char(32); // ' '
+  out_char(34); // "
+
+  // Decode and emit escaped string content
+  let i: i32 = 1;
+  let end: i32 = atom_len - 1;
+  while (i < end) {
+    let c: i32 = __mem_load8(ir_buf_base() + atom_off + i);
+    if (c == 92) {
+      // Backslash escape
+      i = i + 1;
+      if (i < end) {
+        let esc: i32 = __mem_load8(ir_buf_base() + atom_off + i);
+        if (esc == 110) {
+          // \n -> \0a
+          out_char(92); out_char(48); out_char(97);
+        } else {
+          if (esc == 116) {
+            // \t -> \09
+            out_char(92); out_char(48); out_char(57);
+          } else {
+            if (esc == 92) {
+              // \\ -> \5c
+              out_char(92); out_char(53); out_char(99);
+            } else {
+              if (esc == 34) {
+                // \" -> \22
+                out_char(92); out_char(50); out_char(50);
+              } else {
+                // Unknown escape - emit as hex
+                out_char(92);
+                out_char(hex_digit(esc / 16));
+                out_char(hex_digit(esc - (esc / 16) * 16));
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if (c >= 32 && c <= 126 && c != 34 && c != 92) {
+        out_char(c);
+      } else {
+        out_char(92);
+        out_char(hex_digit(c / 16));
+        out_char(hex_digit(c - (c / 16) * 16));
+      }
+    }
+    i = i + 1;
+  }
+
+  out_char(34); // "
+  out_char(41); // )
+  out_nl();
+  return 0;
+}
+
+fn wl_data_prefix_real_ptr() -> i32 { return wat_lit_base() + 464; }
+fn wl_data_prefix_real_len() -> i32 { return 17; }
+
+// ---------------------------------------------------------------------------
+// WASI import emission
+// ---------------------------------------------------------------------------
+
+fn emit_wasi_import_line1(func_name_ptr: i32, func_name_len: i32) -> i32 {
+  // Emit: '  (import "wasi_snapshot_preview1" "NAME"'
+  out_spaces(2);
+  // Reuse the stored import prefix bytes 528..559 for the common part
+  out_str(wat_lit_base() + 528, 32); // '(import "wasi_snapshot_preview1"'
+  out_char(32);  // ' '
+  out_char(34);  // '"'
+  out_str(func_name_ptr, func_name_len);
+  out_char(34);  // '"'
+  out_nl();
+  return 0;
+}
+
+fn emit_import_func_line(name_ptr: i32, name_len: i32, param_types_ptr: i32, param_types_len: i32) -> i32 {
+  out_spaces(4);
+  out_str(wl_func_dollar_ptr(), wl_func_dollar_len());
+  out_str(name_ptr, name_len);
+  out_char(32);  // ' '
+  out_char(40);  // (
+  out_char(112); out_char(97); out_char(114); out_char(97); out_char(109); // param
+  out_char(32);  // ' '
+  out_str(param_types_ptr, param_types_len);
+  out_char(41);  // )
+  out_str(wl_result_i32_ptr(), wl_result_i32_len());
+  out_char(41);  // ) close result
+  out_char(41);  // ) close func
+  out_char(41);  // ) close import
+  out_nl();
+  return 0;
+}
+
+// "i32 i32 i32 i32" stored at wat_lit_base()+976 (15 bytes)
+fn wl_4xi32_ptr() -> i32 { return wat_lit_base() + 976; }
+fn wl_4xi32_len() -> i32 { return 15; }
+// "i32" stored at wat_lit_base()+992 (3 bytes)
+fn wl_1xi32_ptr() -> i32 { return wat_lit_base() + 992; }
+fn wl_1xi32_len() -> i32 { return 3; }
+// "i32 i32 i32 i32 i32 i64 i64 i32 i32" at wat_lit_base()+1000 (37 bytes)
+fn wl_path_open_params_ptr() -> i32 { return wat_lit_base() + 1000; }
+fn wl_path_open_params_len() -> i32 { return 35; }
+
+fn emit_fd_write_import() -> i32 {
+  emit_wasi_import_line1(literal_fd_write_ptr() + 2, literal_fd_write_len() - 2);
+  emit_import_func_line(literal_fd_write_ptr() + 2, literal_fd_write_len() - 2, wl_4xi32_ptr(), wl_4xi32_len());
+  return 0;
+}
+
+fn emit_fd_read_import() -> i32 {
+  emit_wasi_import_line1(literal_fd_read_ptr() + 2, literal_fd_read_len() - 2);
+  emit_import_func_line(literal_fd_read_ptr() + 2, literal_fd_read_len() - 2, wl_4xi32_ptr(), wl_4xi32_len());
+  return 0;
+}
+
+fn emit_fd_close_import() -> i32 {
+  emit_wasi_import_line1(literal_fd_close_ptr() + 2, literal_fd_close_len() - 2);
+  emit_import_func_line(literal_fd_close_ptr() + 2, literal_fd_close_len() - 2, wl_1xi32_ptr(), wl_1xi32_len());
+  return 0;
+}
+
+fn emit_path_open_import() -> i32 {
+  emit_wasi_import_line1(literal_path_open_ptr() + 2, literal_path_open_len() - 2);
+  emit_import_func_line(literal_path_open_ptr() + 2, literal_path_open_len() - 2, wl_path_open_params_ptr(), wl_path_open_params_len());
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Function emission
+// ---------------------------------------------------------------------------
+
+fn emit_function(fn_node: i32) -> i32 {
+  let name_node: i32 = list_child_at(fn_node, 1);
+  let params_node: i32 = list_child_at(fn_node, 2);
+  let ret_node: i32 = list_child_at(fn_node, 3);
+  let block_node: i32 = list_child_at(fn_node, 4);
+
+  // Reset locals and collect params
+  reset_locals();
+  let param: i32 = node_next(list_child_at(params_node, 0));
+  let param_count: i32 = 0;
+  while (param != 0) {
+    let pname: i32 = list_child_at(param, 1);
+    add_local(node_atom_off(pname), node_atom_len(pname));
+    param_count = param_count + 1;
+    param = node_next(param);
+  }
+  __mem_store(locals_param_count_addr(), param_count);
+
+  // Collect let-locals
+  collect_locals_block(block_node);
+  let total_locals: i32 = __mem_load(locals_count_addr());
+  let let_locals: i32 = total_locals - param_count;
+
+  // Emit function header
+  out_spaces(2);
+  out_str(wl_func_dollar_ptr(), wl_func_dollar_len());
+  out_atom(name_node);
+
+  // Emit params
+  let pi: i32 = 0;
+  while (pi < param_count) {
+    out_char(32);  // ' '
+    out_str(wl_param_i32_ptr(), wl_param_i32_len());
+    out_char(41);  // )
+    pi = pi + 1;
+  }
+
+  // Emit result
+  out_str(wl_result_i32_ptr(), wl_result_i32_len());
+  out_char(41);  // )
+  out_nl();
+
+  // Emit local declarations
+  let li: i32 = 0;
+  while (li < let_locals) {
+    out_spaces(4);
+    out_str(wl_local_i32_ptr(), wl_local_i32_len());
+    out_char(41);  // )
+    out_nl();
+    li = li + 1;
+  }
+
+  // Emit body
+  let rc: i32 = emit_block(block_node);
+  if (rc != 0) { return rc; }
+
+  // Emit trailing return
+  out_spaces(4);
+  out_str(wl_i32_const_ptr(), wl_i32_const_len());
+  out_char(48);  // '0'
+  out_nl();
+  emit_wat_opcode(wl_return_ptr(), wl_return_len());
+
+  // Close function
+  out_spaces(2);
+  out_char(41);  // )
+  out_nl();
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Main lowering function
+// ---------------------------------------------------------------------------
+
 fn lower_ir_to_wat(ir_len: i32) -> i32 {
-  // TODO: implement Coatl IR -> WAT lowering
-  return 0 - 501;
+  init_literals();
+  init_wat_literals();
+  out_reset();
+  reset_features();
+  reset_str_table();
+  reset_fn_names();
+
+  // Parse the IR
+  __mem_store(node_count_addr(), 0);
+  set_parse_pos(0);
+  set_parse_end(ir_len);
+  let root: i32 = parse_expr();
+  if (root == 0) { return 0 - 500; }
+
+  // Validate root: (coatl_ir v0 (structs) (functions ...))
+  if (node_kind(root) != 1) { return 0 - 501; }
+  let tag: i32 = list_child_at(root, 0);
+  if (atom_equals(tag, literal_coatl_ir_ptr(), literal_coatl_ir_len()) != 1) { return 0 - 502; }
+  let ver: i32 = list_child_at(root, 1);
+  if (atom_equals(ver, literal_v0_ptr(), literal_v0_len()) != 1) { return 0 - 503; }
+
+  let structs: i32 = list_child_at(root, 2);
+  if (child_tag_equals(structs, literal_structs_ptr(), literal_structs_len()) != 1) { return 0 - 504; }
+  let functions: i32 = list_child_at(root, 3);
+  if (child_tag_equals(functions, literal_functions_ptr(), literal_functions_len()) != 1) { return 0 - 505; }
+
+  // First pass: collect function names, features, string literals
+  let fn_node: i32 = node_next(list_child_at(functions, 0));
+  while (fn_node != 0) {
+    let fn_name: i32 = list_child_at(fn_node, 1);
+    add_fn_name(node_atom_off(fn_name), node_atom_len(fn_name));
+    let fn_block: i32 = list_child_at(fn_node, 4);
+    collect_features_block(fn_block);
+    collect_strings_block(fn_block);
+    fn_node = node_next(fn_node);
+  }
+
+  // Emit module header
+  out_str(wl_module_ptr(), wl_module_len());
+  out_nl();
+
+  // Emit WASI imports
+  if (__mem_load(feat_fd_write_addr()) != 0) {
+    emit_fd_write_import();
+  }
+  if (__mem_load(feat_fd_read_addr()) != 0) {
+    emit_fd_read_import();
+  }
+  if (__mem_load(feat_fd_close_addr()) != 0) {
+    emit_fd_close_import();
+  }
+  if (__mem_load(feat_path_open_addr()) != 0) {
+    emit_path_open_import();
+  }
+
+  // Emit memory
+  out_spaces(2);
+  out_str(wl_memory_export_ptr(), wl_memory_export_real_len());
+  out_nl();
+
+  // Emit data segments
+  let si: i32 = 0;
+  let str_count: i32 = __mem_load(str_count_addr());
+  while (si < str_count) {
+    emit_data_segment(si);
+    si = si + 1;
+  }
+
+  // Emit functions
+  fn_node = node_next(list_child_at(functions, 0));
+  while (fn_node != 0) {
+    let rc: i32 = emit_function(fn_node);
+    if (rc != 0) { return rc; }
+    fn_node = node_next(fn_node);
+  }
+
+  return lower_ir_emit_start();
+}
+
+fn lower_ir_emit_start() -> i32 {
+  // Emit _start function
+  out_spaces(2);
+  out_str(wl_func_dollar_ptr(), wl_func_dollar_len());
+  out_char(95);  out_char(115); out_char(116);
+  out_char(97);  out_char(114); out_char(116);  // _start
+  out_nl();
+
+  out_spaces(4);
+  out_str(wl_call_dollar_ptr(), wl_call_dollar_len());
+  // Emit "main" directly
+  out_char(109); out_char(97); out_char(105); out_char(110);
+  out_nl();
+
+  out_spaces(4);
+  out_str(wl_drop_ptr(), wl_drop_len());
+  out_nl();
+
+  out_spaces(2);
+  out_char(41);  // )
+  out_nl();
+
+  // Emit export
+  out_spaces(2);
+  out_str(wl_export_start_real_ptr(), wl_export_start_real_len());
+  out_nl();
+
+  // Close module
+  out_char(41);  // )
+  out_nl();
+
+  return out_len();
 }
 
 fn main() -> i32 {

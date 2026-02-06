@@ -2,14 +2,99 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COATL_IR_TO_WAT="${COATL_IR_TO_WAT:-}"
-DEFAULT_BIN="$ROOT_DIR/tools/ir_to_wat.bin"
 PY_SCRIPT="$ROOT_DIR/tools/ir_to_wat.py"
+ORIG_ARGS=("$@")
+COATL_PYTHON="${COATL_PYTHON:-}"
+COATL_BIN="${COATL_BIN:-$(command -v coatl || true)}"
+
+if [[ -z "$COATL_BIN" && -x "$ROOT_DIR/coatl" ]]; then
+  COATL_BIN="$ROOT_DIR/coatl"
+fi
+MODULE="/tmp/coatl-ir-to-wat.wat"
+
+usage() {
+  cat <<'EOF' >&2
+usage:
+  tools/ir_to_wat <input.ir> -o <output.wat>
+EOF
+}
+
+if [[ $# -lt 3 ]]; then
+  usage
+  exit 1
+fi
+
+input=""
+output=""
+input="$1"
+shift
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      if [[ $# -lt 2 ]]; then
+        echo "missing value for -o" >&2
+        usage
+        exit 1
+      fi
+      output="$2"
+      shift 2
+      ;;
+    *)
+      echo "unknown arg: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$output" ]]; then
+  echo "missing -o <output.wat>" >&2
+  usage
+  exit 1
+fi
+
+build_module() {
+  "$COATL_BIN" build "$ROOT_DIR/tools/ir_to_wat.coatl" --emit=wat --toolchain=selfhost -o "$MODULE" >/dev/null
+}
+
+try_coatl_backend() {
+  if [[ -z "$COATL_BIN" || ! -x "$COATL_BIN" ]]; then
+    return 1
+  fi
+  if ! command -v wasmtime >/dev/null 2>&1; then
+    return 1
+  fi
+  if [[ ! -f "$MODULE" ]]; then
+    build_module
+  fi
+  # WASI path_open uses fd 3 as base directory.
+  # With --dir, wasmtime maps the host dir to fd 3. Paths must be relative to it.
+  # We resolve both input and output to absolute paths, find a common base,
+  # and use paths relative to that base.
+  local abs_input abs_output input_dir output_dir base_dir rel_input rel_output
+  abs_input="$(cd "$(dirname "$input")" && pwd)/$(basename "$input")"
+  abs_output="$(cd "$(dirname "$output")" && pwd)/$(basename "$output")"
+  input_dir="$(dirname "$abs_input")"
+  output_dir="$(dirname "$abs_output")"
+  if [[ "$input_dir" == "$output_dir" ]]; then
+    base_dir="$input_dir"
+    rel_input="$(basename "$abs_input")"
+    rel_output="$(basename "$abs_output")"
+  else
+    # Use / as common base
+    base_dir="/"
+    rel_input="${abs_input#/}"
+    rel_output="${abs_output#/}"
+  fi
+  printf '%s -o %s\n' "$rel_input" "$rel_output" | wasmtime --dir "$base_dir" --invoke main "$MODULE"
+}
 
 find_python_cmd() {
-  if [[ -n "${COATL_PYTHON:-}" ]] && command -v "$COATL_PYTHON" >/dev/null 2>&1; then
-    printf '%s' "$COATL_PYTHON"
-    return 0
+  if [[ -n "$COATL_PYTHON" ]]; then
+    if command -v "$COATL_PYTHON" >/dev/null 2>&1; then
+      printf '%s' "$COATL_PYTHON"
+      return 0
+    fi
   fi
   for cand in python3 python; do
     if command -v "$cand" >/dev/null 2>&1; then
@@ -20,31 +105,25 @@ find_python_cmd() {
   return 1
 }
 
-exec_candidate() {
-  local candidate="$1"
-  shift
-  if [[ -n "$candidate" && -x "$candidate" ]]; then
-    exec "$candidate" "$@"
+try_python_backend() {
+  if [[ ! -f "$PY_SCRIPT" ]]; then
+    return 1
   fi
-  return 1
+  local python_cmd
+  if ! python_cmd="$(find_python_cmd)"; then
+    echo "python3/python interpreter not found for fallback backend" >&2
+    return 1
+  fi
+  exec "$python_cmd" "$PY_SCRIPT" "${ORIG_ARGS[@]}"
 }
 
-if exec_candidate "$COATL_IR_TO_WAT" "$@"; then
-  :
-elif exec_candidate "$DEFAULT_BIN" "$@"; then
-  :
-else
-  if [[ -n "$COATL_IR_TO_WAT" && ! -x "$COATL_IR_TO_WAT" ]]; then
-    echo "COATL_IR_TO_WAT is set but not executable: $COATL_IR_TO_WAT" >&2
-  else
-    if [[ -f "$PY_SCRIPT" ]]; then
-      if python_cmd="$(find_python_cmd)"; then
-        exec "$python_cmd" "$PY_SCRIPT" "$@"
-      fi
-      echo "python3/python interpreter not found for ir_to_wat fallback" >&2
-      exit 1
-    fi
-    echo "ir_to_wat binary not found; build a Coatl-native tool and set COATL_IR_TO_WAT or place tools/ir_to_wat.bin" >&2
-  fi
-  exit 1
+if try_coatl_backend; then
+  exit 0
 fi
+
+if try_python_backend; then
+  exit 0
+fi
+
+echo "ir_to_wat failed: no working backend found" >&2
+exit 1
