@@ -375,8 +375,8 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
             out.append("    i32.const 58")
             return
         if callee == "__tty_set_raw":
-            if len(args) != 2:
-                raise LowerError("__tty_set_raw expects 2 args")
+            if len(args) != 4:
+                raise LowerError("__tty_set_raw expects 4 args")
             for arg in args:
                 emit_expr(arg, ctx, out)
                 out.append("    drop")
@@ -593,7 +593,11 @@ def lower_ir(root: Node) -> str:
     for name, params, block in parsed:
         lines.extend(lower_function(name, params, block, string_addrs, fn_names))
 
-    lines.append("  (export \"main\" (func $main))")
+    lines.append("  (func $_start")
+    lines.append("    call $main")
+    lines.append("    drop")
+    lines.append("  )")
+    lines.append("  (export \"_start\" (func $_start))")
     lines.append(")")
     return "\n".join(lines) + "\n"
 

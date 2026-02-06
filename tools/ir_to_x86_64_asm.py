@@ -755,6 +755,8 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("  sub rsp, 128")
     out.append("  mov r8d, edi")
     out.append("  mov r9d, esi")
+    out.append("  mov dword ptr [rsp+100], edx") # Save VMIN
+    out.append("  mov dword ptr [rsp+104], ecx") # Save VTIME
     out.append("  lea r10, [rip+__coatl_mem]")
     out.append("  mov eax, r9d")
     out.append("  cdqe")
@@ -782,8 +784,10 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("  mov eax, dword ptr [rsp+12]")
     out.append("  and eax, 0xFFFF7FB4")
     out.append("  mov dword ptr [rsp+12], eax")
-    out.append("  mov byte ptr [rsp+22], 0")
-    out.append("  mov byte ptr [rsp+23], 1")
+    out.append("  mov al, byte ptr [rsp+104]") # Load VTIME
+    out.append("  mov byte ptr [rsp+22], al")  # Set VTIME
+    out.append("  mov al, byte ptr [rsp+100]") # Load VMIN
+    out.append("  mov byte ptr [rsp+23], al")  # Set VMIN
     out.append("  mov edi, r8d")
     out.append("  mov esi, 0x5402")
     out.append("  lea rdx, [rsp]")
