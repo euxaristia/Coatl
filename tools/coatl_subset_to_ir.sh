@@ -15,7 +15,7 @@ MODULE="/tmp/coatl-subset-to-ir.wat"
 usage() {
   cat <<'EOF' >&2
 usage:
-  tools/coatl_subset_to_ir <input.coatl> -o <output.ir>
+  tools/coatl_subset_to_ir.sh <input.coatl> -o <output.ir>
 EOF
 }
 

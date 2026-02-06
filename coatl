@@ -7,13 +7,13 @@ if command -v realpath >/dev/null 2>&1; then
 fi
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
-if [[ ! -x "$ROOT_DIR/tools/coatl_subset_to_ir" || ! -f "$ROOT_DIR/selfhost/bootstrap.seed.wat" ]]; then
+if [[ ! -x "$ROOT_DIR/tools/coatl_subset_to_ir.sh" || ! -f "$ROOT_DIR/selfhost/bootstrap.seed.wat" ]]; then
   for candidate in \
     "${COATL_HOME:-}" \
     "$ROOT_DIR/../share/coatl" \
     "/usr/local/share/coatl" \
     "$HOME/.local/share/coatl"; do
-    if [[ -n "$candidate" && -x "$candidate/tools/coatl_subset_to_ir" && -f "$candidate/selfhost/bootstrap.seed.wat" ]]; then
+    if [[ -n "$candidate" && -x "$candidate/tools/coatl_subset_to_ir.sh" && -f "$candidate/selfhost/bootstrap.seed.wat" ]]; then
       ROOT_DIR="$(cd "$candidate" && pwd)"
       break
     fi
@@ -22,9 +22,9 @@ fi
 
 SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
 SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
-SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir"
-IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm"
-IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat"
+SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.sh"
+IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.sh"
+IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat.sh"
 
 usage() {
   cat <<'EOF'
@@ -215,10 +215,10 @@ assemble_asm_to_obj() {
 internal_link_obj_to_bin() {
   local obj_in="$1"
   local bin_out="$2"
-  if [[ ! -f "$ROOT_DIR/tools/link_x86_64_elf" ]]; then
+  if [[ ! -f "$ROOT_DIR/tools/link_x86_64_elf.sh" ]]; then
     return 1
   fi
-  bash "$ROOT_DIR/tools/link_x86_64_elf" "$obj_in" -o "$bin_out" --entry coatl_start
+  bash "$ROOT_DIR/tools/link_x86_64_elf.sh" "$obj_in" -o "$bin_out" --entry coatl_start
 }
 
 link_asm_to_bin() {

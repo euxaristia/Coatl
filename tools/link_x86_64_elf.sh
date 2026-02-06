@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 usage() {
   cat <<'USAGE'
 usage:
-  tools/link_x86_64_elf <input.o> -o <output.bin> [--entry <symbol>]
+  tools/link_x86_64_elf.sh <input.o> -o <output.bin> [--entry <symbol>]
 
 notes:
   - Runs the Coatl linker implementation in tools/link_x86_64_elf.coatl.

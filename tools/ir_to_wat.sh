@@ -12,7 +12,7 @@ MODULE="/tmp/coatl-ir-to-wat.wat"
 usage() {
   cat <<'EOF' >&2
 usage:
-  tools/ir_to_wat <input.ir> -o <output.wat>
+  tools/ir_to_wat.sh <input.ir> -o <output.wat>
 EOF
 }
 

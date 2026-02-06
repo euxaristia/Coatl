@@ -16,7 +16,7 @@ have_as_toolchain() {
 }
 
 have_internal_linker() {
-  [[ -f "$ROOT_DIR/tools/link_x86_64_elf" ]]
+  [[ -f "$ROOT_DIR/tools/link_x86_64_elf.sh" ]]
 }
 
 have_x86_link_toolchain() {
@@ -37,7 +37,7 @@ link_x86_asm_binary() {
     obj="$(mktemp /tmp/coatl-x86-link.XXXXXX.o)"
     as --64 "$asm" -o "$obj"
     if have_internal_linker; then
-      bash "$ROOT_DIR/tools/link_x86_64_elf" "$obj" -o "$bin" --entry coatl_start
+      bash "$ROOT_DIR/tools/link_x86_64_elf.sh" "$obj" -o "$bin" --entry coatl_start
     else
       ld "$obj" -o "$bin" -e coatl_start
     fi
