@@ -1898,14 +1898,14 @@ fn lower_ir_emit_start() -> i32 {
   out_char(114); out_char(116); // export
   out_char(32);  // ' '
   out_char(34);  // "
-  out_char(109); out_char(97); out_char(105); out_char(110); // main
+  out_str(literal_main_ptr(), literal_main_len());
   out_char(34);  // "
   out_char(32);  // ' '
   out_char(40);  // (
   out_char(102); out_char(117); out_char(110); out_char(99); // func
   out_char(32);  // ' '
   out_char(36);  // $
-  out_char(109); out_char(97); out_char(105); out_char(110); // main
+  out_str(literal_main_ptr(), literal_main_len());
   out_char(41);  // )
   out_char(41);  // )
   out_nl();
@@ -1919,8 +1919,7 @@ fn lower_ir_emit_start() -> i32 {
 
   out_spaces(4);
   out_str(wl_call_dollar_ptr(), wl_call_dollar_len());
-  // Emit "main" directly
-  out_char(109); out_char(97); out_char(105); out_char(110);
+  out_str(literal_main_ptr(), literal_main_len());
   out_nl();
 
   out_spaces(4);
@@ -2268,13 +2267,13 @@ fn literal_fd_read_len() -> i32 { return 9; }
 fn literal_fd_close_ptr() -> i32 { return literal_fd_read_ptr() + literal_fd_read_len(); }
 fn literal_fd_close_len() -> i32 { return 10; }
 fn literal_path_open_ptr() -> i32 { return literal_fd_close_ptr() + literal_fd_close_len(); }
-fn literal_path_open_len() -> i32 { return 12; }
+fn literal_path_open_len() -> i32 { return 11; }
 fn literal_tty_get_mode_ptr() -> i32 { return literal_path_open_ptr() + literal_path_open_len(); }
 fn literal_tty_get_mode_len() -> i32 { return 14; }
 fn literal_tty_set_raw_ptr() -> i32 { return literal_tty_get_mode_ptr() + literal_tty_get_mode_len(); }
 fn literal_tty_set_raw_len() -> i32 { return 13; }
 fn literal_tty_restore_ptr() -> i32 { return literal_tty_set_raw_ptr() + literal_tty_set_raw_len(); }
-fn literal_tty_restore_len() -> i32 { return 15; }
+fn literal_tty_restore_len() -> i32 { return 13; }
 fn literal_main_ptr() -> i32 { return literal_tty_restore_ptr() + literal_tty_restore_len(); }
 fn literal_main_len() -> i32 { return 4; }
 
