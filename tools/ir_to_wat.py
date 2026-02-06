@@ -239,28 +239,28 @@ def collect_features(block: Node) -> Dict[str, bool]:
         elif tag == "if":
             collect_features_expr(s[1], out)
             fb = collect_features(s[2])
-            out["fd_write"] = out["fd_write"] or fb["fd_write"]
-            out["fd_read"] = out["fd_read"] or fb["fd_read"]
-            out["fd_close"] = out["fd_close"] or fb["fd_close"]
-            out["path_open"] = out["path_open"] or fb["path_open"]
-            out["tty_mode"] = out["tty_mode"] or fb["tty_mode"]
+            out["fd_write"] |= fb["fd_write"]
+            out["fd_read"] |= fb["fd_read"]
+            out["fd_close"] |= fb["fd_close"]
+            out["path_open"] |= fb["path_open"]
+            out["tty_mode"] |= fb["tty_mode"]
             if len(s) > 3:
                 eb = as_list(s[3])
                 if as_atom(eb[0]) == "else":
                     fe = collect_features(eb[1])
-                    out["fd_write"] = out["fd_write"] or fe["fd_write"]
-                    out["fd_read"] = out["fd_read"] or fe["fd_read"]
-                    out["fd_close"] = out["fd_close"] or fe["fd_close"]
-                    out["path_open"] = out["path_open"] or fe["path_open"]
-                    out["tty_mode"] = out["tty_mode"] or fe["tty_mode"]
+                    out["fd_write"] |= fe["fd_write"]
+                    out["fd_read"] |= fe["fd_read"]
+                    out["fd_close"] |= fe["fd_close"]
+                    out["path_open"] |= fe["path_open"]
+                    out["tty_mode"] |= fe["tty_mode"]
         elif tag == "while":
             collect_features_expr(s[1], out)
             fw = collect_features(s[2])
-            out["fd_write"] = out["fd_write"] or fw["fd_write"]
-            out["fd_read"] = out["fd_read"] or fw["fd_read"]
-            out["fd_close"] = out["fd_close"] or fw["fd_close"]
-            out["path_open"] = out["path_open"] or fw["path_open"]
-            out["tty_mode"] = out["tty_mode"] or fw["tty_mode"]
+            out["fd_write"] |= fw["fd_write"]
+            out["fd_read"] |= fw["fd_read"]
+            out["fd_close"] |= fw["fd_close"]
+            out["path_open"] |= fw["path_open"]
+            out["tty_mode"] |= fw["tty_mode"]
     return out
 
 
@@ -353,8 +353,6 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
         if callee == "__path_open":
             if len(args) != 9:
                 raise LowerError("__path_open expects 9 args")
-            # WASI path_open signature:
-            # (i32, i32, i32, i32, i32, i64, i64, i32, i32) -> i32
             emit_expr(args[0], ctx, out)
             emit_expr(args[1], ctx, out)
             emit_expr(args[2], ctx, out)
@@ -371,7 +369,6 @@ def emit_expr(expr: Node, ctx: Ctx, out: List[str]) -> None:
         if callee == "__tty_get_mode":
             if len(args) != 2:
                 raise LowerError("__tty_get_mode expects 2 args")
-            # Not supported in WASI lowering; return a stable nonzero errno-like value.
             for arg in args:
                 emit_expr(arg, ctx, out)
                 out.append("    drop")
@@ -527,7 +524,6 @@ def lower_function(name: str, params: List[str], block: Node, string_addrs: Dict
     for _ in let_locals:
         lines.append("    (local i32)")
     lines.extend(body)
-    # Ensure a valid i32 return on any non-explicit path.
     lines.append("    i32.const 0")
     lines.append("    return")
     lines.append("  )")
@@ -559,11 +555,7 @@ def lower_ir(root: Node) -> str:
     string_tokens: Dict[str, None] = {}
     for _, _, block in parsed:
         fb = collect_features(block)
-        features["fd_write"] = features["fd_write"] or fb["fd_write"]
-        features["fd_read"] = features["fd_read"] or fb["fd_read"]
-        features["fd_close"] = features["fd_close"] or fb["fd_close"]
-        features["path_open"] = features["path_open"] or fb["path_open"]
-        features["tty_mode"] = features["tty_mode"] or fb["tty_mode"]
+        features = {k: features[k] or fb[k] for k in features}
         for tok in collect_string_literals(block):
             string_tokens[tok] = None
 

@@ -23,7 +23,8 @@ fi
 SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
 SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
 SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir"
-IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.py"
+IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm"
+IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat"
 
 usage() {
   cat <<'EOF'
@@ -109,7 +110,7 @@ if [[ "$cmd" == "lower-ir" ]]; then
     echo "input IR file not found: $input_ir"
     exit 1
   fi
-  "$ROOT_DIR/tools/ir_to_wat.py" "$input_ir" -o "$out_wat"
+  "$IR_TO_WAT" "$input_ir" -o "$out_wat"
   exit 0
 fi
 
@@ -298,7 +299,7 @@ ir_pipeline_build_wat() {
   lower_err="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.lower.err)"
   if [[ -x "$SUBSET_FRONTEND" ]]; then
     if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
-      if "$ROOT_DIR/tools/ir_to_wat.py" "$tmp_ir" -o "$tmp_wat" 2>"$lower_err"; then
+      if "$IR_TO_WAT" "$tmp_ir" -o "$tmp_wat" 2>"$lower_err"; then
         if [[ -n "$out_abs" ]]; then
           cp "$tmp_wat" "$out_abs"
         else

@@ -419,13 +419,13 @@ fn read_args_from_stdin() -> i32 {
 
 fn parse_args_tokens() -> i32 {
   let len: i32 = __mem_load(args_len_addr());
-  if (len <= 0) { return -1; }
+  if (len <= 0) { return 0 - 1; }
   let buf: i32 = args_buffer_addr();
   let i: i32 = 0;
   while (i < len && is_space(__mem_load8(buf + i)) == 1) {
     i = i + 1;
   }
-  if (i >= len) { return -2; }
+  if (i >= len) { return 0 - 2; }
   let start: i32 = i;
   while (i < len && is_space(__mem_load8(buf + i)) == 0) {
     i = i + 1;
@@ -435,7 +435,7 @@ fn parse_args_tokens() -> i32 {
   while (i < len && is_space(__mem_load8(buf + i)) == 1) {
     i = i + 1;
   }
-  if (i >= len) { return -3; }
+  if (i >= len) { return 0 - 3; }
   let start2: i32 = i;
   while (i < len && is_space(__mem_load8(buf + i)) == 0) {
     i = i + 1;
@@ -465,7 +465,7 @@ fn set_token(idx: i32, kind: i32, start: i32, len: i32) -> i32 {
 
 fn add_token(kind: i32, start: i32, len: i32) -> i32 {
   let cnt: i32 = __mem_load(token_count_addr());
-  if (cnt >= token_max()) { return -1; }
+  if (cnt >= token_max()) { return 0 - 1; }
   set_token(cnt, kind, start, len);
   __mem_store(token_count_addr(), cnt + 1);
   return cnt;
@@ -545,19 +545,19 @@ fn advance_token() -> i32 {
 fn expect_token(kind: i32) -> i32 {
   let idx: i32 = parser_token_idx();
   let current: i32 = token_kind(idx);
-  if (current != kind) { return -1; }
+  if (current != kind) { return 0 - 1; }
   advance_token();
   return idx;
 }
 
 fn expect_sym(text_ptr: i32, text_len: i32) -> i32 {
   let idx: i32 = parser_token_idx();
-  if (token_kind(idx) != tok_sym()) { return -2; }
-  if (token_len(idx) != text_len) { return -3; }
+  if (token_kind(idx) != tok_sym()) { return 0 - 2; }
+  if (token_len(idx) != text_len) { return 0 - 3; }
   let addr: i32 = token_text_addr(idx);
   let i: i32 = 0;
   while (i < text_len) {
-    if (__mem_load8(addr + i) != __mem_load8(text_ptr + i)) { return -4; }
+    if (__mem_load8(addr + i) != __mem_load8(text_ptr + i)) { return 0 - 4; }
     i = i + 1;
   }
   advance_token();
@@ -566,7 +566,7 @@ fn expect_sym(text_ptr: i32, text_len: i32) -> i32 {
 
 fn expect_ident() -> i32 {
   let idx: i32 = parser_token_idx();
-  if (token_kind(idx) != tok_ident()) { return -5; }
+  if (token_kind(idx) != tok_ident()) { return 0 - 5; }
   advance_token();
   return idx;
 }
@@ -587,14 +587,14 @@ fn expect_keyword(lit_ptr: i32, lit_len: i32) -> i32 {
     advance_token();
     return idx;
   }
-  return -6;
+  return 0 - 6;
 }
 
 fn expect_sym_char(ch: i32) -> i32 {
   let idx: i32 = parser_token_idx();
-  if (token_kind(idx) != tok_sym()) { return -7; }
-  if (token_len(idx) != 1) { return -8; }
-  if (__mem_load8(token_text_addr(idx)) != ch) { return -9; }
+  if (token_kind(idx) != tok_sym()) { return 0 - 7; }
+  if (token_len(idx) != 1) { return 0 - 8; }
+  if (__mem_load8(token_text_addr(idx)) != ch) { return 0 - 9; }
   advance_token();
   return idx;
 }
@@ -622,40 +622,40 @@ fn token_is_dash_o(ptr: i32, len: i32) -> i32 {
 
 fn ensure_coatl_ext(ptr: i32, len: i32) -> i32 {
   let ext_len: i32 = 6;
-  if (len < ext_len) { return -30; }
+  if (len < ext_len) { return 0 - 30; }
   let base: i32 = ptr + len - ext_len;
-  if (__mem_load8(base + 0) != 46) { return -31; }
-  if (__mem_load8(base + 1) != 99) { return -32; }
-  if (__mem_load8(base + 2) != 111) { return -33; }
-  if (__mem_load8(base + 3) != 97) { return -34; }
-  if (__mem_load8(base + 4) != 116) { return -35; }
-  if (__mem_load8(base + 5) != 108) { return -36; }
+  if (__mem_load8(base + 0) != 46) { return 0 - 31; }
+  if (__mem_load8(base + 1) != 99) { return 0 - 32; }
+  if (__mem_load8(base + 2) != 111) { return 0 - 33; }
+  if (__mem_load8(base + 3) != 97) { return 0 - 34; }
+  if (__mem_load8(base + 4) != 116) { return 0 - 35; }
+  if (__mem_load8(base + 5) != 108) { return 0 - 36; }
   return 0;
 }
 
 fn parse_subset_args() -> i32 {
   let len: i32 = __mem_load(args_len_addr());
-  if (len <= 0) { return -40; }
+  if (len <= 0) { return 0 - 40; }
   let buf: i32 = args_buffer_addr();
-  let mut pos: i32 = 0;
+  let pos: i32 = 0;
   while (pos < len && is_space(__mem_load8(buf + pos)) == 1) {
     pos = pos + 1;
   }
-  if (pos >= len) { return -41; }
+  if (pos >= len) { return 0 - 41; }
   let start: i32 = pos;
   while (pos < len && is_space(__mem_load8(buf + pos)) == 0) {
     pos = pos + 1;
   }
   let in_len: i32 = pos - start;
-  if (in_len <= 0) { return -42; }
+  if (in_len <= 0) { return 0 - 42; }
   let in_ptr: i32 = buf + start;
   let rc_ext: i32 = ensure_coatl_ext(in_ptr, in_len);
   if (rc_ext != 0) { return rc_ext; }
   __mem_store(cli_input_path_ptr_addr(), in_ptr);
   __mem_store(cli_input_path_len_addr(), in_len);
-  let mut expect_out: i32 = 0;
-  let mut out_ptr: i32 = 0;
-  let mut out_len: i32 = 0;
+  let expect_out: i32 = 0;
+  let out_ptr: i32 = 0;
+  let out_len: i32 = 0;
   while (pos < len) {
     while (pos < len && is_space(__mem_load8(buf + pos)) == 1) {
       pos = pos + 1;
@@ -677,10 +677,10 @@ fn parse_subset_args() -> i32 {
       expect_out = 1;
       continue;
     }
-    return -43;
+    return 0 - 43;
   }
-  if (expect_out == 1) { return -44; }
-  if (out_len == 0) { return -45; }
+  if (expect_out == 1) { return 0 - 44; }
+  if (out_len == 0) { return 0 - 45; }
   __mem_store(cli_output_path_ptr_addr(), out_ptr);
   __mem_store(cli_output_path_len_addr(), out_len);
   return 0;
@@ -748,7 +748,7 @@ fn expr_buf_reset() -> i32 {
 fn expr_buf_alloc(len: i32) -> i32 {
   let pos: i32 = expr_buf_pos();
   let next: i32 = pos + len;
-  if (next > expr_buf_size()) { return -1; }
+  if (next > expr_buf_size()) { return 0 - 1; }
   __mem_store(expr_buf_pos_addr(), next);
   return expr_buf_addr() + pos;
 }
@@ -756,7 +756,7 @@ fn expr_buf_alloc(len: i32) -> i32 {
 fn expr_buf_copy(src_ptr: i32, src_len: i32) -> i32 {
   let dest: i32 = expr_buf_alloc(src_len);
   if (dest < 0) { return dest; }
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < src_len) {
     __mem_store8(dest + i, __mem_load8(src_ptr + i));
     i = i + 1;
@@ -809,8 +809,8 @@ fn expr_write_two_underscores(dst: i32) -> i32 {
 }
 
 fn expr_indent(count: i32, dst: i32) -> i32 {
-  let mut rem: i32 = count;
-  let mut cur: i32 = dst;
+  let rem: i32 = count;
+  let cur: i32 = dst;
   while (rem >= literal_spaces10_len()) {
     cur = expr_write(cur, literal_spaces10_ptr(), literal_spaces10_len());
     rem = rem - literal_spaces10_len();
@@ -850,7 +850,7 @@ fn expr_fragment_finish(start: i32) -> i32 {
 }
 
 fn expr_append_spaces(count: i32) -> i32 {
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < count) {
     let rc: i32 = expr_buf_append_byte(32);
     if (rc < 0) { return rc; }
@@ -867,7 +867,7 @@ fn expr_emit_line(indent: i32, text_ptr: i32, text_len: i32) -> i32 {
   let total: i32 = indent + text_len + 1;
   let dest: i32 = expr_buf_alloc(total);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(indent, cur);
   cur = expr_write(cur, text_ptr, text_len);
   cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
@@ -878,7 +878,7 @@ fn expr_emit_paren_line(indent: i32, text_ptr: i32, text_len: i32) -> i32 {
   let total: i32 = indent + literal_paren_open_len() + text_len + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(indent, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, text_ptr, text_len);
@@ -891,7 +891,7 @@ fn expr_emit_open_paren_line(indent: i32, text_ptr: i32, text_len: i32) -> i32 {
   let total: i32 = indent + literal_paren_open_len() + text_len + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(indent, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, text_ptr, text_len);
@@ -903,7 +903,7 @@ fn expr_emit_close_paren_line(indent: i32) -> i32 {
   let total: i32 = indent + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(indent, cur);
   cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
   cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
@@ -914,7 +914,7 @@ fn expr_emit_coatl_header() -> i32 {
   let total: i32 = literal_paren_open_len() + literal_coatl_ir_len() + literal_space_len() + literal_v0_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_coatl_ir_ptr(), literal_coatl_ir_len());
   cur = expr_write(cur, literal_space_ptr(), literal_space_len());
@@ -926,10 +926,10 @@ fn expr_emit_coatl_header() -> i32 {
 fn literal_ret_len() -> i32 { return 3; }
 
 fn expr_emit_fn_header(name_token: i32) -> i32 {
-  let mut total: i32 = 4 + literal_paren_open_len() + literal_fn_len() + literal_space_len() + token_len(name_token) + literal_newline_len();
+  let total: i32 = 4 + literal_paren_open_len() + literal_fn_len() + literal_space_len() + token_len(name_token) + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(4, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_fn_ptr(), literal_fn_len());
@@ -943,7 +943,7 @@ fn expr_emit_ret_line() -> i32 {
   let total: i32 = 6 + literal_paren_open_len() + literal_ret_len() + literal_space_len() + literal_i32_len() + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(6, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_return_ptr(), literal_ret_len());
@@ -955,18 +955,18 @@ fn expr_emit_ret_line() -> i32 {
 }
 
 fn expr_emit_block_open() -> i32 {
-  if (expr_emit_open_paren_line(6, literal_block_ptr(), literal_block_len()) < 0) { return -1; }
+  if (expr_emit_open_paren_line(6, literal_block_ptr(), literal_block_len()) < 0) { return 0 - 1; }
   return 0;
 }
 
 fn expect_sym_arrow() -> i32 {
   let idx: i32 = parser_token_idx();
-  if (token_kind(idx) != tok_sym()) { return -31; }
-  if (token_len(idx) != 2) { return -32; }
+  if (token_kind(idx) != tok_sym()) { return 0 - 31; }
+  if (token_len(idx) != 2) { return 0 - 32; }
   let ptr: i32 = token_text_addr(idx);
   let first: i32 = __mem_load8(ptr);
   let second: i32 = __mem_load8(ptr + 1);
-  if (first != 45 || second != 62) { return -33; }
+  if (first != 45 || second != 62) { return 0 - 33; }
   advance_token();
   return idx;
 }
@@ -979,20 +979,20 @@ fn expr_append_token(token_idx: i32) -> i32 {
 }
 
 fn expr_append_int(value: i32) -> i32 {
-  let mut v: i32 = value;
-  let mut neg: i32 = 0;
+  let v: i32 = value;
+  let neg: i32 = 0;
   if (v < 0) {
     neg = 1;
-    v = -v;
+    v = 0 - v;
   }
   let digits_ptr: i32 = args_buffer_addr();
-  let mut digits_len: i32 = 0;
+  let digits_len: i32 = 0;
   if (v == 0) {
     __mem_store8(digits_ptr, 48);
     digits_len = 1;
   } else {
     while (v > 0) {
-      let digit: i32 = v % 10;
+      let digit: i32 = v - (v / 10) * 10;
       __mem_store8(digits_ptr + digits_len, 48 + digit);
       digits_len = digits_len + 1;
       v = v / 10;
@@ -1002,7 +1002,7 @@ fn expr_append_int(value: i32) -> i32 {
     let rc_neg: i32 = expr_buf_append_byte(45);
     if (rc_neg < 0) { return rc_neg; }
   }
-  let mut i: i32 = digits_len - 1;
+  let i: i32 = digits_len - 1;
   while (i >= 0) {
     let byte_val: i32 = __mem_load8(digits_ptr + i);
     let rc: i32 = expr_buf_append_byte(byte_val);
@@ -1013,7 +1013,7 @@ fn expr_append_int(value: i32) -> i32 {
 }
 
 fn copy_bytes(dst: i32, src: i32, len: i32) -> i32 {
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < len) {
     __mem_store8(dst + i, __mem_load8(src + i));
     i = i + 1;
@@ -1054,11 +1054,11 @@ fn main() -> i32 {
 
   let ir_ptr: i32 = expr_last_ptr();
   let ir_len: i32 = expr_last_len();
-  if (ir_len <= 0) { return -50; }
+  if (ir_len <= 0) { return 0 - 50; }
 
   out_reset();
   let rc_out: i32 = out_str(ir_ptr, ir_len);
-  if (rc_out != 0) { return -60; }
+  if (rc_out != 0) { return 0 - 60; }
 
   let out_ptr: i32 = __mem_load(cli_output_path_ptr_addr());
   let out_len: i32 = __mem_load(cli_output_path_len_addr());
@@ -1110,7 +1110,7 @@ fn struct_field_start_slot(struct_id: i32) -> i32 {
 
 fn struct_add(name_token: i32, field_start: i32, field_count: i32) -> i32 {
   let count: i32 = __mem_load(struct_count_addr());
-  if (count >= struct_max()) { return -1; }
+  if (count >= struct_max()) { return 0 - 1; }
   __mem_store(struct_name_slot(count), name_token);
   __mem_store(struct_field_count_slot(count), field_count);
   __mem_store(struct_field_start_slot(count), field_start);
@@ -1128,7 +1128,7 @@ fn struct_field_pool_slot(idx: i32) -> i32 {
 
 fn struct_field_pool_alloc(token_idx: i32) -> i32 {
   let next: i32 = __mem_load(struct_field_pool_next_addr());
-  if (next >= struct_field_pool_capacity()) { return -2; }
+  if (next >= struct_field_pool_capacity()) { return 0 - 2; }
   __mem_store(struct_field_pool_slot(next), token_idx);
   __mem_store(struct_field_pool_next_addr(), next + 1);
   return next;
@@ -1146,7 +1146,7 @@ fn struct_field_token(struct_id: i32, idx: i32) -> i32 {
 
 fn struct_field_index(struct_id: i32, field_token: i32) -> i32 {
   let count: i32 = struct_field_count(struct_id);
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < count) {
     let tok: i32 = struct_field_token(struct_id, i);
     if (token_text_equal_tokens(tok, field_token) == 1) {
@@ -1154,7 +1154,7 @@ fn struct_field_index(struct_id: i32, field_token: i32) -> i32 {
     }
     i = i + 1;
   }
-  return -1;
+  return 0 - 1;
 }
 
 fn struct_field_count(struct_id: i32) -> i32 {
@@ -1167,7 +1167,7 @@ fn struct_name_token(struct_id: i32) -> i32 {
 
 fn find_struct_id_by_token(name_token: i32) -> i32 {
   let count: i32 = struct_count();
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < count) {
     let candidate: i32 = struct_name_token(i);
     if (token_text_equal_tokens(candidate, name_token) == 1) {
@@ -1175,7 +1175,7 @@ fn find_struct_id_by_token(name_token: i32) -> i32 {
     }
     i = i + 1;
   }
-  return -1;
+  return 0 - 1;
 }
 
 fn reset_structs() -> i32 {
@@ -1190,7 +1190,7 @@ fn token_text_equal_tokens(a: i32, b: i32) -> i32 {
   if (len_a != len_b) { return 0; }
   let ptr_a: i32 = token_text_addr(a);
   let ptr_b: i32 = token_text_addr(b);
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < len_a) {
     if (__mem_load8(ptr_a + i) != __mem_load8(ptr_b + i)) { return 0; }
     i = i + 1;
@@ -1205,8 +1205,8 @@ fn reset_fn_return_structs() -> i32 {
 
 fn fn_return_add(name_token: i32, struct_id: i32) -> i32 {
   let count: i32 = __mem_load(fn_return_count_addr());
-  if (count >= fn_return_max()) { return -1; }
-  if (token_kind(name_token) != tok_ident()) { return -2; }
+  if (count >= fn_return_max()) { return 0 - 1; }
+  if (token_kind(name_token) != tok_ident()) { return 0 - 2; }
   __mem_store(fn_return_entry_name_slot(count), name_token);
   __mem_store(fn_return_entry_struct_slot(count), struct_id);
   __mem_store(fn_return_count_addr(), count + 1);
@@ -1215,7 +1215,7 @@ fn fn_return_add(name_token: i32, struct_id: i32) -> i32 {
 
 fn fn_return_find(name_token: i32) -> i32 {
   let count: i32 = __mem_load(fn_return_count_addr());
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < count) {
     let entry_name: i32 = __mem_load(fn_return_entry_name_slot(i));
     if (token_text_equal_tokens(entry_name, name_token) == 1) {
@@ -1223,7 +1223,7 @@ fn fn_return_find(name_token: i32) -> i32 {
     }
     i = i + 1;
   }
-  return -1;
+  return 0 - 1;
 }
 
 fn reset_param_entries() -> i32 {
@@ -1233,7 +1233,7 @@ fn reset_param_entries() -> i32 {
 
 fn add_param_entry(base_token: i32, field_token: i32) -> i32 {
   let count: i32 = __mem_load(param_entry_count_addr());
-  if (count >= param_entry_max()) { return -3; }
+  if (count >= param_entry_max()) { return 0 - 3; }
   __mem_store(param_entry_base_slot(count), base_token);
   __mem_store(param_entry_field_slot(count), field_token);
   __mem_store(param_entry_count_addr(), count + 1);
@@ -1246,7 +1246,7 @@ fn emit_params_section() -> i32 {
     let total_len: i32 = literal_spaces6_len() + 1 + literal_params_len() + 1 + literal_paren_close_len() + literal_newline_len();
     let dest: i32 = expr_buf_alloc(total_len);
     if (dest < 0) { return dest; }
-    let mut cur: i32 = dest;
+    let cur: i32 = dest;
     cur = expr_indent(6, cur);
     cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
     cur = expr_write(cur, literal_params_ptr(), literal_params_len());
@@ -1256,13 +1256,13 @@ fn emit_params_section() -> i32 {
     set_expr_last_len(total_len);
     return dest;
   }
-  let mut total_len: i32 = 0;
+  let total_len: i32 = 0;
   total_len = total_len + literal_spaces6_len() + 1 + literal_params_len() + literal_newline_len();
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < count) {
     let base_token: i32 = param_temp_base(i);
     let field_token: i32 = param_temp_field(i);
-    let mut name_len: i32 = token_len(base_token);
+    let name_len: i32 = token_len(base_token);
     if (field_token >= 0) {
       name_len = name_len + 2 + token_len(field_token);
     }
@@ -1272,7 +1272,7 @@ fn emit_params_section() -> i32 {
   total_len = total_len + literal_spaces6_len() + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(6, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_params_ptr(), literal_params_len());
@@ -1305,10 +1305,10 @@ fn emit_params_section() -> i32 {
 }
 
 fn int_digit_len(value: i32) -> i32 {
-  let mut v: i32 = value;
-  if (v < 0) { v = -v; }
+  let v: i32 = value;
+  if (v < 0) { v = 0 - v; }
   if (v == 0) { return 1; }
-  let mut len: i32 = 0;
+  let len: i32 = 0;
   while (v > 0) {
     v = v / 10;
     len = len + 1;
@@ -1317,31 +1317,31 @@ fn int_digit_len(value: i32) -> i32 {
 }
 
 fn append_int_digits(dest: i32, value: i32) -> i32 {
-  let mut v: i32 = value;
-  let mut neg: i32 = 0;
+  let v: i32 = value;
+  let neg: i32 = 0;
   if (v < 0) {
     neg = 1;
-    v = -v;
+    v = 0 - v;
   }
   let digits_ptr: i32 = args_buffer_addr();
-  let mut digits_len: i32 = 0;
+  let digits_len: i32 = 0;
   if (v == 0) {
     __mem_store8(digits_ptr, 48);
     digits_len = 1;
   } else {
     while (v > 0) {
-      let digit: i32 = v % 10;
+      let digit: i32 = v - (v / 10) * 10;
       __mem_store8(digits_ptr + digits_len, 48 + digit);
       digits_len = digits_len + 1;
       v = v / 10;
     }
   }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   if (neg == 1) {
     __mem_store8(cur, 45);
     cur = cur + 1;
   }
-  let mut i: i32 = digits_len - 1;
+  let i: i32 = digits_len - 1;
   while (i >= 0) {
     __mem_store8(cur, __mem_load8(digits_ptr + i));
     cur = cur + 1;
@@ -1354,7 +1354,7 @@ fn expr_emit_literal_line(indent: i32, keyword_ptr: i32, keyword_len: i32, value
   let total_len: i32 = indent + literal_paren_open_len() + keyword_len + literal_space_len() + value_len + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(indent, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, keyword_ptr, keyword_len);
@@ -1368,12 +1368,12 @@ fn expr_emit_literal_line(indent: i32, keyword_ptr: i32, keyword_len: i32, value
 }
 
 fn expr_emit_literal_int(value: i32) -> i32 {
-  let mut len: i32 = int_digit_len(value);
-  let mut total_len: i32 = 10 + literal_paren_open_len() + literal_int_len() + literal_space_len() + len + literal_paren_close_len() + literal_newline_len();
+  let len: i32 = int_digit_len(value);
+  let total_len: i32 = 10 + literal_paren_open_len() + literal_int_len() + literal_space_len() + len + literal_paren_close_len() + literal_newline_len();
   if (value < 0) { len = len + 1; total_len = total_len + 1; }
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(10, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_int_ptr(), literal_int_len());
@@ -1390,13 +1390,16 @@ fn expr_emit_literal_bool(value: i32) -> i32 {
   let total_len: i32 = 10 + literal_paren_open_len() + literal_bool_len() + literal_space_len() + 1 + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(10, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_bool_ptr(), literal_bool_len());
   cur = expr_write(cur, literal_space_ptr(), literal_space_len());
-  let digit: i32 = if (value != 0) { 49 } else { 48 }; // '1' or '0'
-  __mem_store8(cur, digit);
+  if (value != 0) {
+    __mem_store8(cur, 49);
+  } else {
+    __mem_store8(cur, 48);
+  }
   cur = cur + 1;
   cur = expr_write(cur, literal_paren_close_ptr(), literal_paren_close_len());
   cur = expr_write(cur, literal_newline_ptr(), literal_newline_len());
@@ -1409,7 +1412,7 @@ fn expr_emit_ident(token_idx: i32) -> i32 {
   let total_len: i32 = 10 + literal_paren_open_len() + literal_ident_len() + literal_space_len() + token_len(token_idx) + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(10, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_ident_ptr(), literal_ident_len());
@@ -1427,7 +1430,7 @@ fn expr_emit_ident_field(base_token: i32, field_token: i32) -> i32 {
   let total_len: i32 = 10 + literal_paren_open_len() + literal_ident_len() + literal_space_len() + name_len + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(10, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_ident_ptr(), literal_ident_len());
@@ -1446,7 +1449,7 @@ fn expr_emit_binary(op_ptr: i32, op_len: i32, left_ptr: i32, left_len: i32, righ
   let total_len: i32 = 10 + literal_paren_open_len() + literal_binary_len() + literal_space_len() + op_len + literal_newline_len() + left_len + right_len + 10 + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(10, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_binary_ptr(), literal_binary_len());
@@ -1468,7 +1471,7 @@ fn expr_emit_call(name_token: i32, args_ptr: i32, args_len: i32) -> i32 {
     let total_len: i32 = 10 + literal_paren_open_len() + literal_call_len() + literal_space_len() + token_len(name_token) + literal_paren_close_len() + literal_newline_len();
     let dest: i32 = expr_buf_alloc(total_len);
     if (dest < 0) { return dest; }
-    let mut cur: i32 = dest;
+    let cur: i32 = dest;
     cur = expr_indent(10, cur);
     cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
     cur = expr_write(cur, literal_call_ptr(), literal_call_len());
@@ -1483,7 +1486,7 @@ fn expr_emit_call(name_token: i32, args_ptr: i32, args_len: i32) -> i32 {
   let total_len: i32 = 10 + literal_paren_open_len() + literal_call_len() + literal_space_len() + token_len(name_token) + literal_newline_len() + args_len + 10 + literal_paren_close_len() + literal_newline_len();
   let dest: i32 = expr_buf_alloc(total_len);
   if (dest < 0) { return dest; }
-  let mut cur: i32 = dest;
+  let cur: i32 = dest;
   cur = expr_indent(10, cur);
   cur = expr_write(cur, literal_paren_open_ptr(), literal_paren_open_len());
   cur = expr_write(cur, literal_call_ptr(), literal_call_len());
@@ -1549,7 +1552,7 @@ fn param_temp_entry_slot(idx: i32) -> i32 {
 
 fn param_temp_add(base_token: i32, field_token: i32) -> i32 {
   let count: i32 = param_temp_count();
-  if (count >= param_temp_entry_max()) { return -1; }
+  if (count >= param_temp_entry_max()) { return 0 - 1; }
   __mem_store(param_temp_entry_slot(count), base_token);
   __mem_store(param_temp_entry_slot(count) + 4, field_token);
   __mem_store(param_temp_count_addr(), count + 1);
@@ -1574,7 +1577,7 @@ fn local_struct_entry_type_slot(idx: i32) -> i32 {
 
 fn local_struct_add(name_token: i32, struct_id: i32) -> i32 {
   let count: i32 = __mem_load(local_struct_count_addr());
-  if (count >= local_struct_max()) { return -3; }
+  if (count >= local_struct_max()) { return 0 - 3; }
   __mem_store(local_struct_entry_name_slot(count), name_token);
   __mem_store(local_struct_entry_type_slot(count), struct_id);
   __mem_store(local_struct_count_addr(), count + 1);
@@ -1606,7 +1609,7 @@ fn local_struct_find(name_token: i32) -> i32 {
     }
     i = i + 1;
   }
-  return -1;
+  return 0 - 1;
 }
 
 fn param_struct_entry_name_slot(idx: i32) -> i32 {
@@ -1619,7 +1622,7 @@ fn param_struct_entry_type_slot(idx: i32) -> i32 {
 
 fn param_struct_add(name_token: i32, struct_id: i32) -> i32 {
   let count: i32 = __mem_load(param_struct_count_addr());
-  if (count >= param_struct_max()) { return -4; }
+  if (count >= param_struct_max()) { return 0 - 4; }
   __mem_store(param_struct_entry_name_slot(count), name_token);
   __mem_store(param_struct_entry_type_slot(count), struct_id);
   __mem_store(param_struct_count_addr(), count + 1);
@@ -1651,7 +1654,7 @@ fn param_struct_find(name_token: i32) -> i32 {
     }
     i = i + 1;
   }
-  return -1;
+  return 0 - 1;
 }
 
 fn struct_var_type(name_token: i32) -> i32 {
@@ -1659,7 +1662,7 @@ fn struct_var_type(name_token: i32) -> i32 {
   if (local >= 0) { return local; }
   let param: i32 = param_struct_find(name_token);
   if (param >= 0) { return param; }
-  return -1;
+  return 0 - 1;
 }
 
 fn read_file_into_input(path_ptr: i32, path_len: i32) -> i32 {
@@ -1734,14 +1737,14 @@ fn out_len() -> i32 {
 
 fn out_char(c: i32) -> i32 {
   let pos: i32 = out_len();
-  if (pos >= out_buffer_size()) { return -1; }
+  if (pos >= out_buffer_size()) { return 0 - 1; }
   __mem_store8(out_buffer_addr() + pos, c);
   __mem_store(out_pos_addr(), pos + 1);
   return 0;
 }
 
 fn out_str(ptr: i32, len: i32) -> i32 {
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < len) {
     let c: i32 = __mem_load8(ptr + i);
     let rc: i32 = out_char(c);
@@ -1752,7 +1755,7 @@ fn out_str(ptr: i32, len: i32) -> i32 {
 }
 
 fn out_spaces(count: i32) -> i32 {
-  let mut i: i32 = 0;
+  let i: i32 = 0;
   while (i < count) {
     let rc: i32 = out_char(32);
     if (rc != 0) { return rc; }
@@ -1781,7 +1784,7 @@ fn tokenize() -> i32 {
   init_literals();
   reset_tokens();
   let len: i32 = input_len();
-  let mut idx: i32 = 0;
+  let idx: i32 = 0;
   while (idx < len) {
     let c: i32 = input_char(idx);
     if (is_space(c) == 1) {
@@ -1808,7 +1811,32 @@ fn tokenize() -> i32 {
         continue;
       }
     }
-    if (c == '(' || c == ')' || c == '{' || c == '}' || c == ',' || c == ':' || c == ';' || c == '+' || c == '-' || c == '*' || c == '/' || c == '<' || c == '>' || c == '=' || c == '!' || c == '.' ) {
+    if (c == 40 || c == 41) {
+      add_token(tok_sym(), idx, 1);
+      idx = idx + 1;
+      continue;
+    }
+    if (c == 123 || c == 125) {
+      add_token(tok_sym(), idx, 1);
+      idx = idx + 1;
+      continue;
+    }
+    if (c == 44 || c == 58) {
+      add_token(tok_sym(), idx, 1);
+      idx = idx + 1;
+      continue;
+    }
+    if (c == 59 || c == 43 || c == 45) {
+      add_token(tok_sym(), idx, 1);
+      idx = idx + 1;
+      continue;
+    }
+    if (c == 42 || c == 47 || c == 60) {
+      add_token(tok_sym(), idx, 1);
+      idx = idx + 1;
+      continue;
+    }
+    if (c == 62 || c == 61 || c == 33 || c == 46) {
       add_token(tok_sym(), idx, 1);
       idx = idx + 1;
       continue;
@@ -1834,7 +1862,7 @@ fn tokenize() -> i32 {
         }
         idx = idx + 1;
       }
-      if (idx >= len) { return -1; }
+      if (idx >= len) { return 0 - 1; }
       let token_len: i32 = idx - start + 1;
       add_token(tok_str(), start, token_len);
       idx = idx + 1;
@@ -1860,7 +1888,7 @@ fn tokenize() -> i32 {
       add_token(tok_ident(), start, idx - start);
       continue;
     }
-    return -2;
+    return 0 - 2;
   }
   add_token(tok_eof(), len, 0);
   return 0;
@@ -1871,16 +1899,16 @@ fn parse_struct_decl() -> i32 {
   if (rc < 0) { return rc; }
   let name_token: i32 = expect_ident();
   if (name_token < 0) { return name_token; }
-  if (expect_sym_char(123) < 0) { return -10; }
+  if (expect_sym_char(123) < 0) { return 0 - 10; }
   let field_start: i32 = __mem_load(struct_field_pool_next_addr());
-  let mut field_count: i32 = 0;
+  let field_count: i32 = 0;
   while (token_kind(parser_token_idx()) != tok_sym() || __mem_load8(token_text_addr(parser_token_idx())) != 125) {
     let field_token: i32 = expect_ident();
     if (field_token < 0) { return field_token; }
-    if (expect_sym_char(58) < 0) { return -11; }
+    if (expect_sym_char(58) < 0) { return 0 - 11; }
     let ty: i32 = expect_ident();
     if (ty < 0) { return ty; }
-    if (token_text_equal(ty, literal_i32_ptr(), literal_i32_len()) != 1) { return -12; }
+    if (token_text_equal(ty, literal_i32_ptr(), literal_i32_len()) != 1) { return 0 - 12; }
     let rc_field: i32 = struct_field_pool_alloc(field_token);
     if (rc_field < 0) { return rc_field; }
     field_count = field_count + 1;
@@ -1889,7 +1917,7 @@ fn parse_struct_decl() -> i32 {
       continue;
     }
   }
-  if (expect_sym_char(125) < 0) { return -13; }
+  if (expect_sym_char(125) < 0) { return 0 - 13; }
   let rc_add: i32 = struct_add(name_token, field_start, field_count);
   return rc_add;
 }
@@ -1904,26 +1932,26 @@ fn parse_program_ir() -> i32 {
   set_main_seen(0);
 
   let prog_start: i32 = expr_fragment_start();
-  let _ = expr_emit_coatl_header();
-  if (expr_emit_paren_line(2, literal_structs_ptr(), literal_structs_len()) < 0) { return -20; }
-  if (expr_emit_open_paren_line(2, literal_functions_ptr(), literal_functions_len()) < 0) { return -21; }
+  expr_emit_coatl_header();
+  if (expr_emit_paren_line(2, literal_structs_ptr(), literal_structs_len()) < 0) { return 0 - 20; }
+  if (expr_emit_open_paren_line(2, literal_functions_ptr(), literal_functions_len()) < 0) { return 0 - 21; }
 
   while (token_kind(parser_token_idx()) != tok_eof()) {
     if (match_keyword(literal_struct_ptr(), literal_struct_len()) == 1) {
-      let rc = parse_struct_decl();
+      let rc: i32 = parse_struct_decl();
       if (rc < 0) { return rc; }
       continue;
     }
-    let rc_fn = parse_fn_ir();
+    let rc_fn: i32 = parse_fn_ir();
     if (rc_fn < 0) { return rc_fn; }
   }
 
-  if (main_seen() == 0) { return -22; }
+  if (main_seen() == 0) { return 0 - 22; }
 
-  if (expr_emit_close_paren_line(2) < 0) { return -23; }
-  if (expr_emit_close_paren_line(0) < 0) { return -24; }
+  if (expr_emit_close_paren_line(2) < 0) { return 0 - 23; }
+  if (expr_emit_close_paren_line(0) < 0) { return 0 - 24; }
 
-  let _ = expr_fragment_finish(prog_start);
+  expr_fragment_finish(prog_start);
   return 0;
 }
 
@@ -1941,14 +1969,14 @@ fn parse_params_ir() -> i32 {
   loop {
     let name_token: i32 = expect_ident();
     if (name_token < 0) { return name_token; }
-    if (expect_sym_char(58) < 0) { return -20; }
+    if (expect_sym_char(58) < 0) { return 0 - 20; }
     let ty_token: i32 = expect_ident();
     if (ty_token < 0) { return ty_token; }
     let struct_id: i32 = find_struct_id_by_token(ty_token);
     if (struct_id >= 0) {
       let rc_param: i32 = param_struct_add(name_token, struct_id);
       if (rc_param < 0) { return rc_param; }
-      let mut field_idx: i32 = 0;
+      let field_idx: i32 = 0;
       let field_count: i32 = struct_field_count(struct_id);
       while (field_idx < field_count) {
         let field_token: i32 = struct_field_token(struct_id, field_idx);
@@ -1959,8 +1987,8 @@ fn parse_params_ir() -> i32 {
         field_idx = field_idx + 1;
       }
     } else {
-      if (token_text_equal(ty_token, literal_i32_ptr(), literal_i32_len()) != 1) { return -21; }
-      let rc_entry: i32 = param_temp_add(name_token, -1);
+      if (token_text_equal(ty_token, literal_i32_ptr(), literal_i32_len()) != 1) { return 0 - 21; }
+      let rc_entry: i32 = param_temp_add(name_token, 0 - 1);
       if (rc_entry < 0) { return rc_entry; }
     }
     if (token_kind(parser_token_idx()) == tok_sym() && __mem_load8(token_text_addr(parser_token_idx())) == 44) {
@@ -1973,8 +2001,8 @@ fn parse_params_ir() -> i32 {
 }
 
 fn find_block_end(start_idx: i32) -> i32 {
-  let mut depth: i32 = 1;
-  let mut idx: i32 = start_idx;
+  let depth: i32 = 1;
+  let idx: i32 = start_idx;
   while (idx < token_count()) {
     if (token_kind(idx) == tok_sym()) {
       let ch: i32 = __mem_load8(token_text_addr(idx));
@@ -1990,28 +2018,28 @@ fn find_block_end(start_idx: i32) -> i32 {
     }
     idx = idx + 1;
   }
-  return -30;
+  return 0 - 30;
 }
 
 fn parse_block_range_ir(stop_idx: i32, ret_struct_id: i32, ret_struct_field: i32) -> i32 {
   let start: i32 = expr_fragment_start();
-  if (expr_emit_block_open() < 0) { return -31; }
+  if (expr_emit_block_open() < 0) { return 0 - 31; }
   while (parser_token_idx() < stop_idx) {
     let rc: i32 = parse_stmt_ir(ret_struct_id, ret_struct_field);
     if (rc < 0) { return rc; }
   }
-  if (expr_emit_close_paren_line(6) < 0) { return -32; }
-  let _ = expr_fragment_finish(start);
+  if (expr_emit_close_paren_line(6) < 0) { return 0 - 32; }
+  expr_fragment_finish(start);
   return 0;
 }
 
 fn parse_block_ir(ret_struct_id: i32, ret_struct_field: i32) -> i32 {
-  if (expect_sym_char(123) < 0) { return -34; }
+  if (expect_sym_char(123) < 0) { return 0 - 34; }
   let stop_idx: i32 = find_block_end(parser_token_idx());
   if (stop_idx < 0) { return stop_idx; }
   let rc: i32 = parse_block_range_ir(stop_idx, ret_struct_id, ret_struct_field);
   if (rc < 0) { return rc; }
-  if (expect_sym_char(125) < 0) { return -35; }
+  if (expect_sym_char(125) < 0) { return 0 - 35; }
   return 0;
 }
 

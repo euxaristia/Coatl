@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-patch_stdin_flag() {
+patch_data_flag() {
   local in_wat="$1"
   local out_wat="$2"
-  local flag=18874412 # state_base + 44
+  local flag="$3"
   local needle="(data (i32.const ${flag}) \"\\\\01\")"
 
   if grep -Fq "$needle" "$in_wat"; then
@@ -19,6 +19,17 @@ patch_stdin_flag() {
     }
     { print }
   ' "$in_wat" > "$out_wat"
+}
+
+patch_stdin_flag() {
+  local in_wat="$1"
+  local out_wat="$2"
+  local tmp
+
+  tmp="$(mktemp /tmp/coatl-patch-XXXXXX.wat)"
+  patch_data_flag "$in_wat" "$tmp" 18874412
+  patch_data_flag "$tmp" "$out_wat" 18874416
+  rm -f "$tmp"
 }
 
 clean_wat_output() {
