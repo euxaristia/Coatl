@@ -593,6 +593,7 @@ def lower_ir(root: Node) -> str:
     for name, params, block in parsed:
         lines.extend(lower_function(name, params, block, string_addrs, fn_names))
 
+    lines.append("  (export \"main\" (func $main))")
     lines.append("  (func $_start")
     lines.append("    call $main")
     lines.append("    drop")

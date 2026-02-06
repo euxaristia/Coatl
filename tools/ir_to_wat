@@ -86,7 +86,11 @@ try_coatl_backend() {
     rel_input="${abs_input#/}"
     rel_output="${abs_output#/}"
   fi
-  printf '%s -o %s\n' "$rel_input" "$rel_output" | wasmtime --dir "$base_dir" --invoke main "$MODULE"
+  local ret
+  ret="$(printf '%s -o %s\n' "$rel_input" "$rel_output" | wasmtime --dir "$base_dir" --invoke main "$MODULE" 2>/dev/null)"
+  if [[ "$ret" != "0" ]]; then
+    return 1
+  fi
 }
 
 find_python_cmd() {

@@ -1891,6 +1891,25 @@ fn lower_ir_to_wat(ir_len: i32) -> i32 {
 }
 
 fn lower_ir_emit_start() -> i32 {
+  // Emit main export: (export "main" (func $main))
+  out_spaces(2);
+  out_char(40);  // (
+  out_char(101); out_char(120); out_char(112); out_char(111);
+  out_char(114); out_char(116); // export
+  out_char(32);  // ' '
+  out_char(34);  // "
+  out_char(109); out_char(97); out_char(105); out_char(110); // main
+  out_char(34);  // "
+  out_char(32);  // ' '
+  out_char(40);  // (
+  out_char(102); out_char(117); out_char(110); out_char(99); // func
+  out_char(32);  // ' '
+  out_char(36);  // $
+  out_char(109); out_char(97); out_char(105); out_char(110); // main
+  out_char(41);  // )
+  out_char(41);  // )
+  out_nl();
+
   // Emit _start function
   out_spaces(2);
   out_str(wl_func_dollar_ptr(), wl_func_dollar_len());
