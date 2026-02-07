@@ -16,12 +16,17 @@
 ## Lexical Structure
 - Identifiers: ASCII letters, digits, `_`, not starting with digit.
 - Keywords: `fn`, `let`, `mut`, `return`, `if`, `else`, `while`, `struct`, `enum`, `import`, `extern`, `true`, `false`.
-- Integers: decimal literals only in v0.1.
+- Type keywords: `i32`, `i64`, `f32`, `f64`, `bool`, `str`.
+- Integers: decimal literals, with optional type suffix (`42i64`).
+- Floats: decimal with dot (`3.14`), optional suffix (`3.14f64`).
 
 ## Types
-- Primitive: `i32`, `i64`, `u32`, `u64`, `bool`, `void`.
-- Pointers: `*T` (raw, unsafe) and `&T` (borrowed, safe).
-- Structs/enums (declared but minimal support in v0.1).
+- Primitive: `i32`, `i64`, `f32`, `f64`, `bool`.
+- String: `str` (fat pointer: `{ptr: i32, len: i32}` header).
+- Arrays: `[T; N]` fixed-size arrays (heap-allocated via bump allocator).
+- Structs (passed by value, flattened to scalar fields).
+- Pointers: `*T` (raw, unsafe) and `&T` (borrowed, safe) are planned.
+- Enums: planned for future versions.
 
 ## Functions
 ```

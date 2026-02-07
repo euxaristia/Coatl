@@ -15,9 +15,27 @@ fn main() -> i32 {
 
 ## Data Types
 
-Currently, Coatl primarily supports `i32` (32-bit signed integer).
+Coatl supports the following scalar types, with type-directed WebAssembly code generation:
 
-- `i32`: Used for numbers, booleans (0/1), and memory addresses (pointers).
+| Type | Description | WASM type |
+|------|-------------|-----------|
+| `i32` | 32-bit signed integer | `i32` |
+| `bool` | Boolean (`true`/`false`, stored as i32 0/1) | `i32` |
+| `i64` | 64-bit signed integer | `i64` |
+| `f32` | 32-bit float | `f32` |
+| `f64` | 64-bit float | `f64` |
+| `str` | String handle (pointer to {ptr, len} header) | `i32` |
+
+### Composite Types
+
+- **Structs:** User-defined structs with named fields (flattened to scalars).
+- **Fixed-size arrays:** `[T; N]` where `T` is an element type and `N` is the size.
+
+```coatl
+let arr: [i32; 4] = [0; 4];
+arr[0] = 10;
+let x: i32 = arr[0];
+```
 
 ## Variables
 
@@ -26,6 +44,8 @@ Variables must be declared with `let` and explicit types.
 ```coatl
 let x: i32 = 42;
 let y: i32 = x + 10;
+let big: i64 = 100i64;
+let pi: f32 = 3.14159;
 ```
 
 **Reassignment:**
@@ -72,8 +92,23 @@ while (running == 1) {
 ## Literals
 
 - **Integers:** `123`, `-45`, `0`.
-- **Strings:** `"Hello
-"`. String literals are stored in the data segment, and their value in code is a `i32` pointer to the start of the string.
+- **i64 integers:** `42i64` (suffix denotes 64-bit).
+- **Floats:** `3.14` (defaults to `f32`), `3.14f64` (explicit `f64`).
+- **Booleans:** `true`, `false`.
+- **Strings:** `"Hello\n"`. String literals are stored in the data segment. As `i32`, the value is a pointer to the raw bytes. As `str`, the value is a pointer to a `{ptr, len}` header.
+- **Array initializers:** `[0; 4]` (creates a 4-element array filled with 0).
+
+## String Intrinsics
+
+When using the `str` type, the following intrinsics are available:
+
+- `str_len(s: str) -> i32`: Returns the length of the string.
+- `str_ptr(s: str) -> i32`: Returns the pointer to the raw string data.
+
+```coatl
+let s: str = "hello";
+let n: i32 = str_len(s); // 5
+```
 
 ## Intrinsics (Standard Library)
 
