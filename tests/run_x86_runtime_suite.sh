@@ -22,6 +22,7 @@ build_bin() {
   local out="$2"
   local asm="$TMP_DIR/$(basename "$out").s"
   "$ROOT_DIR/coatl" build "$src" --emit=asm --toolchain="$TOOLCHAIN" -o "$asm"
+  cat "$ROOT_DIR/tests/intrinsics.s" >> "$asm"
   link_x86_asm_binary "$asm" "$out"
 }
 
@@ -43,6 +44,7 @@ hello_rc=$?
 if [[ "$hello_out" != "Hello, world!" ]]; then
   echo "[FAIL] hello output mismatch"
   printf 'got: %q\n' "$hello_out"
+  echo "$hello_out" | xxd
   exit 1
 fi
 assert_rc 0 "$hello_rc" "hello"

@@ -2,10 +2,10 @@ fn main() -> i32 {
   // message string is stored in the data segment; pointer returned by the literal
   let msg: i32 = "Hello, world!\n";
   let iov: i32 = 64;
-  let nwritten: i32 = 72;
+  let nwritten: i32 = 80;
 
   __mem_store(iov, msg);
-  __mem_store(iov + 4, 14);
+  __mem_store(iov + 8, 14);
   __mem_store(nwritten, 0);
 
   __fd_write(1, iov, 1, nwritten);

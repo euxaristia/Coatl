@@ -45,6 +45,11 @@ if [[ -z "$output" ]]; then
   exit 1
 fi
 
+if [[ -f "$ROOT_DIR/tools/coatl_subset_to_ir.py" ]]; then
+  python3 "$ROOT_DIR/tools/coatl_subset_to_ir.py" "$input" -o "$output"
+  exit $?
+fi
+
 if [[ -z "$COATL_BIN" || ! -x "$COATL_BIN" ]]; then
   # Fallback to python
   python3 "$ROOT_DIR/tools/coatl_subset_to_ir.py" "$input" -o "$output"

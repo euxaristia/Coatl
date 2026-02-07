@@ -79,7 +79,7 @@ else
   rel_output="${abs_output#/}"
 fi
 
-ret="$(printf '%s -o %s\n' "$rel_input" "$rel_output" | wasmtime --dir "$base_dir" --invoke main "$MODULE" 2>/dev/null)"
+ret="$(printf '%s -o %s\n' "$rel_input" "$rel_output" | wasmtime --dir "$base_dir" --invoke main "$MODULE")"
 if [[ "$ret" != "0" ]]; then
   echo "ir_to_wat: lowering failed (rc=$ret)" >&2
   exit 1

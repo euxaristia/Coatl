@@ -331,6 +331,7 @@ ir_pipeline_build_wat() {
         return 0
       fi
       echo "subset frontend produced unsupported IR for lowerer" >&2
+      cat "$lower_err" >&2
       rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
       return 1
     fi
@@ -390,6 +391,7 @@ ir_pipeline_build_asm() {
         return 0
       fi
       echo "subset frontend produced unsupported IR for asm lowerer" >&2
+      cat "$lower_err" >&2
       rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
       return 1
     fi
@@ -400,6 +402,7 @@ ir_pipeline_build_asm() {
     echo "set COATL_HOME to a Coatl root containing tools/ and selfhost/" >&2
   else
     echo "subset frontend failed for --emit=asm --toolchain=ir" >&2
+    cat "$subset_err" >&2
   fi
   rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
   return 1

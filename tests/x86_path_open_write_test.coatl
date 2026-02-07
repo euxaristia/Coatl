@@ -6,11 +6,11 @@ fn main() -> i32 {
 
   let fd: i32 = __mem_load(fd_ptr);
   let iov: i32 = 8192;
-  let nwritten: i32 = 8200;
+  let nwritten: i32 = 8208;
   let msg: i32 = "OK\n";
 
   __mem_store(iov, msg);
-  __mem_store(iov + 4, 3);
+  __mem_store(iov + 8, 3);
   __mem_store(nwritten, 0);
 
   let wrc: i32 = __fd_write(fd, iov, 1, nwritten);
