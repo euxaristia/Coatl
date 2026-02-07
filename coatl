@@ -24,21 +24,23 @@ SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
 SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
 SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.sh"
 IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.sh"
+IR_TO_AARCH64_ASM="$ROOT_DIR/tools/ir_to_aarch64_asm.sh"
 IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat.sh"
 
 usage() {
   cat <<'EOF'
 usage:
-  ./coatl build <input.coatl> [--emit=wat|asm|ir|obj|bin] [-o <output>] [--toolchain=auto|selfhost|ir] [--compiler <seed.wat>]
+  ./coatl build <input.coatl> [--emit=wat|asm|ir|obj|bin] [-o <output>] [--toolchain=auto|selfhost|ir] [--arch=x86_64|aarch64] [--compiler <seed.wat>]
   ./coatl lower-ir <input.ir> -o <output.wat>
   ./coatl --version
 
 notes:
   - default toolchain is "auto" (or $COATL_TOOLCHAIN), preferring selfhost for --emit=wat
+  - default arch is "x86_64" (or $COATL_ARCH)
   - toolchain=ir uses subset frontend + external lowerers (IR/WAT/ASM/OBJ/BIN)
   - --emit=asm/obj/bin support toolchain=ir for subset lane
-  - --emit=obj emits x86_64 ELF relocatable object from asm output
-  - --emit=bin links x86_64 Linux executable from asm output
+  - --emit=obj emits x86_64 ELF relocatable object from asm output (only for x86_64)
+  - --emit=bin links x86_64 Linux executable from asm output (only for x86_64)
   - --emit=ir supports toolchain=ir (subset frontend)
   - set COATL_IR_FIRST_BUILD=1 to force auto mode to skip selfhost-first attempt
   - set COATL_HOME to a Coatl repo/install root if tools are not found beside this script
@@ -133,6 +135,7 @@ input_abs="$(realpath "$input")"
 emit="wat"
 out=""
 toolchain="${COATL_TOOLCHAIN:-auto}"
+arch="${COATL_ARCH:-x86_64}"
 seed="$SEED_DEFAULT"
 
 shift 2
@@ -148,6 +151,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --toolchain=*)
       toolchain="${1#--toolchain=}"
+      shift
+      ;;
+    --arch=*)
+      arch="${1#--arch=}"
       shift
       ;;
     --compiler)
@@ -168,6 +175,10 @@ if [[ "$emit" != "wat" && "$emit" != "asm" && "$emit" != "ir" && "$emit" != "obj
 fi
 if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "ir" ]]; then
   echo "unsupported toolchain: $toolchain"
+  exit 1
+fi
+if [[ "$arch" != "x86_64" && "$arch" != "aarch64" ]]; then
+  echo "unsupported architecture: $arch"
   exit 1
 fi
 out_abs=""
@@ -345,13 +356,20 @@ ir_pipeline_build_asm() {
   local tmp_asm
   local subset_err
   local lower_err
+  local backend_tool
+  if [[ "$arch" == "aarch64" ]]; then
+    backend_tool="$IR_TO_AARCH64_ASM"
+  else
+    backend_tool="$IR_TO_X86_ASM"
+  fi
+
   tmp_ir="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.ir)"
   tmp_asm="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.s)"
   subset_err="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.subset.err)"
   lower_err="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.lower.err)"
   if [[ -x "$SUBSET_FRONTEND" ]]; then
     if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
-      if "$IR_TO_X86_ASM" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
+      if "$backend_tool" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
         if [[ -n "$out_abs" ]]; then
           cp "$tmp_asm" "$out_abs"
         else
