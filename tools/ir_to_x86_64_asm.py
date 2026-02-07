@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union, Optional
 
 Node = Union[str, List["Node"]]
 
@@ -99,7 +99,7 @@ def decode_string_token(tok: str) -> bytes:
     return text.encode("utf-8")
 
 
-def collect_locals(block: Node, out: Set[str]) -> None:
+def collect_locals(block: Node, out: Dict[str, str]) -> None:
     b = as_list(block)
     if as_atom(b[0]) != "block":
         raise LowerError("expected block")
@@ -107,14 +107,19 @@ def collect_locals(block: Node, out: Set[str]) -> None:
         s = as_list(stmt)
         tag = as_atom(s[0])
         if tag == "let":
-            out.add(as_atom(s[1]))
+            # (let name type val)
+            name = as_atom(s[1])
+            ty = as_atom(s[2])
+            out[name] = ty
         elif tag == "if":
+            # (if cond then [else])
             collect_locals(s[2], out)
             if len(s) > 3:
                 eb = as_list(s[3])
                 if as_atom(eb[0]) == "else":
                     collect_locals(eb[1], out)
         elif tag == "while":
+            # (while cond body)
             collect_locals(s[2], out)
 
 
@@ -125,11 +130,17 @@ def walk_expr_for_strings(expr: Node, out: Dict[str, None]) -> None:
         out[as_atom(e[1])] = None
         return
     if tag == "binary":
-        walk_expr_for_strings(e[2], out)
-        walk_expr_for_strings(e[3], out)
+        # (binary op [type] lhs rhs)
+        if len(e) == 5:
+            walk_expr_for_strings(e[3], out)
+            walk_expr_for_strings(e[4], out)
+        else:
+            walk_expr_for_strings(e[2], out)
+            walk_expr_for_strings(e[3], out)
         return
     if tag == "unary":
-        walk_expr_for_strings(e[2], out)
+        # (unary op type expr)
+        walk_expr_for_strings(e[3], out)
         return
     if tag == "call":
         for arg in e[2:]:
@@ -168,25 +179,34 @@ def collect_string_literals(block: Node) -> List[str]:
     return list(found.keys())
 
 
-def parse_fn(fn_node: List[Node]) -> Tuple[str, List[str], Node]:
+def parse_fn(fn_node: List[Node]) -> Tuple[str, List[Tuple[str, str]], Node, str]:
+    # (fn name (params ...) (ret type) (block ...))
     if len(fn_node) != 5 or as_atom(fn_node[0]) != "fn":
         raise LowerError("function shape not supported")
     name = as_atom(fn_node[1])
     params_node = as_list(fn_node[2])
     if as_atom(params_node[0]) != "params":
         raise LowerError("invalid params section")
-    params: List[str] = []
+    params: List[Tuple[str, str]] = []
     for p in params_node[1:]:
         pl = as_list(p)
+        # (param name type)
         if len(pl) != 3 or as_atom(pl[0]) != "param":
-            raise LowerError("only i32 params supported")
-        if as_atom(pl[2]) != "i32":
-            raise LowerError("only i32 params supported")
-        params.append(as_atom(pl[1]))
-    ret = as_list(fn_node[3])
-    if len(ret) != 2 or as_atom(ret[0]) != "ret" or as_atom(ret[1]) != "i32":
-        raise LowerError("only (ret i32) supported")
-    return name, params, as_list(fn_node[4])
+            raise LowerError("invalid param")
+        pname = as_atom(pl[1])
+        ptype = as_atom(pl[2])
+        if ptype not in ("i32", "i64"):
+             # For now, simplistic check
+             pass
+        params.append((pname, ptype))
+    
+    ret_node = as_list(fn_node[3])
+    # (ret type)
+    if len(ret_node) != 2 or as_atom(ret_node[0]) != "ret":
+        raise LowerError("invalid ret section")
+    ret_type = as_atom(ret_node[1])
+    
+    return name, params, as_list(fn_node[4]), ret_type
 
 
 def align16(n: int) -> int:
@@ -198,26 +218,28 @@ ARG_REGS32 = ["edi", "esi", "edx", "ecx", "r8d", "r9d"]
 
 
 class FnEmitter:
-    def __init__(self, name: str, params: List[str], block: Node, string_addrs: Dict[str, int], fn_names: Set[str]):
+    def __init__(self, name: str, params: List[Tuple[str, str]], block: Node, ret_type: str, string_addrs: Dict[str, int], fn_names: Set[str]):
         self.name = name
         self.params = params
         self.block = block
+        self.ret_type = ret_type
         self.string_addrs = string_addrs
         self.fn_names = fn_names
         self.lines: List[str] = []
         self.stack_depth = 0
         self.label_id = 0
 
-        locals_set: Set[str] = set()
-        collect_locals(block, locals_set)
-        ordered_vars: List[str] = []
-        seen: Set[str] = set()
-        for p in params:
-            ordered_vars.append(p)
-            seen.add(p)
-        for v in sorted(locals_set):
-            if v not in seen:
-                ordered_vars.append(v)
+        # Map name -> type
+        self.vars: Dict[str, str] = {}
+        for p_name, p_type in params:
+            self.vars[p_name] = p_type
+        
+        collect_locals(block, self.vars)
+        
+        # Calculate offsets
+        # All locals are on stack (simplification).
+        # We align everything to 8 bytes for simplicity on x86_64
+        ordered_vars = sorted(self.vars.keys())
         self.var_off: Dict[str, int] = {v: (i + 1) * 8 for i, v in enumerate(ordered_vars)}
         self.stack_size = align16(len(ordered_vars) * 8)
 
@@ -232,6 +254,11 @@ class FnEmitter:
         if name not in self.var_off:
             raise LowerError(f"unknown local: {name}")
         return self.var_off[name]
+    
+    def var_type(self, name: str) -> str:
+        if name not in self.vars:
+            raise LowerError(f"unknown local: {name}")
+        return self.vars[name]
 
     def push_rax(self) -> None:
         self.emit("  push rax")
@@ -244,56 +271,60 @@ class FnEmitter:
     def emit_expr(self, expr: Node) -> None:
         e = as_list(expr)
         tag = as_atom(e[0])
-        if tag == "int":
+        
+        if tag == "int": # i32 literal
             self.emit(f"  mov eax, {as_atom(e[1])}")
+            return
+        if tag == "int_i64": # i64 literal
+            val = as_atom(e[1])
+            # Handle large literals if necessary, but 'mov rax, imm64' is valid
+            self.emit(f"  mov rax, {val}")
             return
         if tag == "bool":
             self.emit(f"  mov eax, {as_atom(e[1])}")
             return
         if tag == "ident":
-            off = self.var_offset(as_atom(e[1]))
-            self.emit(f"  mov eax, dword ptr [rbp-{off}]")
+            name = as_atom(e[1])
+            off = self.var_offset(name)
+            ty = self.var_type(name)
+            if ty == "i64":
+                self.emit(f"  mov rax, qword ptr [rbp-{off}]")
+            else:
+                self.emit(f"  mov eax, dword ptr [rbp-{off}]")
             return
         if tag == "string":
             tok = as_atom(e[1])
             if tok not in self.string_addrs:
                 raise LowerError("missing string literal address")
+            # Strings are pointers (i32 in WASM, but i64 in x86_64 linear mem?)
+            # Coatl on x86_64 uses 64-bit pointers if we want full address space, 
+            # but currently WASM layout assumes 32-bit offsets. 
+            # However, for 'bin' emit we can use full addresses or 32-bit relative.
+            # Existing code used 'mov eax, ...'. 
             self.emit(f"  mov eax, {self.string_addrs[tok]}")
             return
         if tag == "binary":
+            # (binary op [type] lhs rhs)
             op = as_atom(e[1])
-            self.emit_expr(e[2])
-            self.push_rax()
-            self.emit_expr(e[3])
-            self.emit("  mov ecx, eax")
-            self.pop_reg("rax")
-            if op == "add":
-                self.emit("  add eax, ecx")
-            elif op == "sub":
-                self.emit("  sub eax, ecx")
-            elif op == "mul":
-                self.emit("  imul eax, ecx")
-            elif op == "div":
-                self.emit("  cdq")
-                self.emit("  idiv ecx")
-            elif op in ("eq", "ne", "lt", "gt", "le", "ge"):
-                self.emit("  cmp eax, ecx")
-                cc = {
-                    "eq": "e",
-                    "ne": "ne",
-                    "lt": "l",
-                    "gt": "g",
-                    "le": "le",
-                    "ge": "ge",
-                }[op]
-                self.emit(f"  set{cc} al")
-                self.emit("  movzx eax, al")
-            elif op == "and":
-                self.emit("  and eax, ecx")
-            elif op == "or":
-                self.emit("  or eax, ecx")
+            if len(e) == 5:
+                ty = as_atom(e[2])
+                lhs = e[3]
+                rhs = e[4]
             else:
-                raise LowerError(f"unsupported binary op: {op}")
+                ty = "i32"
+                lhs = e[2]
+                rhs = e[3]
+
+            self.emit_expr(lhs)
+            self.push_rax()
+            self.emit_expr(rhs)
+            self.emit("  mov rcx, rax") # rhs in rcx
+            self.pop_reg("rax")         # lhs in rax
+            
+            if ty == "i64":
+                self.emit_binary_i64(op)
+            else:
+                self.emit_binary_i32(op)
             return
         if tag == "call":
             fn = as_atom(e[1])
@@ -301,6 +332,52 @@ class FnEmitter:
             self.emit_call(fn, args)
             return
         raise LowerError(f"unsupported expr: {tag}")
+
+    def emit_binary_i32(self, op: str) -> None:
+        # Inputs: eax, ecx. Output: eax
+        if op == "add":
+            self.emit("  add eax, ecx")
+        elif op == "sub":
+            self.emit("  sub eax, ecx")
+        elif op == "mul":
+            self.emit("  imul eax, ecx")
+        elif op == "div":
+            self.emit("  cdq")
+            self.emit("  idiv ecx")
+        elif op in ("eq", "ne", "lt", "gt", "le", "ge"):
+            self.emit("  cmp eax, ecx")
+            cc = {
+                "eq": "e", "ne": "ne", "lt": "l", "gt": "g", "le": "le", "ge": "ge",
+            }[op]
+            self.emit(f"  set{cc} al")
+            self.emit("  movzx eax, al")
+        elif op == "and":
+            self.emit("  and eax, ecx")
+        elif op == "or":
+            self.emit("  or eax, ecx")
+        else:
+            raise LowerError(f"unsupported i32 binary op: {op}")
+
+    def emit_binary_i64(self, op: str) -> None:
+        # Inputs: rax, rcx. Output: rax
+        if op == "add":
+            self.emit("  add rax, rcx")
+        elif op == "sub":
+            self.emit("  sub rax, rcx")
+        elif op == "mul":
+            self.emit("  imul rax, rcx")
+        elif op == "div":
+            self.emit("  cqo") # Sign extend rax to rdx:rax
+            self.emit("  idiv rcx")
+        elif op in ("eq", "ne", "lt", "gt", "le", "ge"):
+            self.emit("  cmp rax, rcx")
+            cc = {
+                "eq": "e", "ne": "ne", "lt": "l", "gt": "g", "le": "le", "ge": "ge",
+            }[op]
+            self.emit(f"  set{cc} al")
+            self.emit("  movzx eax, al") # Result of comparison is always 0 or 1 (i32/bool)
+        else:
+            raise LowerError(f"unsupported i64 binary op: {op}")
 
     def emit_call(self, fn: str, args: List[Node]) -> None:
         if fn not in self.fn_names and not fn.startswith("__"):
@@ -333,16 +410,29 @@ class FnEmitter:
         s = as_list(stmt)
         tag = as_atom(s[0])
         if tag == "let":
+            # (let name type val)
             name = as_atom(s[1])
-            self.emit_expr(s[3])
+            # type = as_atom(s[2])
+            val_expr = s[3]
+            self.emit_expr(val_expr)
             off = self.var_offset(name)
-            self.emit(f"  mov dword ptr [rbp-{off}], eax")
+            ty = self.var_type(name)
+            if ty == "i64":
+                self.emit(f"  mov qword ptr [rbp-{off}], rax")
+            else:
+                self.emit(f"  mov dword ptr [rbp-{off}], eax")
             return
         if tag == "assign":
+            # (assign name val)
             name = as_atom(s[1])
-            self.emit_expr(s[2])
+            val_expr = s[2]
+            self.emit_expr(val_expr)
             off = self.var_offset(name)
-            self.emit(f"  mov dword ptr [rbp-{off}], eax")
+            ty = self.var_type(name)
+            if ty == "i64":
+                self.emit(f"  mov qword ptr [rbp-{off}], rax")
+            else:
+                self.emit(f"  mov dword ptr [rbp-{off}], eax")
             return
         if tag == "return":
             self.emit_expr(s[1])
@@ -396,14 +486,21 @@ class FnEmitter:
         if self.stack_size:
             out.append(f"  sub rsp, {self.stack_size}")
 
-        for i, p in enumerate(self.params):
-            off = self.var_offset(p)
+        for i, (p_name, p_type) in enumerate(self.params):
+            off = self.var_offset(p_name)
             if i < 6:
-                out.append(f"  mov dword ptr [rbp-{off}], {ARG_REGS32[i]}")
+                if p_type == "i64":
+                    out.append(f"  mov qword ptr [rbp-{off}], {ARG_REGS64[i]}")
+                else:
+                    out.append(f"  mov dword ptr [rbp-{off}], {ARG_REGS32[i]}")
             else:
                 stack_off = 16 + (i - 6) * 8
-                out.append(f"  mov eax, dword ptr [rbp+{stack_off}]")
-                out.append(f"  mov dword ptr [rbp-{off}], eax")
+                # Stack args are pushed as 64-bit slots usually
+                out.append(f"  mov rax, qword ptr [rbp+{stack_off}]")
+                if p_type == "i64":
+                    out.append(f"  mov qword ptr [rbp-{off}], rax")
+                else:
+                    out.append(f"  mov dword ptr [rbp-{off}], eax")
 
         out.append("  call __coatl_init_memory")
         self.lines = []
@@ -422,8 +519,11 @@ class FnEmitter:
 
 def lower_ir_to_asm_text(root: Node) -> str:
     top = as_list(root)
-    if len(top) != 4 or as_atom(top[0]) != "coatl_ir" or as_atom(top[1]) != "v0":
-        raise LowerError("unsupported IR root/version")
+    if len(top) != 4 or as_atom(top[0]) != "coatl_ir" or as_atom(top[1]) != "v1":
+        # Check for v1, but also v0 for backward compat?
+        # Actually, the user file had v1.
+        if as_atom(top[1]) != "v1":
+            raise LowerError(f"unsupported IR version: {as_atom(top[1])}")
 
     structs = as_list(top[2])
     if as_atom(structs[0]) != "structs":
@@ -434,12 +534,12 @@ def lower_ir_to_asm_text(root: Node) -> str:
         raise LowerError("invalid functions section")
 
     parsed = [parse_fn(as_list(f)) for f in functions[1:]]
-    fn_names: Set[str] = {name for name, _, _ in parsed}
+    fn_names: Set[str] = {name for name, _, _, _ in parsed}
     if "main" not in fn_names:
         raise LowerError("expected main function")
 
     str_tokens: Dict[str, None] = {}
-    for _, _, block in parsed:
+    for _, _, block, _ in parsed:
         for tok in collect_string_literals(block):
             str_tokens[tok] = None
 
@@ -840,8 +940,8 @@ def lower_ir_to_asm_text(root: Node) -> str:
     out.append("  ret")
     out.append("")
 
-    for name, params, block in parsed:
-        fn = FnEmitter(name, params, block, string_addrs, fn_names)
+    for name, params, block, ret_type in parsed:
+        fn = FnEmitter(name, params, block, ret_type, string_addrs, fn_names)
         out.extend(fn.emit_function())
 
     out.append(".globl coatl_start")
@@ -862,7 +962,7 @@ def lower_ir_to_asm(ir_path: Path, out_path: Path) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Lower coatl_ir v0 to x86_64 assembly (IR-based path, no C compiler)")
+    ap = argparse.ArgumentParser(description="Lower coatl_ir v1 to x86_64 assembly (IR-based path, no C compiler)")
     ap.add_argument("input", help="input .ir file")
     ap.add_argument("-o", "--output", required=True, help="output .s file")
     args = ap.parse_args()
