@@ -414,7 +414,11 @@ fn parse_args() -> i32 {
 
 fn read_file_into_buf(path_ptr: i32) -> i32 {
   let path_len: i32 = 0; while (__mem_load8(path_ptr + path_len) != 0) { path_len = path_len + 1; }
-  __mem_store(fd_slot(), 0); if (__path_open(3, 0, path_ptr, path_len, 0, 1, 0, 0, fd_slot()) != 0) { return 0 - 20; }
+  // WASI path_open requires relative paths - strip leading / if present
+  let p: i32 = path_ptr; let plen: i32 = path_len;
+  if (plen > 0 && __mem_load8(p) == 47) { p = p + 1; plen = plen - 1; }
+  __mem_store(fd_slot(), 0); if (__path_open(3, 0, p, plen, 0, 1, 0, 0, fd_slot()) != 0) { return 0 - 20; }
+
   let fd: i32 = __mem_load(fd_slot()); let total: i32 = 0; let done: i32 = 0;
   while (done == 0) {
     if (total >= src_max()) { __fd_close(fd); return 0 - 21; }
@@ -427,7 +431,11 @@ fn read_file_into_buf(path_ptr: i32) -> i32 {
 
 fn write_output(path_ptr: i32, out_sz: i32) -> i32 {
   let path_len: i32 = 0; while (__mem_load8(path_ptr + path_len) != 0) { path_len = path_len + 1; }
-  __mem_store(fd_slot(), 0); if (__path_open(3, 0, path_ptr, path_len, 9, 64, 0, 0, fd_slot()) != 0) { return 0 - 30; }
+  // WASI path_open requires relative paths - strip leading / if present
+  let p: i32 = path_ptr; let plen: i32 = path_len;
+  if (plen > 0 && __mem_load8(p) == 47) { p = p + 1; plen = plen - 1; }
+  __mem_store(fd_slot(), 0); if (__path_open(3, 0, p, plen, 9, 64, 0, 0, fd_slot()) != 0) { return 0 - 30; }
+
   let fd: i32 = __mem_load(fd_slot()); let written: i32 = 0;
   while (written < out_sz) {
     let chunk: i32 = out_sz - written; if (chunk > 4096) { chunk = 4096; }
