@@ -1,0 +1,14 @@
+fn mul_f64(a: f64, b: f64) -> f64 {
+  return a * b;
+}
+
+fn main() -> i32 {
+  let x: f64 = 4.0f64;
+  let y: f64 = 11.0f64;
+  let prod: f64 = mul_f64(x, y);
+  // 4.0 * 11.0 = 44.0
+  if (prod == 44.0f64) {
+    return 44;
+  }
+  return 0;
+}
