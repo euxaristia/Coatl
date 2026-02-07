@@ -271,13 +271,23 @@ link_asm_to_bin() {
 selfhost_build_wat() {
   local tmp_out=""
   local validate_tmp=""
+  local selfhost_err=""
   validate_tmp="$(mktemp /tmp/coatl-selfhost-validate.XXXXXX.cwasm)"
+  selfhost_err="$(mktemp /tmp/coatl-selfhost-err.XXXXXX.log)"
   rm -f "$validate_tmp"
   if [[ -n "$out_abs" ]]; then
-    "$SELFHOST_BUILD" build "$input_abs" -o "$out_abs" --compiler "$seed" >/dev/null
+    if ! "$SELFHOST_BUILD" build "$input_abs" -o "$out_abs" --compiler "$seed" >"$selfhost_err" 2>&1; then
+      if [[ -x "$ROOT_DIR/scripts/explain_error.py" ]]; then
+        "$ROOT_DIR/scripts/explain_error.py" "$(cat "$selfhost_err")" >&2
+      else
+        cat "$selfhost_err" >&2
+      fi
+      rm -f "$selfhost_err" "$validate_tmp"
+      return 1
+    fi
     if command -v wasmtime >/dev/null 2>&1; then
       if ! wasmtime compile "$out_abs" -o "$validate_tmp" >/dev/null 2>&1; then
-        rm -f "$validate_tmp"
+        rm -f "$validate_tmp" "$selfhost_err"
         echo "self-host compile produced invalid WAT module" >&2
         return 1
       fi
@@ -285,10 +295,18 @@ selfhost_build_wat() {
     fi
   else
     tmp_out="$(mktemp /tmp/coatl-selfhost-out.XXXXXX.wat)"
-    "$SELFHOST_BUILD" build "$input_abs" -o "$tmp_out" --compiler "$seed" >/dev/null
+    if ! "$SELFHOST_BUILD" build "$input_abs" -o "$tmp_out" --compiler "$seed" >"$selfhost_err" 2>&1; then
+      if [[ -x "$ROOT_DIR/scripts/explain_error.py" ]]; then
+        "$ROOT_DIR/scripts/explain_error.py" "$(cat "$selfhost_err")" >&2
+      else
+        cat "$selfhost_err" >&2
+      fi
+      rm -f "$selfhost_err" "$tmp_out" "$validate_tmp"
+      return 1
+    fi
     if command -v wasmtime >/dev/null 2>&1; then
       if ! wasmtime compile "$tmp_out" -o "$validate_tmp" >/dev/null 2>&1; then
-        rm -f "$tmp_out" "$validate_tmp"
+        rm -f "$tmp_out" "$validate_tmp" "$selfhost_err"
         echo "self-host compile produced invalid WAT module" >&2
         return 1
       fi
@@ -297,6 +315,7 @@ selfhost_build_wat() {
     cat "$tmp_out"
     rm -f "$tmp_out"
   fi
+  rm -f "$selfhost_err"
 }
 
 ir_pipeline_build_wat() {
