@@ -27,8 +27,8 @@ patch_stdin_flag() {
   local tmp
 
   tmp="$(mktemp /tmp/coatl-patch-XXXXXX.wat)"
-  patch_data_flag "$in_wat" "$tmp" 18874412
-  patch_data_flag "$tmp" "$out_wat" 18874416
+  patch_data_flag "$in_wat" "$tmp" 38874412
+  patch_data_flag "$tmp" "$out_wat" 38874416
   rm -f "$tmp"
 }
 

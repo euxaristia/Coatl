@@ -148,6 +148,7 @@ fn l_string_ptr() -> i32 { return literals_base() + 304; }
 fn l_i64_ptr() -> i32 { return literals_base() + 272; }
 fn l_add_ptr() -> i32 { return literals_base() + 288; }
 fn l_eq_ptr() -> i32 { return literals_base() + 304; }
+fn l_v1_ptr() -> i32 { return literals_base() + 320; }
 
 fn init_literals() -> i32 {
   if (__mem_load(literals_inited_addr()) != 0) { return 0; }
@@ -166,6 +167,7 @@ fn init_literals() -> i32 {
   __mem_store8(b+272, 105); __mem_store8(b+273, 54); __mem_store8(b+274, 52);
   __mem_store8(b+288, 97); __mem_store8(b+289, 100); __mem_store8(b+290, 100);
   __mem_store8(b+304, 115); __mem_store8(b+305, 116); __mem_store8(b+306, 114); __mem_store8(b+307, 105); __mem_store8(b+308, 110); __mem_store8(b+309, 103);
+  __mem_store8(b+320, 118); __mem_store8(b+321, 49);
   return 0;
 }
 
@@ -364,7 +366,13 @@ fn walk_for_strings(node: i32) -> i32 {
 
 fn emit_program(root: i32) -> i32 {
   init_literals(); str_reset();
-  let head: i32 = node_child_head(root); let v1: i32 = node_next(head); let functions: i32 = node_next(node_next(v1));
+  let head: i32 = node_child_head(root); let v_node: i32 = node_next(head); 
+  let functions: i32 = 0;
+  if (atom_equals(v_node, l_v1_ptr(), 2) == 1) {
+    functions = node_next(node_next(v_node));
+  } else {
+    functions = node_next(v_node);
+  }
   walk_for_strings(functions);
   out_char(46); out_char(105); out_char(110); out_char(116); out_char(101); out_char(108); out_char(95); out_char(115); out_char(121); out_char(110); out_char(116); out_char(97); out_char(120); out_char(32); out_char(110); out_char(111); out_char(112); out_char(114); out_char(101); out_char(102); out_char(105); out_char(120); out_nl();
   out_char(46); out_char(98); out_char(115); out_char(115); out_nl();

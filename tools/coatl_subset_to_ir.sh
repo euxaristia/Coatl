@@ -2,9 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PY_SCRIPT="$ROOT_DIR/tools/coatl_subset_to_ir.py"
-ORIG_ARGS=("$@")
-COATL_PYTHON="${COATL_PYTHON:-}"
 COATL_BIN="${COATL_BIN:-$(command -v coatl || true)}"
 
 if [[ -z "$COATL_BIN" && -x "$ROOT_DIR/coatl" ]]; then
@@ -31,11 +28,6 @@ shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -o)
-      if [[ $# -lt 2 ]]; then
-        echo "missing value for -o" >&2
-        usage
-        exit 1
-      fi
       output="$2"
       shift 2
       ;;
@@ -53,58 +45,27 @@ if [[ -z "$output" ]]; then
   exit 1
 fi
 
-build_module() {
+if [[ -z "$COATL_BIN" || ! -x "$COATL_BIN" ]]; then
+  # Fallback to python
+  python3 "$ROOT_DIR/tools/coatl_subset_to_ir.py" "$input" -o "$output"
+  exit 0
+fi
+
+if ! command -v wasmtime >/dev/null 2>&1; then
+  python3 "$ROOT_DIR/tools/coatl_subset_to_ir.py" "$input" -o "$output"
+  exit 0
+fi
+
+if [[ ! -f "$MODULE" ]]; then
   "$COATL_BIN" build "$ROOT_DIR/tools/coatl_subset_to_ir.coatl" --emit=wat --toolchain=selfhost -o "$MODULE" >/dev/null
-}
-
-try_coatl_frontend() {
-  if [[ -z "$COATL_BIN" || ! -x "$COATL_BIN" ]]; then
-    return 1
-  fi
-  if ! command -v wasmtime >/dev/null 2>&1; then
-    return 1
-  fi
-  if [[ ! -f "$MODULE" ]]; then
-    build_module
-  fi
-  printf '%s -o %s\n' "$input" "$output" | wasmtime --invoke main "$MODULE"
-}
-
-find_python_cmd() {
-  if [[ -n "$COATL_PYTHON" ]]; then
-    if command -v "$COATL_PYTHON" >/dev/null 2>&1; then
-      printf '%s' "$COATL_PYTHON"
-      return 0
-    fi
-  fi
-  for cand in python3 python; do
-    if command -v "$cand" >/dev/null 2>&1; then
-      printf '%s' "$cand"
-      return 0
-    fi
-  done
-  return 1
-}
-
-try_python_frontend() {
-  if [[ ! -f "$PY_SCRIPT" ]]; then
-    return 1
-  fi
-  local python_cmd
-  if ! python_cmd="$(find_python_cmd)"; then
-    echo "python3/python interpreter not found for fallback frontend" >&2
-    return 1
-  fi
-  exec "$python_cmd" "$PY_SCRIPT" "${ORIG_ARGS[@]}"
-}
-
-if try_coatl_frontend; then
-  exit 0
 fi
 
-if try_python_frontend; then
-  exit 0
-fi
+abs_input="$(realpath "$input")"
+abs_output="$(realpath "$output" 2>/dev/null || echo "$(cd "$(dirname "$output")" && pwd)/$(basename "$output")")"
 
-echo "subset frontend failed" >&2
-exit 1
+# Pass ONLY the arguments the tool expects: <input> -o <output>
+ret="$(printf '%s -o %s\n' "$abs_input" "$abs_output" | wasmtime --dir / --invoke main "$MODULE" 2>/dev/null)"
+if [[ "$ret" != "0" ]]; then
+  echo "coatl_subset_to_ir: failed with rc=$ret" >&2
+  exit 1
+fi

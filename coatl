@@ -277,11 +277,7 @@ selfhost_build_wat() {
   rm -f "$validate_tmp"
   if [[ -n "$out_abs" ]]; then
     if ! "$SELFHOST_BUILD" build "$input_abs" -o "$out_abs" --compiler "$seed" >"$selfhost_err" 2>&1; then
-      if [[ -x "$ROOT_DIR/scripts/explain_error.py" ]]; then
-        "$ROOT_DIR/scripts/explain_error.py" "$(cat "$selfhost_err")" >&2
-      else
-        cat "$selfhost_err" >&2
-      fi
+      cat "$selfhost_err" >&2
       rm -f "$selfhost_err" "$validate_tmp"
       return 1
     fi
@@ -296,11 +292,7 @@ selfhost_build_wat() {
   else
     tmp_out="$(mktemp /tmp/coatl-selfhost-out.XXXXXX.wat)"
     if ! "$SELFHOST_BUILD" build "$input_abs" -o "$tmp_out" --compiler "$seed" >"$selfhost_err" 2>&1; then
-      if [[ -x "$ROOT_DIR/scripts/explain_error.py" ]]; then
-        "$ROOT_DIR/scripts/explain_error.py" "$(cat "$selfhost_err")" >&2
-      else
-        cat "$selfhost_err" >&2
-      fi
+      cat "$selfhost_err" >&2
       rm -f "$selfhost_err" "$tmp_out" "$validate_tmp"
       return 1
     fi

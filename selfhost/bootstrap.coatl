@@ -170,19 +170,31 @@ fn set_debug_stage(code: i32) -> i32 {
   return 0;
 }
 
-// Emit parse error info: "<code> <pos> <tok> <line> <col>\n"
+// Emit parse error info with human-readable explanation
 fn debug_dump_error() -> i32 {
   out_init();
-  out_num(__mem_load(state_err_code()));
-  out_sp();
-  out_num(__mem_load(state_err_pos()));
-  out_sp();
-  out_num(__mem_load(state_err_tok()));
-  out_sp();
-  out_num(__mem_load(state_err_line()));
-  out_sp();
-  out_num(__mem_load(state_err_col()));
+  out_char(69); out_char(114); out_char(114); out_char(111); out_char(114); out_char(58); out_char(32); // Error: 
+  print_error_explanation(__mem_load(state_err_code()));
   out_nl();
+  
+  out_char(32); out_char(32); out_char(65); out_char(116); out_char(58); out_char(32); //   At: 
+  out_char(108); out_char(105); out_char(110); out_char(101); out_char(32); // line 
+  out_num(__mem_load(state_err_line()));
+  out_char(44); out_char(32); // , 
+  out_char(99); out_char(111); out_char(108); out_char(117); out_char(109); out_char(110); out_char(32); // column 
+  out_num(__mem_load(state_err_col()));
+  out_char(32); out_char(40); out_char(112); out_char(111); out_char(115); out_char(32); //  (pos 
+  out_num(__mem_load(state_err_pos()));
+  out_char(41); // )
+  out_nl();
+
+  let tok: i32 = __mem_load(state_err_tok());
+  if (tok != 0) {
+    out_char(32); out_char(32); out_char(84); out_char(111); out_char(107); out_char(101); out_char(110); out_char(32); out_char(73); out_char(68); out_char(58); out_char(32); //   Token ID: 
+    out_num(tok);
+    out_nl();
+  }
+  
   out_flush();
   return 0;
 }
@@ -1054,7 +1066,7 @@ fn w_i64_extend_i32_u() -> i32 { return 28; }
 
 // Emit WAT opcodes from memory-based IR (Stage 1).
 // WAT stream stored at wat_base() (offset 0x400000).
-fn wat_base() -> i32 { return 10485760; }
+fn wat_base() -> i32 { return 30485760; }
 fn wat_op_size() -> i32 { return 8; }
 
 fn wat_addr(idx: i32, field: i32) -> i32 {
@@ -1148,8 +1160,8 @@ fn map_local(ident_id: i32) -> i32 {
 
 fn ast_base() -> i32 { return 0; }
 fn ast_node_size() -> i32 { return 16; }
-fn ast_max_nodes() -> i32 { return 131072; }
-fn ast_pos_base() -> i32 { return 72351744; }
+fn ast_max_nodes() -> i32 { return 262144; }
+fn ast_pos_base() -> i32 { return 92351744; }
 
 // Compute address of AST node field
 fn ast_addr(node_idx: i32, field_offset: i32) -> i32 {
@@ -1198,9 +1210,9 @@ fn ast_c(idx: i32) -> i32 { return __mem_load(ast_addr(idx, 12)); }
 //   offset 0: opcode (i32)
 //   offset 4: argument (i32)
 
-fn ir_base() -> i32 { return 2097152; }
+fn ir_base() -> i32 { return 4194304; }
 fn ir_op_size() -> i32 { return 8; }
-fn ir_max_ops() -> i32 { return 1048576; }
+fn ir_max_ops() -> i32 { return 2097152; }
 
 fn ir_addr(op_idx: i32, field_offset: i32) -> i32 {
   return ir_base() + op_idx * ir_op_size() + field_offset;
@@ -2364,10 +2376,13 @@ fn typecheck_fn(fn_idx: i32) -> i32 {
 }
 
 fn typecheck_fns(idx: i32, count: i32) -> i32 {
-  if (idx >= count) { return 1; }
-  let r: i32 = typecheck_fn(idx);
-  if (r < 0) { return r; }
-  return typecheck_fns(idx + 1, count);
+  let i: i32 = idx;
+  while (i < count) {
+    let r: i32 = typecheck_fn(i);
+    if (r < 0) { return r; }
+    i = i + 1;
+  }
+  return 1;
 }
 
 // Emit IR for a statement
@@ -2688,7 +2703,7 @@ fn get_src_base() -> i32 { return __mem_load(state_src_base()); }
 fn set_src_base(base: i32) -> i32 { __mem_store(state_src_base(), base); return 0; }
 
 // Source buffer at 0x604000 (512KB)
-fn src_buffer_addr() -> i32 { return 19005440; }
+fn src_buffer_addr() -> i32 { return 39005440; }
 fn src_buffer_size() -> i32 { return 524288; }
 
 // ============================================================================
@@ -2696,7 +2711,7 @@ fn src_buffer_size() -> i32 { return 524288; }
 // ============================================================================
 // Function table at 0x684000 (24KB reserved)
 // Each entry: 12 bytes (ident_id: i32, param_count: i32, local_count: i32)
-fn fn_table_addr() -> i32 { return 19660800; }
+fn fn_table_addr() -> i32 { return 39660800; }
 fn fn_entry_size() -> i32 { return 16; }
 fn fn_table_max() -> i32 { return 1024; }
 
@@ -3472,24 +3487,31 @@ fn parse_int_dyn() -> i32 {
 fn parse_mul_dyn() -> i32 {
   let left: i32 = parse_unary_dyn();
   if (left < 0) { return left; }
-  return parse_mul_rest_dyn(left);
-}
-
-fn parse_mul_rest_dyn(left: i32) -> i32 {
-  let tok: i32 = peek_tok_dyn();
-  let kind: i32 = lex_kind(tok);
-  if (kind == tok_star()) { return parse_mul_op_dyn(left, nk_mul()); }
-  if (kind == tok_slash()) { return parse_mul_op_dyn(left, nk_div()); }
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok_dyn();
+    let kind: i32 = lex_kind(tok);
+    if (kind == tok_star()) {
+      next_tok_dyn();
+      let right: i32 = parse_unary_dyn();
+      if (right < 0) { return right; }
+      let node: i32 = alloc_ast();
+      ast_set(node, nk_mul(), left, right, 0);
+      left = node;
+    } else {
+      if (kind == tok_slash()) {
+        next_tok_dyn();
+        let right2: i32 = parse_unary_dyn();
+        if (right2 < 0) { return right2; }
+        let node2: i32 = alloc_ast();
+        ast_set(node2, nk_div(), left, right2, 0);
+        left = node2;
+      } else {
+        done = 1;
+      }
+    }
+  }
   return left;
-}
-
-fn parse_mul_op_dyn(left: i32, nk: i32) -> i32 {
-  next_tok_dyn();
-  let right: i32 = parse_unary_dyn();
-  if (right < 0) { return right; }
-  let node: i32 = alloc_ast();
-  ast_set(node, nk, left, right, 0);
-  return parse_mul_rest_dyn(node);
 }
 
 fn parse_unary_dyn() -> i32 {
@@ -3508,24 +3530,31 @@ fn parse_unary_dyn() -> i32 {
 fn parse_add_dyn() -> i32 {
   let left: i32 = parse_mul_dyn();
   if (left < 0) { return left; }
-  return parse_add_rest_dyn(left);
-}
-
-fn parse_add_rest_dyn(left: i32) -> i32 {
-  let tok: i32 = peek_tok_dyn();
-  let kind: i32 = lex_kind(tok);
-  if (kind == tok_plus()) { return parse_add_op_dyn(left, nk_add()); }
-  if (kind == tok_minus()) { return parse_add_op_dyn(left, nk_sub()); }
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok_dyn();
+    let kind: i32 = lex_kind(tok);
+    if (kind == tok_plus()) {
+      next_tok_dyn();
+      let right: i32 = parse_mul_dyn();
+      if (right < 0) { return right; }
+      let node: i32 = alloc_ast();
+      ast_set(node, nk_add(), left, right, 0);
+      left = node;
+    } else {
+      if (kind == tok_minus()) {
+        next_tok_dyn();
+        let right2: i32 = parse_mul_dyn();
+        if (right2 < 0) { return right2; }
+        let node2: i32 = alloc_ast();
+        ast_set(node2, nk_sub(), left, right2, 0);
+        left = node2;
+      } else {
+        done = 1;
+      }
+    }
+  }
   return left;
-}
-
-fn parse_add_op_dyn(left: i32, nk: i32) -> i32 {
-  next_tok_dyn();
-  let right: i32 = parse_mul_dyn();
-  if (right < 0) { return right; }
-  let node: i32 = alloc_ast();
-  ast_set(node, nk, left, right, 0);
-  return parse_add_rest_dyn(node);
 }
 
 fn parse_cmp_dyn() -> i32 {
@@ -3558,27 +3587,19 @@ fn parse_expr_dyn() -> i32 {
 fn parse_and_dyn() -> i32 {
   let left: i32 = parse_cmp_dyn();
   if (left < 0) { return left; }
-  let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) == tok_and()) {
-    next_tok_dyn();
-    let right: i32 = parse_cmp_dyn();
-    if (right < 0) { return right; }
-    let node: i32 = alloc_ast();
-    ast_set(node, nk_and(), left, right, 0);
-    return parse_and_dyn_rest(node);
-  }
-  return left;
-}
-
-fn parse_and_dyn_rest(left: i32) -> i32 {
-  let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) == tok_and()) {
-    next_tok_dyn();
-    let right: i32 = parse_cmp_dyn();
-    if (right < 0) { return right; }
-    let node: i32 = alloc_ast();
-    ast_set(node, nk_and(), left, right, 0);
-    return parse_and_dyn_rest(node);
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok_dyn();
+    if (lex_kind(tok) == tok_and()) {
+      next_tok_dyn();
+      let right: i32 = parse_cmp_dyn();
+      if (right < 0) { return right; }
+      let node: i32 = alloc_ast();
+      ast_set(node, nk_and(), left, right, 0);
+      left = node;
+    } else {
+      done = 1;
+    }
   }
   return left;
 }
@@ -3586,27 +3607,19 @@ fn parse_and_dyn_rest(left: i32) -> i32 {
 fn parse_or_dyn() -> i32 {
   let left: i32 = parse_and_dyn();
   if (left < 0) { return left; }
-  let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) == tok_or()) {
-    next_tok_dyn();
-    let right: i32 = parse_and_dyn();
-    if (right < 0) { return right; }
-    let node: i32 = alloc_ast();
-    ast_set(node, nk_or(), left, right, 0);
-    return parse_or_dyn_rest(node);
-  }
-  return left;
-}
-
-fn parse_or_dyn_rest(left: i32) -> i32 {
-  let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) == tok_or()) {
-    next_tok_dyn();
-    let right: i32 = parse_and_dyn();
-    if (right < 0) { return right; }
-    let node: i32 = alloc_ast();
-    ast_set(node, nk_or(), left, right, 0);
-    return parse_or_dyn_rest(node);
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok_dyn();
+    if (lex_kind(tok) == tok_or()) {
+      next_tok_dyn();
+      let right: i32 = parse_and_dyn();
+      if (right < 0) { return right; }
+      let node: i32 = alloc_ast();
+      ast_set(node, nk_or(), left, right, 0);
+      left = node;
+    } else {
+      done = 1;
+    }
   }
   return left;
 }
@@ -4351,37 +4364,39 @@ fn parse_fn_def_dyn() -> i32 {
 fn parse_params_dyn() -> i32 {
   let tok: i32 = peek_tok_dyn();
   if (lex_kind(tok) == tok_rparen()) { return 0; }
-  return parse_param_list_dyn(0);
-}
-
-fn parse_param_list_dyn(count: i32) -> i32 {
-  // Parse param name
-  let tok: i32 = peek_tok_dyn();
-  if (lex_kind(tok) != tok_ident()) { return 0 - 1; }
-  let start: i32 = skip_ws_dyn(get_pos());
-  next_tok_dyn();
-  let end: i32 = scan_ident_dyn(start);
-  let param_id: i32 = ident_id_dyn(start, end);
-
-  // Parse : type
-  if (expect_dyn(tok_colon()) != 1) { return 0 - 1; }
-  if (parse_type_dyn() != 1) { return 0 - 1; }
-  let fn_idx: i32 = get_current_fn();
-  if (fn_idx >= 0) {
-    fn_set_param_type(fn_idx, count, get_last_type());
-  }
-
-  // Register parameter as a local (params come first in local indices)
-  add_local_typed(param_id, get_last_type());
-
-  // Check for more params
-  let next: i32 = peek_tok_dyn();
-  if (lex_kind(next) == tok_comma()) {
+  
+  let count: i32 = 0;
+  let done: i32 = 0;
+  while (done == 0) {
+    // Parse param name
+    let tok2: i32 = peek_tok_dyn();
+    if (lex_kind(tok2) != tok_ident()) { return 0 - 1; }
+    let start: i32 = skip_ws_dyn(get_pos());
     next_tok_dyn();
-    return parse_param_list_dyn(count + 1);
-  }
+    let end: i32 = scan_ident_dyn(start);
+    let param_id: i32 = ident_id_dyn(start, end);
 
-  return count + 1;
+    // Parse : type
+    if (expect_dyn(tok_colon()) != 1) { return 0 - 1; }
+    if (parse_type_dyn() != 1) { return 0 - 1; }
+    let fn_idx: i32 = get_current_fn();
+    if (fn_idx >= 0) {
+      fn_set_param_type(fn_idx, count, get_last_type());
+    }
+
+    // Register parameter as a local
+    add_local_typed(param_id, get_last_type());
+    count = count + 1;
+
+    // Check for more params
+    let next: i32 = peek_tok_dyn();
+    if (lex_kind(next) == tok_comma()) {
+      next_tok_dyn();
+    } else {
+      done = 1;
+    }
+  }
+  return count;
 }
 
 // Store function's local count
@@ -4390,9 +4405,28 @@ fn set_fn_local_count(idx: i32, count: i32) -> i32 {
   return 0;
 }
 
-// Parse multiple functions until EOF
+// Parse multiple functions until EOF (iterative version)
 fn parse_program_dyn() -> i32 {
-  return parse_fns_dyn(0);
+  let count: i32 = 0;
+  let done: i32 = 0;
+  while (done == 0) {
+    let tok: i32 = peek_tok_dyn();
+    let kind: i32 = lex_kind(tok);
+    if (kind == tok_eof()) {
+      done = 1;
+    } else {
+      if (kind == tok_struct()) {
+        let s: i32 = parse_struct_def_dyn();
+        if (s < 0) { return s; }
+      } else {
+        if (kind != tok_fn()) { return set_parse_error(0 - 611); }
+        let fn_idx: i32 = parse_fn_def_dyn();
+        if (fn_idx < 0) { return fn_idx; }
+        count = count + 1;
+      }
+    }
+  }
+  return count;
 }
 
 fn state_struct_count() -> i32 { return state_base() + 92; }
@@ -4547,22 +4581,6 @@ fn parse_struct_def_dyn() -> i32 {
   return 1;
 }
 
-fn parse_fns_dyn(count: i32) -> i32 {
-  let tok: i32 = peek_tok_dyn();
-  let kind: i32 = lex_kind(tok);
-  if (kind == tok_eof()) { return count; }
-  if (kind == tok_struct()) {
-    let s: i32 = parse_struct_def_dyn();
-    if (s < 0) { return s; }
-    return parse_fns_dyn(count);
-  }
-  if (kind != tok_fn()) { return set_parse_error(0 - 611); }
-
-  let fn_idx: i32 = parse_fn_def_dyn();
-  if (fn_idx < 0) { return fn_idx; }
-
-  return parse_fns_dyn(count + 1);
-}
 
 // Compile all functions in the program
 fn compile_program_dyn() -> i32 {
@@ -4698,21 +4716,22 @@ fn compile_all_fns_dyn() -> i32 {
 }
 
 fn compile_fns_ir(idx: i32, count: i32) -> i32 {
-  if (idx >= count) { return 1; }
+  let i: i32 = idx;
+  while (i < count) {
+    // Emit IR for this function
+    codegen_init();
+    set_current_fn(i);
+    set_local_count(fn_locals(i));
+    let body: i32 = get_fn_ast(i);
+    let ir_ok: i32 = emit_ir_block_stmts(body);
+    if (ir_ok < 0) { return 0; }
 
-  // Emit IR for this function
-  codegen_init();
-  set_current_fn(idx);
-  set_local_count(fn_locals(idx));
-  let body: i32 = get_fn_ast(idx);
-  let ir_ok: i32 = emit_ir_block_stmts(body);
-  if (ir_ok < 0) { return 0; }
-
-  // Store IR count for this function
-  set_fn_ir_count(idx, get_ir_count());
-  set_current_fn(0 - 1);
-
-  return compile_fns_ir(idx + 1, count);
+    // Store IR count for this function
+    set_fn_ir_count(i, get_ir_count());
+    set_current_fn(0 - 1);
+    i = i + 1;
+  }
+  return 1;
 }
 
 // Per-function IR count storage
@@ -4731,9 +4750,9 @@ fn get_fn_ir_count(idx: i32) -> i32 {
 // Stage 5: WAT Text Output
 // ============================================================================
 // Output buffer at 0x6901B0 (48MB)
-fn out_buffer_addr() -> i32 { return 19922944; }
+fn out_buffer_addr() -> i32 { return 39922944; }
 fn out_buffer_size() -> i32 { return 50331648; }
-fn io_vec_addr() -> i32 { return 73400320; }
+fn io_vec_addr() -> i32 { return 93400320; }
 fn io_nwritten_addr() -> i32 { return io_vec_addr() + 8; }
 fn io_nread_addr() -> i32 { return io_vec_addr() + 12; }
 
@@ -7822,7 +7841,7 @@ fn test_end_to_end() -> i32 {
 //   0x600008: local_count (number of locals)
 //   0x600100+: symbol table (8 bytes per entry: ident_id, local_idx)
 
-fn state_base() -> i32 { return 18874368; }
+fn state_base() -> i32 { return 38874368; }
 fn state_pos() -> i32 { return state_base(); }
 fn state_ast() -> i32 { return state_base() + 4; }
 fn state_locals() -> i32 { return state_base() + 8; }
@@ -8444,4 +8463,62 @@ fn ident_id_dynamic(start: i32, end: i32) -> i32 {
     i = i + 1;
   }
   return h;
+}
+fn print_error_explanation(code: i32) -> i32 {
+  let c: i32 = code;
+  if (c < 0) { c = 0 - c; }
+
+  if (c == 601) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(102); out_char(110); out_char(39); return 0; }
+  if (c == 602) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(102); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(110); out_char(97); out_char(109); out_char(101); return 0; }
+  if (c == 603) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(40); out_char(39); out_char(32); out_char(97); out_char(102); out_char(116); out_char(101); out_char(114); out_char(32); out_char(102); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(110); out_char(97); out_char(109); out_char(101); return 0; }
+  if (c == 604) { out_char(70); out_char(97); out_char(105); out_char(108); out_char(101); out_char(100); out_char(32); out_char(116); out_char(111); out_char(32); out_char(112); out_char(97); out_char(114); out_char(115); out_char(101); out_char(32); out_char(112); out_char(97); out_char(114); out_char(97); out_char(109); out_char(101); out_char(116); out_char(101); out_char(114); out_char(115); return 0; }
+  if (c == 605) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(41); out_char(39); out_char(32); out_char(97); out_char(102); out_char(116); out_char(101); out_char(114); out_char(32); out_char(112); out_char(97); out_char(114); out_char(97); out_char(109); out_char(101); out_char(116); out_char(101); out_char(114); out_char(115); return 0; }
+  if (c == 606) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(45); out_char(62); out_char(39); out_char(32); out_char(97); out_char(102); out_char(116); out_char(101); out_char(114); out_char(32); out_char(112); out_char(97); out_char(114); out_char(97); out_char(109); out_char(101); out_char(116); out_char(101); out_char(114); out_char(115); return 0; }
+  if (c == 607) { out_char(70); out_char(97); out_char(105); out_char(108); out_char(101); out_char(100); out_char(32); out_char(116); out_char(111); out_char(32); out_char(112); out_char(97); out_char(114); out_char(115); out_char(101); out_char(32); out_char(114); out_char(101); out_char(116); out_char(117); out_char(114); out_char(110); out_char(32); out_char(116); out_char(121); out_char(112); out_char(101); return 0; }
+  if (c == 608) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(123); out_char(39); out_char(32); out_char(98); out_char(101); out_char(102); out_char(111); out_char(114); out_char(101); out_char(32); out_char(102); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(98); out_char(111); out_char(100); out_char(121); return 0; }
+  if (c == 610) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(125); out_char(39); out_char(32); out_char(97); out_char(102); out_char(116); out_char(101); out_char(114); out_char(32); out_char(102); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(98); out_char(111); out_char(100); out_char(121); return 0; }
+  if (c == 611) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(116); out_char(111); out_char(112); out_char(45); out_char(108); out_char(101); out_char(118); out_char(101); out_char(108); out_char(32); out_char(100); out_char(101); out_char(99); out_char(108); out_char(97); out_char(114); out_char(97); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(40); out_char(102); out_char(110); out_char(32); out_char(111); out_char(114); out_char(32); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); out_char(41); return 0; }
+  if (c == 612) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); out_char(39); return 0; }
+  if (c == 613) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); out_char(32); out_char(110); out_char(97); out_char(109); out_char(101); return 0; }
+  if (c == 614) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(123); out_char(39); out_char(32); out_char(97); out_char(102); out_char(116); out_char(101); out_char(114); out_char(32); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); out_char(32); out_char(110); out_char(97); out_char(109); out_char(101); return 0; }
+  if (c == 615) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(102); out_char(105); out_char(101); out_char(108); out_char(100); out_char(32); out_char(110); out_char(97); out_char(109); out_char(101); out_char(32); out_char(105); out_char(110); out_char(32); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); return 0; }
+  if (c == 616) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(58); out_char(39); out_char(32); out_char(97); out_char(102); out_char(116); out_char(101); out_char(114); out_char(32); out_char(102); out_char(105); out_char(101); out_char(108); out_char(100); out_char(32); out_char(110); out_char(97); out_char(109); out_char(101); return 0; }
+  if (c == 617) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(105); out_char(51); out_char(50); out_char(39); out_char(32); out_char(102); out_char(105); out_char(101); out_char(108); out_char(100); out_char(32); out_char(116); out_char(121); out_char(112); out_char(101); out_char(32); out_char(40); out_char(111); out_char(110); out_char(108); out_char(121); out_char(32); out_char(105); out_char(51); out_char(50); out_char(32); out_char(115); out_char(117); out_char(112); out_char(112); out_char(111); out_char(114); out_char(116); out_char(101); out_char(100); out_char(32); out_char(105); out_char(110); out_char(32); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); out_char(115); out_char(32); out_char(102); out_char(111); out_char(114); out_char(32); out_char(110); out_char(111); out_char(119); out_char(41); return 0; }
+  if (c == 618) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(39); out_char(125); out_char(39); out_char(32); out_char(97); out_char(102); out_char(116); out_char(101); out_char(114); out_char(32); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); out_char(32); out_char(102); out_char(105); out_char(101); out_char(108); out_char(100); out_char(115); return 0; }
+  if (c == 619) { out_char(84); out_char(111); out_char(111); out_char(32); out_char(109); out_char(97); out_char(110); out_char(121); out_char(32); out_char(102); out_char(105); out_char(101); out_char(108); out_char(100); out_char(115); out_char(32); out_char(105); out_char(110); out_char(32); out_char(115); out_char(116); out_char(114); out_char(117); out_char(99); out_char(116); return 0; }
+  if (c == 700) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(101); out_char(120); out_char(112); out_char(114); out_char(101); out_char(115); out_char(115); out_char(105); out_char(111); out_char(110); return 0; }
+  if (c == 701) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(116); out_char(101); out_char(114); out_char(109); out_char(105); out_char(110); out_char(97); out_char(108); out_char(32); out_char(40); out_char(105); out_char(110); out_char(116); out_char(44); out_char(32); out_char(105); out_char(100); out_char(101); out_char(110); out_char(116); out_char(44); out_char(32); out_char(101); out_char(116); out_char(99); out_char(46); out_char(41); return 0; }
+  if (c == 3301) { out_char(85); out_char(110); out_char(107); out_char(110); out_char(111); out_char(119); out_char(110); out_char(32); out_char(105); out_char(110); out_char(116); out_char(114); out_char(105); out_char(110); out_char(115); out_char(105); out_char(99); out_char(32); out_char(111); out_char(114); out_char(32); out_char(102); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); return 0; }
+  if (c == 3302) { out_char(73); out_char(110); out_char(116); out_char(114); out_char(105); out_char(110); out_char(115); out_char(105); out_char(99); out_char(32); out_char(39); out_char(115); out_char(116); out_char(114); out_char(95); out_char(108); out_char(101); out_char(110); out_char(39); out_char(32); out_char(111); out_char(114); out_char(32); out_char(39); out_char(115); out_char(116); out_char(114); out_char(95); out_char(112); out_char(116); out_char(114); out_char(39); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(115); out_char(32); out_char(49); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); return 0; }
+  if (c == 3303) { out_char(95); out_char(95); out_char(102); out_char(100); out_char(95); out_char(114); out_char(101); out_char(97); out_char(100); out_char(47); out_char(95); out_char(95); out_char(102); out_char(100); out_char(95); out_char(119); out_char(114); out_char(105); out_char(116); out_char(101); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(115); out_char(32); out_char(50); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); out_char(115); return 0; }
+  if (c == 3304) { out_char(73); out_char(110); out_char(118); out_char(97); out_char(108); out_char(105); out_char(100); out_char(32); out_char(99); out_char(111); out_char(110); out_char(115); out_char(116); out_char(97); out_char(110); out_char(116); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); out_char(32); out_char(116); out_char(111); out_char(32); out_char(105); out_char(110); out_char(116); out_char(114); out_char(105); out_char(110); out_char(115); out_char(105); out_char(99); return 0; }
+  if (c == 3305) { out_char(95); out_char(95); out_char(112); out_char(97); out_char(116); out_char(104); out_char(95); out_char(111); out_char(112); out_char(101); out_char(110); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(115); out_char(32); out_char(52); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); out_char(115); return 0; }
+  if (c == 3306) { out_char(95); out_char(95); out_char(112); out_char(97); out_char(116); out_char(104); out_char(95); out_char(111); out_char(112); out_char(101); out_char(110); out_char(32); out_char(40); out_char(101); out_char(120); out_char(116); out_char(101); out_char(110); out_char(100); out_char(101); out_char(100); out_char(41); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(115); out_char(32); out_char(57); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); out_char(115); return 0; }
+  if (c == 3307) { out_char(95); out_char(95); out_char(102); out_char(100); out_char(95); out_char(99); out_char(108); out_char(111); out_char(115); out_char(101); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(115); out_char(32); out_char(49); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); return 0; }
+  if (c == 3308) { out_char(70); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(99); out_char(97); out_char(108); out_char(108); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); out_char(32); out_char(99); out_char(111); out_char(117); out_char(110); out_char(116); out_char(32); out_char(109); out_char(105); out_char(115); out_char(109); out_char(97); out_char(116); out_char(99); out_char(104); return 0; }
+  if (c == 7201) { out_char(85); out_char(110); out_char(100); out_char(101); out_char(102); out_char(105); out_char(110); out_char(101); out_char(100); out_char(32); out_char(102); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); return 0; }
+  if (c == 7202) { out_char(70); out_char(117); out_char(110); out_char(99); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(97); out_char(114); out_char(103); out_char(117); out_char(109); out_char(101); out_char(110); out_char(116); out_char(32); out_char(99); out_char(111); out_char(117); out_char(110); out_char(116); out_char(32); out_char(109); out_char(105); out_char(115); out_char(109); out_char(97); out_char(116); out_char(99); out_char(104); return 0; }
+  if (c == 7203) { out_char(84); out_char(121); out_char(112); out_char(101); out_char(32); out_char(109); out_char(105); out_char(115); out_char(109); out_char(97); out_char(116); out_char(99); out_char(104); out_char(32); out_char(105); out_char(110); out_char(32); out_char(101); out_char(120); out_char(112); out_char(114); out_char(101); out_char(115); out_char(115); out_char(105); out_char(111); out_char(110); return 0; }
+  if (c == 7210) { out_char(78); out_char(117); out_char(109); out_char(101); out_char(114); out_char(105); out_char(99); out_char(32); out_char(111); out_char(112); out_char(101); out_char(114); out_char(97); out_char(116); out_char(111); out_char(114); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(110); out_char(117); out_char(109); out_char(101); out_char(114); out_char(105); out_char(99); out_char(32); out_char(111); out_char(112); out_char(101); out_char(114); out_char(97); out_char(110); out_char(100); return 0; }
+  if (c == 7220) { out_char(67); out_char(111); out_char(109); out_char(112); out_char(97); out_char(114); out_char(105); out_char(115); out_char(111); out_char(110); out_char(32); out_char(111); out_char(112); out_char(101); out_char(114); out_char(97); out_char(116); out_char(111); out_char(114); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(110); out_char(117); out_char(109); out_char(101); out_char(114); out_char(105); out_char(99); out_char(32); out_char(111); out_char(112); out_char(101); out_char(114); out_char(97); out_char(110); out_char(100); return 0; }
+  if (c == 7225) { out_char(76); out_char(111); out_char(103); out_char(105); out_char(99); out_char(97); out_char(108); out_char(32); out_char(111); out_char(112); out_char(101); out_char(114); out_char(97); out_char(116); out_char(111); out_char(114); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(98); out_char(111); out_char(111); out_char(108); out_char(101); out_char(97); out_char(110); out_char(32); out_char(111); out_char(112); out_char(101); out_char(114); out_char(97); out_char(110); out_char(100); return 0; }
+  if (c == 7226) { out_char(85); out_char(110); out_char(97); out_char(114); out_char(121); out_char(32); out_char(39); out_char(33); out_char(39); out_char(32); out_char(101); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(98); out_char(111); out_char(111); out_char(108); out_char(101); out_char(97); out_char(110); out_char(32); out_char(111); out_char(112); out_char(101); out_char(114); out_char(97); out_char(110); out_char(100); return 0; }
+  if (c == 7227) { out_char(39); out_char(105); out_char(102); out_char(39); out_char(32); out_char(111); out_char(114); out_char(32); out_char(39); out_char(119); out_char(104); out_char(105); out_char(108); out_char(101); out_char(39); out_char(32); out_char(99); out_char(111); out_char(110); out_char(100); out_char(105); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(109); out_char(117); out_char(115); out_char(116); out_char(32); out_char(98); out_char(101); out_char(32); out_char(105); out_char(51); out_char(50); out_char(32); out_char(40); out_char(48); out_char(47); out_char(49); out_char(41); return 0; }
+  if (c == 7230) { out_char(84); out_char(121); out_char(112); out_char(101); out_char(32); out_char(109); out_char(105); out_char(115); out_char(109); out_char(97); out_char(116); out_char(99); out_char(104); out_char(32); out_char(105); out_char(110); out_char(32); out_char(97); out_char(115); out_char(115); out_char(105); out_char(103); out_char(110); out_char(109); out_char(101); out_char(110); out_char(116); out_char(32); out_char(111); out_char(114); out_char(32); out_char(39); out_char(108); out_char(101); out_char(116); out_char(39); return 0; }
+  if (c == 7231) { out_char(82); out_char(101); out_char(116); out_char(117); out_char(114); out_char(110); out_char(32); out_char(116); out_char(121); out_char(112); out_char(101); out_char(32); out_char(109); out_char(105); out_char(115); out_char(109); out_char(97); out_char(116); out_char(99); out_char(104); return 0; }
+  if (c == 7232) { out_char(39); out_char(105); out_char(102); out_char(39); out_char(32); out_char(99); out_char(111); out_char(110); out_char(100); out_char(105); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(109); out_char(117); out_char(115); out_char(116); out_char(32); out_char(98); out_char(101); out_char(32); out_char(98); out_char(111); out_char(111); out_char(108); out_char(101); out_char(97); out_char(110); return 0; }
+  if (c == 7233) { out_char(39); out_char(119); out_char(104); out_char(105); out_char(108); out_char(101); out_char(39); out_char(32); out_char(99); out_char(111); out_char(110); out_char(100); out_char(105); out_char(116); out_char(105); out_char(111); out_char(110); out_char(32); out_char(109); out_char(117); out_char(115); out_char(116); out_char(32); out_char(98); out_char(101); out_char(32); out_char(98); out_char(111); out_char(111); out_char(108); out_char(101); out_char(97); out_char(110); return 0; }
+  if (c == 7240) { out_char(73); out_char(110); out_char(118); out_char(97); out_char(108); out_char(105); out_char(100); out_char(32); out_char(65); out_char(83); out_char(84); out_char(32); out_char(110); out_char(111); out_char(100); out_char(101); out_char(32); out_char(105); out_char(110); out_char(32); out_char(115); out_char(116); out_char(97); out_char(116); out_char(101); out_char(109); out_char(101); out_char(110); out_char(116); out_char(32); out_char(112); out_char(111); out_char(115); out_char(105); out_char(116); out_char(105); out_char(111); out_char(110); return 0; }
+  if (c == 7250) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(98); out_char(108); out_char(111); out_char(99); out_char(107); out_char(32); out_char(110); out_char(111); out_char(100); out_char(101); return 0; }
+  if (c == 7251) { out_char(69); out_char(120); out_char(112); out_char(101); out_char(99); out_char(116); out_char(101); out_char(100); out_char(32); out_char(115); out_char(116); out_char(97); out_char(116); out_char(101); out_char(109); out_char(101); out_char(110); out_char(116); out_char(32); out_char(110); out_char(111); out_char(100); out_char(101); return 0; }
+  if (c >= 4000) { if (c < 5000) {
+    out_char(85); out_char(110); out_char(100); out_char(101); out_char(102); out_char(105); out_char(110); out_char(101); out_char(100); out_char(32); out_char(108); out_char(111); out_char(99); out_char(97); out_char(108); out_char(32); out_char(118); out_char(97); out_char(114); out_char(105); out_char(97); out_char(98); out_char(108); out_char(101); out_char(32); out_char(40); out_char(73); out_char(68); out_char(58); out_char(32);
+    out_num(c - 4000);
+    out_char(41); // )
+    return 0;
+  } }
+
+  out_char(85); out_char(110); out_char(107); out_char(110); out_char(111); out_char(119); out_char(110); out_char(32); out_char(101); out_char(114); out_char(114); out_char(111); out_char(114); out_char(32); out_char(99); out_char(111); out_char(100); out_char(101); out_char(58); out_char(32);
+  out_num(c);
+  return 0;
 }
