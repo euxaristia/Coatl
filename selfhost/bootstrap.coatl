@@ -935,6 +935,11 @@ fn tok_break() -> i32 { return 35; }
 fn tok_continue() -> i32 { return 36; }
 fn tok_struct() -> i32 { return 37; }
 fn tok_dot() -> i32 { return 38; }
+fn tok_i64() -> i32 { return 39; }
+fn tok_f32() -> i32 { return 40; }
+fn tok_f64() -> i32 { return 41; }
+fn tok_bool() -> i32 { return 42; }
+fn tok_str() -> i32 { return 43; }
 
 // IR opcodes.
 fn op_const() -> i32 { return 1; }
@@ -1974,9 +1979,14 @@ fn emit_ir_binop(node: i32, op: i32) -> i32 {
 // ============================================================================
 fn type_i32() -> i32 { return 1; }
 fn type_bool() -> i32 { return 2; }
+fn type_i64() -> i32 { return 3; }
+fn type_f32() -> i32 { return 4; }
+fn type_f64() -> i32 { return 5; }
+fn type_str() -> i32 { return 6; }
 fn type_struct(sidx: i32) -> i32 { return 100 + sidx; }
 fn type_is_i32ish(t: i32) -> i32 {
   if (t == type_i32()) { return 1; }
+  if (t == type_str()) { return 1; }
   if (t >= 100) { return 1; }
   return 0;
 }
@@ -2059,8 +2069,8 @@ fn typecheck_expr(node: i32) -> i32 {
     if (l < 0) { return l; }
     let r: i32 = typecheck_expr(right);
     if (r < 0) { return r; }
-    if (!type_is_i32ish(l) || !type_is_i32ish(r)) { return set_semantic_error_node(0 - 7210 - kind, node); }
-    return type_i32();
+    if (!type_is_numeric(l) || !type_is_numeric(r)) { return set_semantic_error_node(0 - 7210 - kind, node); }
+    return resolve_binop_type(l, r);
   }
 
   if (kind == nk_mul() || kind == nk_div()) {
@@ -2070,8 +2080,8 @@ fn typecheck_expr(node: i32) -> i32 {
     if (lm < 0) { return lm; }
     let rm: i32 = typecheck_expr(rightm);
     if (rm < 0) { return rm; }
-    if (lm != type_i32() || rm != type_i32()) { return set_semantic_error_node(0 - 7210 - kind, node); }
-    return type_i32();
+    if (!type_is_numeric(lm) || !type_is_numeric(rm)) { return set_semantic_error_node(0 - 7210 - kind, node); }
+    return resolve_binop_type(lm, rm);
   }
 
   if (kind == nk_lt() || kind == nk_gt() || kind == nk_eq() || kind == nk_ne() || kind == nk_le() || kind == nk_ge()) {
@@ -2081,7 +2091,7 @@ fn typecheck_expr(node: i32) -> i32 {
     if (l2 < 0) { return l2; }
     let r2: i32 = typecheck_expr(right2);
     if (r2 < 0) { return r2; }
-    if (!type_is_i32ish(l2) || !type_is_i32ish(r2)) { return set_semantic_error_node(0 - 7220 - kind, node); }
+    if (!type_is_numeric(l2) || !type_is_numeric(r2)) { return set_semantic_error_node(0 - 7220 - kind, node); }
     return type_bool();
   }
 
@@ -2106,9 +2116,27 @@ fn typecheck_expr(node: i32) -> i32 {
   return set_semantic_error_node(0 - 7100 - kind, node);
 }
 
+fn type_is_numeric(t: i32) -> i32 {
+  if (t == type_i32()) { return 1; }
+  if (t == type_bool()) { return 1; }
+  if (t == type_i64()) { return 1; }
+  if (t == type_f32()) { return 1; }
+  if (t == type_f64()) { return 1; }
+  if (t >= 100) { return 1; }
+  return 0;
+}
+
+fn resolve_binop_type(l: i32, r: i32) -> i32 {
+  if (l == type_i64() || r == type_i64()) { return type_i64(); }
+  if (l == type_f64() || r == type_f64()) { return type_f64(); }
+  if (l == type_f32() || r == type_f32()) { return type_f32(); }
+  return type_i32();
+}
+
 fn type_is_truthy(t: i32) -> i32 {
   if (t == type_i32()) { return 1; }
   if (t == type_bool()) { return 1; }
+  if (t == type_i64()) { return 1; }
   return 0;
 }
 
@@ -2883,6 +2911,26 @@ fn ident_kind_dyn(start: i32, end: i32) -> i32 {
       if (char_at_dyn(start + 1) == 51) {
         if (char_at_dyn(start + 2) == 50) { return tok_i32(); }
       }
+      // "i64"
+      if (char_at_dyn(start + 1) == 54) {
+        if (char_at_dyn(start + 2) == 52) { return tok_i64(); }
+      }
+    }
+    // "f32"
+    if (char_at_dyn(start) == 102) {
+      if (char_at_dyn(start + 1) == 51) {
+        if (char_at_dyn(start + 2) == 50) { return tok_f32(); }
+      }
+      // "f64"
+      if (char_at_dyn(start + 1) == 54) {
+        if (char_at_dyn(start + 2) == 52) { return tok_f64(); }
+      }
+    }
+    // "str"
+    if (char_at_dyn(start) == 115) {
+      if (char_at_dyn(start + 1) == 116) {
+        if (char_at_dyn(start + 2) == 114) { return tok_str(); }
+      }
     }
   }
   if (len == 4) {
@@ -2890,6 +2938,14 @@ fn ident_kind_dyn(start: i32, end: i32) -> i32 {
       if (char_at_dyn(start + 1) == 108) {
         if (char_at_dyn(start + 2) == 115) {
           if (char_at_dyn(start + 3) == 101) { return tok_else(); }
+        }
+      }
+    }
+    // "bool"
+    if (char_at_dyn(start) == 98) {
+      if (char_at_dyn(start + 1) == 111) {
+        if (char_at_dyn(start + 2) == 111) {
+          if (char_at_dyn(start + 3) == 108) { return tok_bool(); }
         }
       }
     }
@@ -4416,7 +4472,32 @@ fn parse_type_dyn() -> i32 {
   let kind: i32 = lex_kind(tok);
   if (kind == tok_i32()) {
     next_tok_dyn();
-    set_last_type(1);
+    set_last_type(type_i32());
+    return 1;
+  }
+  if (kind == tok_bool()) {
+    next_tok_dyn();
+    set_last_type(type_bool());
+    return 1;
+  }
+  if (kind == tok_i64()) {
+    next_tok_dyn();
+    set_last_type(type_i64());
+    return 1;
+  }
+  if (kind == tok_f32()) {
+    next_tok_dyn();
+    set_last_type(type_f32());
+    return 1;
+  }
+  if (kind == tok_f64()) {
+    next_tok_dyn();
+    set_last_type(type_f64());
+    return 1;
+  }
+  if (kind == tok_str()) {
+    next_tok_dyn();
+    set_last_type(type_str());
     return 1;
   }
   if (kind == tok_ident()) {

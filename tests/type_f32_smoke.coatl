@@ -1,0 +1,14 @@
+fn mul_f32(a: f32, b: f32) -> f32 {
+  return a * b;
+}
+
+fn main() -> i32 {
+  let x: f32 = 3.0;
+  let y: f32 = 7.0;
+  let prod: f32 = mul_f32(x, y);
+  // 3.0 * 7.0 = 21.0
+  if (prod == 21.0) {
+    return 21;
+  }
+  return 0;
+}

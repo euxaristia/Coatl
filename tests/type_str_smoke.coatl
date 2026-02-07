@@ -1,0 +1,5 @@
+fn main() -> i32 {
+  let s: str = "hello";
+  let n: i32 = str_len(s);
+  return n;
+}

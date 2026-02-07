@@ -1,0 +1,15 @@
+fn add64(a: i64, b: i64) -> i64 {
+  return a + b;
+}
+
+fn main() -> i32 {
+  let x: i64 = 10i64;
+  let y: i64 = 32i64;
+  let sum: i64 = add64(x, y);
+  // Store the i64 result to memory and load back as i32 for return
+  // Since sum == 42 which fits in i32, we can truncate
+  if (sum == 42i64) {
+    return 42;
+  }
+  return 0;
+}

@@ -38,7 +38,7 @@ def tokenize(src: str) -> List[Tok]:
             toks.append(Tok('sym', src[i:i + 2]))
             i += 2
             continue
-        if c in '(){}:,;=+-*/<>!.':
+        if c in '(){}[]:,;=+-*/<>!.':
             toks.append(Tok('sym', c))
             i += 1
             continue
@@ -59,11 +59,20 @@ def tokenize(src: str) -> List[Tok]:
             toks.append(Tok('str', src[i:j + 1]))
             i = j + 1
             continue
-        m_num = re.match(r'[0-9]+', src[i:])
+        m_num = re.match(r'[0-9]+(\.[0-9]+)?', src[i:])
         if m_num:
             txt = m_num.group(0)
-            toks.append(Tok('num', txt))
-            i += len(txt)
+            # Check for type suffix: i64, f32, f64
+            rest = src[i + len(txt):]
+            suffix_m = re.match(r'(i64|f32|f64)', rest)
+            if suffix_m:
+                suffix = suffix_m.group(0)
+                toks.append(Tok('num', txt))
+                toks.append(Tok('suffix', suffix))
+                i += len(txt) + len(suffix)
+            else:
+                toks.append(Tok('num', txt))
+                i += len(txt)
             continue
         m_ident = re.match(r'[A-Za-z_][A-Za-z0-9_]*', src[i:])
         if m_ident:
@@ -77,6 +86,8 @@ def tokenize(src: str) -> List[Tok]:
 
 
 class Parser:
+    SCALAR_TYPES = {'i32', 'bool', 'i64', 'f32', 'f64', 'str'}
+
     def __init__(self, toks: List[Tok]):
         self.toks = toks
         self.i = 0
@@ -84,6 +95,9 @@ class Parser:
         self.local_structs: dict[str, str] = {}
         self.param_structs: dict[str, str] = {}
         self.fn_return_struct: dict[str, str] = {}
+        self.local_types: dict[str, str] = {}
+        self.param_types: dict[str, str] = {}
+        self.fn_return_type: str = 'i32'
 
     def peek(self) -> Tok:
         return self.toks[self.i]
@@ -120,7 +134,7 @@ class Parser:
             fns.append(fn_ir)
         if not saw_main:
             raise ParseError('expected fn main')
-        return '(coatl_ir v0\n  (structs)\n  (functions\n' + ''.join(fns) + '  )\n)\n'
+        return '(coatl_ir v1\n  (structs)\n  (functions\n' + ''.join(fns) + '  )\n)\n'
 
     def parse_struct_decl(self) -> None:
         self.expect_ident('struct')
@@ -140,14 +154,17 @@ class Parser:
     def parse_fn_ir(self) -> Tuple[str, str]:
         self.local_structs = {}
         self.param_structs = {}
+        self.local_types = {}
+        self.param_types = {}
         self.expect_ident('fn')
         name = self.expect_ident().text
         self.expect('sym', '(')
         params, params_ir = self.parse_params_ir()
         self.expect('sym', ')')
         self.expect('sym', '->')
-        ret_ty = self.expect_ident().text
-        if ret_ty != 'i32' and ret_ty not in self.struct_fields:
+        ret_ty = self.parse_type()
+        self.fn_return_type = ret_ty
+        if ret_ty not in self.SCALAR_TYPES and ret_ty not in self.struct_fields:
             raise ParseError(f'unsupported function return type: {ret_ty}')
         if ret_ty in self.struct_fields:
             self.fn_return_struct[name] = ret_ty
@@ -156,33 +173,54 @@ class Parser:
         fn_ir = (
             f'    (fn {name}\n'
             f'{params_ir}'
-            '      (ret i32)\n'
+            f'      (ret {ret_ty})\n'
             f'{block}'
             '    )\n'
         )
         return name, fn_ir
 
+    def parse_type(self) -> str:
+        """Parse a type: i32, bool, i64, f32, f64, str, [T; N], or struct name."""
+        if self.peek().kind == 'sym' and self.peek().text == '[':
+            self.next()  # consume '['
+            elem_ty = self.expect_ident().text
+            if elem_ty not in self.SCALAR_TYPES:
+                raise ParseError(f'unsupported array element type: {elem_ty}')
+            self.expect('sym', ';')
+            size_tok = self.expect('num')
+            self.expect('sym', ']')
+            return f'[{elem_ty}; {size_tok.text}]'
+        return self.expect_ident().text
+
     def parse_params_ir(self) -> Tuple[List[str], str]:
         if self.peek().kind == 'sym' and self.peek().text == ')':
             return [], '      (params)\n'
         params: List[str] = []
+        param_types_list: List[Tuple[str, str]] = []
         while True:
             name = self.expect_ident().text
             self.expect('sym', ':')
-            ty = self.expect_ident().text
-            if ty == 'i32':
+            ty = self.parse_type()
+            if ty in self.SCALAR_TYPES:
                 params.append(name)
+                param_types_list.append((name, ty))
+                self.param_types[name] = ty
             elif ty in self.struct_fields:
                 self.param_structs[name] = ty
                 for fld in self.struct_fields[ty]:
                     params.append(f'{name}__{fld}')
+                    param_types_list.append((f'{name}__{fld}', 'i32'))
+            elif ty.startswith('['):
+                params.append(name)
+                param_types_list.append((name, 'i32'))  # arrays are ptrs
+                self.param_types[name] = ty
             else:
                 raise ParseError(f'unsupported parameter type: {ty}')
             if self.peek().kind == 'sym' and self.peek().text == ',':
                 self.next()
                 continue
             break
-        body = ''.join(f'        (param {p} i32)\n' for p in params)
+        body = ''.join(f'        (param {p} {ty})\n' for p, ty in param_types_list)
         return params, '      (params\n' + body + '      )\n'
 
     def parse_block_ir(self, ret_struct_ty: Optional[str], ret_struct_field: Optional[str]) -> str:
@@ -201,17 +239,27 @@ class Parser:
             self.next()
             name = self.expect_ident().text
             self.expect('sym', ':')
-            ty = self.expect_ident().text
+            ty = self.parse_type()
             self.expect('sym', '=')
             if ty in self.struct_fields:
                 stmt = self.parse_struct_init_stmt_ir(name, ty)
                 self.expect('sym', ';')
                 return stmt
-            if ty != 'i32':
+            if ty.startswith('['):
+                # Array type: parse array literal [val; N] or allocator
+                self.local_types[name] = ty
+                expr = self.parse_array_init_ir(name, ty)
+                self.expect('sym', ';')
+                return expr
+            if ty not in self.SCALAR_TYPES:
                 raise ParseError(f'unsupported let type: {ty}')
+            self.local_types[name] = ty
             expr = self.parse_expr_ir()
             self.expect('sym', ';')
-            return f'        (let {name} i32\n{expr}        )\n'
+            # For str type, replace (string ...) with (string_typed ...)
+            if ty == 'str':
+                expr = expr.replace('(string ', '(string_typed ', 1)
+            return f'        (let {name} {ty}\n{expr}        )\n'
         if t.kind == 'ident' and t.text == 'return':
             self.next()
             if ret_struct_ty is not None:
@@ -243,6 +291,28 @@ class Parser:
             return f'        (while\n{cond}{body}        )\n'
         if t.kind == 'ident':
             t1 = self.toks[self.i + 1]
+            if t1.kind == 'sym' and t1.text == '[':
+                # Array index assignment: arr[i] = expr;
+                name = self.next().text
+                self.expect('sym', '[')
+                idx_ir = self.parse_expr_ir()
+                self.expect('sym', ']')
+                self.expect('sym', '=')
+                val_ir = self.parse_expr_ir()
+                self.expect('sym', ';')
+                arr_ty = self.var_type(name)
+                import re as _re
+                m = _re.match(r'\[(\w+);\s*(\d+)\]', arr_ty)
+                elem_ty = m.group(1) if m else 'i32'
+                return (
+                    f'        (expr\n'
+                    f'          (array_set {elem_ty}\n'
+                    f'            (ident {name})\n'
+                    f'{idx_ir}'
+                    f'{val_ir}'
+                    f'          )\n'
+                    f'        )\n'
+                )
             if t1.kind == 'sym' and t1.text == '.':
                 name = self.next().text
                 self.expect('sym', '.')
@@ -412,6 +482,40 @@ class Parser:
         self.i = body_end + 1
         return out
 
+    def parse_array_init_ir(self, name: str, ty: str) -> str:
+        """Parse [val; N] array literal and emit array_alloc + array_set nodes."""
+        # Parse: [elem_type; size] where ty is already parsed
+        # Extract element type and size from ty string like "[i32; 4]"
+        import re
+        m = re.match(r'\[(\w+);\s*(\d+)\]', ty)
+        if not m:
+            raise ParseError(f'invalid array type: {ty}')
+        elem_ty = m.group(1)
+        arr_size = int(m.group(2))
+
+        # Expect: [init_val; N]
+        self.expect('sym', '[')
+        init_expr = self.parse_expr_ir()
+        self.expect('sym', ';')
+        count_tok = self.expect('num')
+        count = int(count_tok.text)
+        self.expect('sym', ']')
+        if count != arr_size:
+            raise ParseError(f'array init size mismatch: type has {arr_size} but init has {count}')
+
+        out = f'        (let {name} i32\n          (array_alloc {elem_ty} {arr_size})\n        )\n'
+        for i in range(arr_size):
+            out += f'        (expr\n          (array_set {elem_ty}\n            (ident {name})\n            (int {i})\n{init_expr}          )\n        )\n'
+        return out
+
+    def var_type(self, name: str) -> str:
+        """Look up the type of a variable."""
+        if name in self.local_types:
+            return self.local_types[name]
+        if name in self.param_types:
+            return self.param_types[name]
+        return 'i32'
+
     def struct_var_fields(self, name: str) -> Optional[List[str]]:
         if name in self.local_structs:
             return self.struct_fields[self.local_structs[name]]
@@ -420,98 +524,152 @@ class Parser:
         return None
 
     def parse_expr_ir(self) -> str:
-        left = self.parse_or_ir()
-        return left
+        ir, _ = self.parse_expr_typed()
+        return ir
 
-    def parse_or_ir(self) -> str:
-        left = self.parse_and_ir()
+    def parse_expr_typed(self) -> Tuple[str, str]:
+        """Parse an expression, returning (ir_text, type_str)."""
+        return self.parse_or_typed()
+
+    def parse_or_typed(self) -> Tuple[str, str]:
+        left_ir, left_ty = self.parse_and_typed()
         while self.peek().kind == 'sym' and self.peek().text == '||':
             self.next()
-            right = self.parse_and_ir()
-            left = (
+            right_ir, right_ty = self.parse_and_typed()
+            left_ir = (
                 '          (binary or\n'
-                f'{left}'
-                f'{right}'
+                f'{left_ir}'
+                f'{right_ir}'
                 '          )\n'
             )
-        return left
+            left_ty = 'i32'
+        return left_ir, left_ty
 
-    def parse_and_ir(self) -> str:
-        left = self.parse_cmp_ir()
+    def parse_and_typed(self) -> Tuple[str, str]:
+        left_ir, left_ty = self.parse_cmp_typed()
         while self.peek().kind == 'sym' and self.peek().text == '&&':
             self.next()
-            right = self.parse_cmp_ir()
-            left = (
+            right_ir, right_ty = self.parse_cmp_typed()
+            left_ir = (
                 '          (binary and\n'
-                f'{left}'
-                f'{right}'
+                f'{left_ir}'
+                f'{right_ir}'
                 '          )\n'
             )
-        return left
+            left_ty = 'i32'
+        return left_ir, left_ty
 
-    def parse_cmp_ir(self) -> str:
-        left = self.parse_add_ir()
+    def parse_cmp_typed(self) -> Tuple[str, str]:
+        left_ir, left_ty = self.parse_add_typed()
         while self.peek().kind == 'sym' and self.peek().text in ('<', '>', '<=', '>=', '==', '!='):
             op = self.next().text
-            right = self.parse_add_ir()
+            right_ir, right_ty = self.parse_add_typed()
             op_name = {
-                '<': 'lt',
-                '>': 'gt',
-                '<=': 'le',
-                '>=': 'ge',
-                '==': 'eq',
-                '!=': 'ne',
+                '<': 'lt', '>': 'gt', '<=': 'le', '>=': 'ge', '==': 'eq', '!=': 'ne',
             }[op]
-            left = (
-                f'          (binary {op_name}\n'
-                f'{left}'
-                f'{right}'
-                '          )\n'
-            )
-        return left
+            bin_ty = self._resolve_binop_type(left_ty, right_ty)
+            if bin_ty != 'i32':
+                left_ir = (
+                    f'          (binary {op_name} {bin_ty}\n'
+                    f'{left_ir}'
+                    f'{right_ir}'
+                    '          )\n'
+                )
+            else:
+                left_ir = (
+                    f'          (binary {op_name}\n'
+                    f'{left_ir}'
+                    f'{right_ir}'
+                    '          )\n'
+                )
+            left_ty = 'i32'  # comparisons always return i32
+        return left_ir, left_ty
 
-    def parse_add_ir(self) -> str:
-        left = self.parse_mul_ir()
+    def parse_add_typed(self) -> Tuple[str, str]:
+        left_ir, left_ty = self.parse_mul_typed()
         while self.peek().kind == 'sym' and self.peek().text in ('+', '-'):
             op = self.next().text
-            right = self.parse_mul_ir()
+            right_ir, right_ty = self.parse_mul_typed()
             op_name = 'add' if op == '+' else 'sub'
-            left = (
-                f'          (binary {op_name}\n'
-                f'{left}'
-                f'{right}'
-                '          )\n'
-            )
-        return left
+            bin_ty = self._resolve_binop_type(left_ty, right_ty)
+            if bin_ty != 'i32':
+                left_ir = (
+                    f'          (binary {op_name} {bin_ty}\n'
+                    f'{left_ir}'
+                    f'{right_ir}'
+                    '          )\n'
+                )
+            else:
+                left_ir = (
+                    f'          (binary {op_name}\n'
+                    f'{left_ir}'
+                    f'{right_ir}'
+                    '          )\n'
+                )
+            left_ty = bin_ty
+        return left_ir, left_ty
 
-    def parse_mul_ir(self) -> str:
-        left = self.parse_term_ir()
+    def parse_mul_typed(self) -> Tuple[str, str]:
+        left_ir, left_ty = self.parse_term_typed()
         while self.peek().kind == 'sym' and self.peek().text in ('*', '/'):
             op = self.next().text
-            right = self.parse_term_ir()
+            right_ir, right_ty = self.parse_term_typed()
             op_name = 'mul' if op == '*' else 'div'
-            left = (
-                f'          (binary {op_name}\n'
-                f'{left}'
-                f'{right}'
-                '          )\n'
-            )
-        return left
+            bin_ty = self._resolve_binop_type(left_ty, right_ty)
+            if bin_ty != 'i32':
+                left_ir = (
+                    f'          (binary {op_name} {bin_ty}\n'
+                    f'{left_ir}'
+                    f'{right_ir}'
+                    '          )\n'
+                )
+            else:
+                left_ir = (
+                    f'          (binary {op_name}\n'
+                    f'{left_ir}'
+                    f'{right_ir}'
+                    '          )\n'
+                )
+            left_ty = bin_ty
+        return left_ir, left_ty
 
-    def parse_term_ir(self) -> str:
+    def _resolve_binop_type(self, left_ty: str, right_ty: str) -> str:
+        """Determine the type for a binary operation from its operand types."""
+        # If both are i32/bool, use i32 (the default, no annotation needed)
+        if left_ty in ('i32', 'bool') and right_ty in ('i32', 'bool'):
+            return 'i32'
+        # If either is a non-i32 scalar, that wins
+        for ty in (left_ty, right_ty):
+            if ty in ('i64', 'f32', 'f64'):
+                return ty
+        return 'i32'
+
+    def parse_term_typed(self) -> Tuple[str, str]:
         t = self.peek()
         if t.kind == 'num':
             self.next()
-            return f'          (int {t.text})\n'
+            # Check for type suffix
+            if self.peek().kind == 'suffix':
+                suffix = self.next().text
+                if suffix == 'i64':
+                    return f'          (int_i64 {t.text})\n', 'i64'
+                elif suffix == 'f32':
+                    return f'          (float_f32 {t.text})\n', 'f32'
+                elif suffix == 'f64':
+                    return f'          (float_f64 {t.text})\n', 'f64'
+            # Plain float literal (has dot) defaults to f32
+            if '.' in t.text:
+                return f'          (float_f32 {t.text})\n', 'f32'
+            return f'          (int {t.text})\n', 'i32'
         if t.kind == 'str':
             self.next()
-            return f'          (string {t.text})\n'
+            return f'          (string {t.text})\n', 'i32'
         if t.kind == 'ident':
             name = self.next().text
             if name == 'true':
-                return '          (bool 1)\n'
+                return '          (bool 1)\n', 'bool'
             if name == 'false':
-                return '          (bool 0)\n'
+                return '          (bool 0)\n', 'bool'
             if self.peek().kind == 'sym' and self.peek().text == '.':
                 self.next()
                 fld = self.expect_ident().text
@@ -520,36 +678,60 @@ class Parser:
                     raise ParseError(f'field access on non-struct value: {name}')
                 if fld not in fields:
                     raise ParseError(f'unknown field {fld} on struct value: {name}')
-                return f'          (ident {name}__{fld})\n'
+                return f'          (ident {name}__{fld})\n', 'i32'
+            if self.peek().kind == 'sym' and self.peek().text == '[':
+                # Array indexing: name[index]
+                self.next()
+                idx_ir = self.parse_expr_ir()
+                self.expect('sym', ']')
+                arr_ty = self.var_type(name)
+                import re as _re
+                m = _re.match(r'\[(\w+);\s*(\d+)\]', arr_ty)
+                elem_ty = m.group(1) if m else 'i32'
+                return (
+                    f'          (array_get {elem_ty}\n'
+                    f'            (ident {name})\n'
+                    f'{idx_ir}'
+                    '          )\n'
+                ), elem_ty
             if self.peek().kind == 'sym' and self.peek().text == '(':
                 self.next()
+                # str_len(s) and str_ptr(s) intrinsics
+                if name == 'str_len':
+                    arg_ir = self.parse_expr_ir()
+                    self.expect('sym', ')')
+                    return f'          (str_len\n{arg_ir}          )\n', 'i32'
+                if name == 'str_ptr':
+                    arg_ir = self.parse_expr_ir()
+                    self.expect('sym', ')')
+                    return f'          (str_ptr\n{arg_ir}          )\n', 'i32'
                 if name in self.fn_return_struct:
                     raise ParseError(f'struct-return call must be used in struct let initialization: {name}')
                 inner = self.parse_call_args_ir()
                 self.expect('sym', ')')
                 if not inner:
-                    return f'          (call {name})\n'
-                return f'          (call {name}\n{inner}          )\n'
-            return f'          (ident {name})\n'
+                    return f'          (call {name})\n', 'i32'
+                return f'          (call {name}\n{inner}          )\n', 'i32'
+            return f'          (ident {name})\n', self.var_type(name)
         if t.kind == 'sym' and t.text == '(':
             self.next()
-            e = self.parse_expr_ir()
+            ir, ty = self.parse_expr_typed()
             self.expect('sym', ')')
-            return e
+            return ir, ty
         if t.kind == 'sym' and t.text == '!':
             self.next()
-            e = self.parse_term_ir()
+            e_ir, e_ty = self.parse_term_typed()
             return (
                 '          (binary eq\n'
-                f'{e}'
+                f'{e_ir}'
                 '          (int 0)\n'
                 '          )\n'
-            )
+            ), 'i32'
         raise ParseError(f'unexpected token in expression: {t.kind}:{t.text}')
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='Compile Coatl subset to coatl_ir v0')
+    ap = argparse.ArgumentParser(description='Compile Coatl subset to coatl_ir v1')
     ap.add_argument('input', help='input .coatl file')
     ap.add_argument('-o', '--output', required=True, help='output .ir file')
     args = ap.parse_args()

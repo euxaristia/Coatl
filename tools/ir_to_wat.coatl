@@ -299,6 +299,97 @@ fn wl_true_len() -> i32 { return 4; }
 fn wl_false_ptr() -> i32 { return wat_lit_base() + 960; }
 fn wl_false_len() -> i32 { return 5; }
 
+// i64 WAT literals at offset 1040+
+fn wl_i64_const_ptr() -> i32 { return wat_lit_base() + 1040; }
+fn wl_i64_const_len() -> i32 { return 10; }
+fn wl_i64_add_ptr() -> i32 { return wat_lit_base() + 1056; }
+fn wl_i64_add_len() -> i32 { return 7; }
+fn wl_i64_sub_ptr() -> i32 { return wat_lit_base() + 1064; }
+fn wl_i64_sub_len() -> i32 { return 7; }
+fn wl_i64_mul_ptr() -> i32 { return wat_lit_base() + 1072; }
+fn wl_i64_mul_len() -> i32 { return 7; }
+fn wl_i64_div_s_ptr() -> i32 { return wat_lit_base() + 1080; }
+fn wl_i64_div_s_len() -> i32 { return 9; }
+fn wl_i64_eq_ptr() -> i32 { return wat_lit_base() + 1092; }
+fn wl_i64_eq_len() -> i32 { return 6; }
+fn wl_i64_ne_ptr() -> i32 { return wat_lit_base() + 1100; }
+fn wl_i64_ne_len() -> i32 { return 6; }
+fn wl_i64_lt_s_ptr() -> i32 { return wat_lit_base() + 1108; }
+fn wl_i64_lt_s_len() -> i32 { return 8; }
+fn wl_i64_gt_s_ptr() -> i32 { return wat_lit_base() + 1116; }
+fn wl_i64_gt_s_len() -> i32 { return 8; }
+fn wl_i64_le_s_ptr() -> i32 { return wat_lit_base() + 1124; }
+fn wl_i64_le_s_len() -> i32 { return 8; }
+fn wl_i64_ge_s_ptr() -> i32 { return wat_lit_base() + 1132; }
+fn wl_i64_ge_s_len() -> i32 { return 8; }
+// Type name strings for emit
+fn wl_param_i64_ptr() -> i32 { return wat_lit_base() + 1140; }
+fn wl_param_i64_len() -> i32 { return 10; }
+fn wl_result_i64_ptr() -> i32 { return wat_lit_base() + 1152; }
+fn wl_result_i64_len() -> i32 { return 12; }
+fn wl_local_i64_ptr() -> i32 { return wat_lit_base() + 1168; }
+fn wl_local_i64_len() -> i32 { return 10; }
+// f32 WAT literals
+fn wl_f32_const_ptr() -> i32 { return wat_lit_base() + 1184; }
+fn wl_f32_const_len() -> i32 { return 10; }
+fn wl_f32_add_ptr() -> i32 { return wat_lit_base() + 1200; }
+fn wl_f32_add_len() -> i32 { return 7; }
+fn wl_f32_sub_ptr() -> i32 { return wat_lit_base() + 1208; }
+fn wl_f32_sub_len() -> i32 { return 7; }
+fn wl_f32_mul_ptr() -> i32 { return wat_lit_base() + 1216; }
+fn wl_f32_mul_len() -> i32 { return 7; }
+fn wl_f32_div_ptr() -> i32 { return wat_lit_base() + 1224; }
+fn wl_f32_div_len() -> i32 { return 7; }
+fn wl_f32_eq_ptr() -> i32 { return wat_lit_base() + 1232; }
+fn wl_f32_eq_len() -> i32 { return 6; }
+fn wl_f32_ne_ptr() -> i32 { return wat_lit_base() + 1240; }
+fn wl_f32_ne_len() -> i32 { return 6; }
+fn wl_f32_lt_ptr() -> i32 { return wat_lit_base() + 1248; }
+fn wl_f32_lt_len() -> i32 { return 6; }
+fn wl_f32_gt_ptr() -> i32 { return wat_lit_base() + 1256; }
+fn wl_f32_gt_len() -> i32 { return 6; }
+fn wl_f32_le_ptr() -> i32 { return wat_lit_base() + 1264; }
+fn wl_f32_le_len() -> i32 { return 6; }
+fn wl_f32_ge_ptr() -> i32 { return wat_lit_base() + 1272; }
+fn wl_f32_ge_len() -> i32 { return 6; }
+fn wl_param_f32_ptr() -> i32 { return wat_lit_base() + 1280; }
+fn wl_param_f32_len() -> i32 { return 10; }
+fn wl_result_f32_ptr() -> i32 { return wat_lit_base() + 1292; }
+fn wl_result_f32_len() -> i32 { return 12; }
+fn wl_local_f32_ptr() -> i32 { return wat_lit_base() + 1308; }
+fn wl_local_f32_len() -> i32 { return 10; }
+// f64 WAT literals
+fn wl_f64_const_ptr() -> i32 { return wat_lit_base() + 1328; }
+fn wl_f64_const_len() -> i32 { return 10; }
+fn wl_f64_add_ptr() -> i32 { return wat_lit_base() + 1344; }
+fn wl_f64_add_len() -> i32 { return 7; }
+fn wl_f64_sub_ptr() -> i32 { return wat_lit_base() + 1352; }
+fn wl_f64_sub_len() -> i32 { return 7; }
+fn wl_f64_mul_ptr() -> i32 { return wat_lit_base() + 1360; }
+fn wl_f64_mul_len() -> i32 { return 7; }
+fn wl_f64_div_ptr() -> i32 { return wat_lit_base() + 1368; }
+fn wl_f64_div_len() -> i32 { return 7; }
+fn wl_f64_eq_ptr() -> i32 { return wat_lit_base() + 1376; }
+fn wl_f64_eq_len() -> i32 { return 6; }
+fn wl_f64_ne_ptr() -> i32 { return wat_lit_base() + 1384; }
+fn wl_f64_ne_len() -> i32 { return 6; }
+fn wl_f64_lt_ptr() -> i32 { return wat_lit_base() + 1392; }
+fn wl_f64_lt_len() -> i32 { return 6; }
+fn wl_f64_gt_ptr() -> i32 { return wat_lit_base() + 1400; }
+fn wl_f64_gt_len() -> i32 { return 6; }
+fn wl_f64_le_ptr() -> i32 { return wat_lit_base() + 1408; }
+fn wl_f64_le_len() -> i32 { return 6; }
+fn wl_f64_ge_ptr() -> i32 { return wat_lit_base() + 1416; }
+fn wl_f64_ge_len() -> i32 { return 6; }
+fn wl_param_f64_ptr() -> i32 { return wat_lit_base() + 1424; }
+fn wl_param_f64_len() -> i32 { return 10; }
+fn wl_result_f64_ptr() -> i32 { return wat_lit_base() + 1436; }
+fn wl_result_f64_len() -> i32 { return 12; }
+fn wl_local_f64_ptr() -> i32 { return wat_lit_base() + 1452; }
+fn wl_local_f64_len() -> i32 { return 10; }
+fn wl_unreachable_ptr() -> i32 { return wat_lit_base() + 1472; }
+fn wl_unreachable_len() -> i32 { return 11; }
+
 fn init_wat_byte(off: i32, val: i32) -> i32 {
   __mem_store8(wat_lit_base() + off, val);
   return 0;
@@ -728,6 +819,196 @@ fn init_wat_literals() -> i32 {
   // Let me recount: i(1)3(2)2(3) (4)i(5)3(6)2(7) (8)i(9)3(10)2(11) (12)i(13)3(14)2(15) (16)i(17)3(18)2(19) (20)i(21)6(22)4(23) (24)i(25)6(26)4(27) (28)i(29)3(30)2(31) (32)i(33)3(34)2(35)
   // That's 35 characters, not 37. Let me fix the len.
 
+  // "i64.const " at offset 1040 (10 bytes)
+  init_wat_byte(1040, 105); init_wat_byte(1041, 54); init_wat_byte(1042, 52);
+  init_wat_byte(1043, 46); init_wat_byte(1044, 99); init_wat_byte(1045, 111);
+  init_wat_byte(1046, 110); init_wat_byte(1047, 115); init_wat_byte(1048, 116);
+  init_wat_byte(1049, 32);
+
+  // "i64.add" at offset 1056
+  init_wat_byte(1056, 105); init_wat_byte(1057, 54); init_wat_byte(1058, 52);
+  init_wat_byte(1059, 46); init_wat_byte(1060, 97); init_wat_byte(1061, 100);
+  init_wat_byte(1062, 100);
+
+  // "i64.sub" at offset 1064
+  init_wat_byte(1064, 105); init_wat_byte(1065, 54); init_wat_byte(1066, 52);
+  init_wat_byte(1067, 46); init_wat_byte(1068, 115); init_wat_byte(1069, 117);
+  init_wat_byte(1070, 98);
+
+  // "i64.mul" at offset 1072
+  init_wat_byte(1072, 105); init_wat_byte(1073, 54); init_wat_byte(1074, 52);
+  init_wat_byte(1075, 46); init_wat_byte(1076, 109); init_wat_byte(1077, 117);
+  init_wat_byte(1078, 108);
+
+  // "i64.div_s" at offset 1080
+  init_wat_byte(1080, 105); init_wat_byte(1081, 54); init_wat_byte(1082, 52);
+  init_wat_byte(1083, 46); init_wat_byte(1084, 100); init_wat_byte(1085, 105);
+  init_wat_byte(1086, 118); init_wat_byte(1087, 95); init_wat_byte(1088, 115);
+
+  // "i64.eq" at offset 1092
+  init_wat_byte(1092, 105); init_wat_byte(1093, 54); init_wat_byte(1094, 52);
+  init_wat_byte(1095, 46); init_wat_byte(1096, 101); init_wat_byte(1097, 113);
+
+  // "i64.ne" at offset 1100
+  init_wat_byte(1100, 105); init_wat_byte(1101, 54); init_wat_byte(1102, 52);
+  init_wat_byte(1103, 46); init_wat_byte(1104, 110); init_wat_byte(1105, 101);
+
+  // "i64.lt_s" at offset 1108
+  init_wat_byte(1108, 105); init_wat_byte(1109, 54); init_wat_byte(1110, 52);
+  init_wat_byte(1111, 46); init_wat_byte(1112, 108); init_wat_byte(1113, 116);
+  init_wat_byte(1114, 95); init_wat_byte(1115, 115);
+
+  // "i64.gt_s" at offset 1116
+  init_wat_byte(1116, 105); init_wat_byte(1117, 54); init_wat_byte(1118, 52);
+  init_wat_byte(1119, 46); init_wat_byte(1120, 103); init_wat_byte(1121, 116);
+  init_wat_byte(1122, 95); init_wat_byte(1123, 115);
+
+  // "i64.le_s" at offset 1124
+  init_wat_byte(1124, 105); init_wat_byte(1125, 54); init_wat_byte(1126, 52);
+  init_wat_byte(1127, 46); init_wat_byte(1128, 108); init_wat_byte(1129, 101);
+  init_wat_byte(1130, 95); init_wat_byte(1131, 115);
+
+  // "i64.ge_s" at offset 1132
+  init_wat_byte(1132, 105); init_wat_byte(1133, 54); init_wat_byte(1134, 52);
+  init_wat_byte(1135, 46); init_wat_byte(1136, 103); init_wat_byte(1137, 101);
+  init_wat_byte(1138, 95); init_wat_byte(1139, 115);
+
+  // "(param i64)" at offset 1140 (10 bytes)
+  init_wat_byte(1140, 40); init_wat_byte(1141, 112); init_wat_byte(1142, 97);
+  init_wat_byte(1143, 114); init_wat_byte(1144, 97); init_wat_byte(1145, 109);
+  init_wat_byte(1146, 32); init_wat_byte(1147, 105); init_wat_byte(1148, 54);
+  init_wat_byte(1149, 52);
+
+  // " (result i64)" at offset 1152 (12 bytes)
+  init_wat_byte(1152, 32); init_wat_byte(1153, 40); init_wat_byte(1154, 114);
+  init_wat_byte(1155, 101); init_wat_byte(1156, 115); init_wat_byte(1157, 117);
+  init_wat_byte(1158, 108); init_wat_byte(1159, 116); init_wat_byte(1160, 32);
+  init_wat_byte(1161, 105); init_wat_byte(1162, 54); init_wat_byte(1163, 52);
+
+  // "(local i64)" at offset 1168 (10 bytes)
+  init_wat_byte(1168, 40); init_wat_byte(1169, 108); init_wat_byte(1170, 111);
+  init_wat_byte(1171, 99); init_wat_byte(1172, 97); init_wat_byte(1173, 108);
+  init_wat_byte(1174, 32); init_wat_byte(1175, 105); init_wat_byte(1176, 54);
+  init_wat_byte(1177, 52);
+
+  // "f32.const " at offset 1184 (10 bytes)
+  init_wat_byte(1184, 102); init_wat_byte(1185, 51); init_wat_byte(1186, 50);
+  init_wat_byte(1187, 46); init_wat_byte(1188, 99); init_wat_byte(1189, 111);
+  init_wat_byte(1190, 110); init_wat_byte(1191, 115); init_wat_byte(1192, 116);
+  init_wat_byte(1193, 32);
+
+  // "f32.add" at offset 1200
+  init_wat_byte(1200, 102); init_wat_byte(1201, 51); init_wat_byte(1202, 50);
+  init_wat_byte(1203, 46); init_wat_byte(1204, 97); init_wat_byte(1205, 100);
+  init_wat_byte(1206, 100);
+  // "f32.sub" at offset 1208
+  init_wat_byte(1208, 102); init_wat_byte(1209, 51); init_wat_byte(1210, 50);
+  init_wat_byte(1211, 46); init_wat_byte(1212, 115); init_wat_byte(1213, 117);
+  init_wat_byte(1214, 98);
+  // "f32.mul" at offset 1216
+  init_wat_byte(1216, 102); init_wat_byte(1217, 51); init_wat_byte(1218, 50);
+  init_wat_byte(1219, 46); init_wat_byte(1220, 109); init_wat_byte(1221, 117);
+  init_wat_byte(1222, 108);
+  // "f32.div" at offset 1224
+  init_wat_byte(1224, 102); init_wat_byte(1225, 51); init_wat_byte(1226, 50);
+  init_wat_byte(1227, 46); init_wat_byte(1228, 100); init_wat_byte(1229, 105);
+  init_wat_byte(1230, 118);
+  // "f32.eq" at offset 1232
+  init_wat_byte(1232, 102); init_wat_byte(1233, 51); init_wat_byte(1234, 50);
+  init_wat_byte(1235, 46); init_wat_byte(1236, 101); init_wat_byte(1237, 113);
+  // "f32.ne" at offset 1240
+  init_wat_byte(1240, 102); init_wat_byte(1241, 51); init_wat_byte(1242, 50);
+  init_wat_byte(1243, 46); init_wat_byte(1244, 110); init_wat_byte(1245, 101);
+  // "f32.lt" at offset 1248
+  init_wat_byte(1248, 102); init_wat_byte(1249, 51); init_wat_byte(1250, 50);
+  init_wat_byte(1251, 46); init_wat_byte(1252, 108); init_wat_byte(1253, 116);
+  // "f32.gt" at offset 1256
+  init_wat_byte(1256, 102); init_wat_byte(1257, 51); init_wat_byte(1258, 50);
+  init_wat_byte(1259, 46); init_wat_byte(1260, 103); init_wat_byte(1261, 116);
+  // "f32.le" at offset 1264
+  init_wat_byte(1264, 102); init_wat_byte(1265, 51); init_wat_byte(1266, 50);
+  init_wat_byte(1267, 46); init_wat_byte(1268, 108); init_wat_byte(1269, 101);
+  // "f32.ge" at offset 1272
+  init_wat_byte(1272, 102); init_wat_byte(1273, 51); init_wat_byte(1274, 50);
+  init_wat_byte(1275, 46); init_wat_byte(1276, 103); init_wat_byte(1277, 101);
+
+  // "(param f32)" at offset 1280
+  init_wat_byte(1280, 40); init_wat_byte(1281, 112); init_wat_byte(1282, 97);
+  init_wat_byte(1283, 114); init_wat_byte(1284, 97); init_wat_byte(1285, 109);
+  init_wat_byte(1286, 32); init_wat_byte(1287, 102); init_wat_byte(1288, 51);
+  init_wat_byte(1289, 50);
+  // " (result f32)" at offset 1292
+  init_wat_byte(1292, 32); init_wat_byte(1293, 40); init_wat_byte(1294, 114);
+  init_wat_byte(1295, 101); init_wat_byte(1296, 115); init_wat_byte(1297, 117);
+  init_wat_byte(1298, 108); init_wat_byte(1299, 116); init_wat_byte(1300, 32);
+  init_wat_byte(1301, 102); init_wat_byte(1302, 51); init_wat_byte(1303, 50);
+  // "(local f32)" at offset 1308
+  init_wat_byte(1308, 40); init_wat_byte(1309, 108); init_wat_byte(1310, 111);
+  init_wat_byte(1311, 99); init_wat_byte(1312, 97); init_wat_byte(1313, 108);
+  init_wat_byte(1314, 32); init_wat_byte(1315, 102); init_wat_byte(1316, 51);
+  init_wat_byte(1317, 50);
+
+  // "f64.const " at offset 1328 (10 bytes)
+  init_wat_byte(1328, 102); init_wat_byte(1329, 54); init_wat_byte(1330, 52);
+  init_wat_byte(1331, 46); init_wat_byte(1332, 99); init_wat_byte(1333, 111);
+  init_wat_byte(1334, 110); init_wat_byte(1335, 115); init_wat_byte(1336, 116);
+  init_wat_byte(1337, 32);
+  // "f64.add" at offset 1344
+  init_wat_byte(1344, 102); init_wat_byte(1345, 54); init_wat_byte(1346, 52);
+  init_wat_byte(1347, 46); init_wat_byte(1348, 97); init_wat_byte(1349, 100);
+  init_wat_byte(1350, 100);
+  // "f64.sub" at offset 1352
+  init_wat_byte(1352, 102); init_wat_byte(1353, 54); init_wat_byte(1354, 52);
+  init_wat_byte(1355, 46); init_wat_byte(1356, 115); init_wat_byte(1357, 117);
+  init_wat_byte(1358, 98);
+  // "f64.mul" at offset 1360
+  init_wat_byte(1360, 102); init_wat_byte(1361, 54); init_wat_byte(1362, 52);
+  init_wat_byte(1363, 46); init_wat_byte(1364, 109); init_wat_byte(1365, 117);
+  init_wat_byte(1366, 108);
+  // "f64.div" at offset 1368
+  init_wat_byte(1368, 102); init_wat_byte(1369, 54); init_wat_byte(1370, 52);
+  init_wat_byte(1371, 46); init_wat_byte(1372, 100); init_wat_byte(1373, 105);
+  init_wat_byte(1374, 118);
+  // "f64.eq" at offset 1376
+  init_wat_byte(1376, 102); init_wat_byte(1377, 54); init_wat_byte(1378, 52);
+  init_wat_byte(1379, 46); init_wat_byte(1380, 101); init_wat_byte(1381, 113);
+  // "f64.ne" at offset 1384
+  init_wat_byte(1384, 102); init_wat_byte(1385, 54); init_wat_byte(1386, 52);
+  init_wat_byte(1387, 46); init_wat_byte(1388, 110); init_wat_byte(1389, 101);
+  // "f64.lt" at offset 1392
+  init_wat_byte(1392, 102); init_wat_byte(1393, 54); init_wat_byte(1394, 52);
+  init_wat_byte(1395, 46); init_wat_byte(1396, 108); init_wat_byte(1397, 116);
+  // "f64.gt" at offset 1400
+  init_wat_byte(1400, 102); init_wat_byte(1401, 54); init_wat_byte(1402, 52);
+  init_wat_byte(1403, 46); init_wat_byte(1404, 103); init_wat_byte(1405, 116);
+  // "f64.le" at offset 1408
+  init_wat_byte(1408, 102); init_wat_byte(1409, 54); init_wat_byte(1410, 52);
+  init_wat_byte(1411, 46); init_wat_byte(1412, 108); init_wat_byte(1413, 101);
+  // "f64.ge" at offset 1416
+  init_wat_byte(1416, 102); init_wat_byte(1417, 54); init_wat_byte(1418, 52);
+  init_wat_byte(1419, 46); init_wat_byte(1420, 103); init_wat_byte(1421, 101);
+
+  // "(param f64)" at offset 1424
+  init_wat_byte(1424, 40); init_wat_byte(1425, 112); init_wat_byte(1426, 97);
+  init_wat_byte(1427, 114); init_wat_byte(1428, 97); init_wat_byte(1429, 109);
+  init_wat_byte(1430, 32); init_wat_byte(1431, 102); init_wat_byte(1432, 54);
+  init_wat_byte(1433, 52);
+  // " (result f64)" at offset 1436
+  init_wat_byte(1436, 32); init_wat_byte(1437, 40); init_wat_byte(1438, 114);
+  init_wat_byte(1439, 101); init_wat_byte(1440, 115); init_wat_byte(1441, 117);
+  init_wat_byte(1442, 108); init_wat_byte(1443, 116); init_wat_byte(1444, 32);
+  init_wat_byte(1445, 102); init_wat_byte(1446, 54); init_wat_byte(1447, 52);
+  // "(local f64)" at offset 1452
+  init_wat_byte(1452, 40); init_wat_byte(1453, 108); init_wat_byte(1454, 111);
+  init_wat_byte(1455, 99); init_wat_byte(1456, 97); init_wat_byte(1457, 108);
+  init_wat_byte(1458, 32); init_wat_byte(1459, 102); init_wat_byte(1460, 54);
+  init_wat_byte(1461, 52);
+  // "unreachable" at offset 1472
+  init_wat_byte(1472, 117); init_wat_byte(1473, 110); init_wat_byte(1474, 114);
+  init_wat_byte(1475, 101); init_wat_byte(1476, 97); init_wat_byte(1477, 99);
+  init_wat_byte(1478, 104); init_wat_byte(1479, 97); init_wat_byte(1480, 98);
+  init_wat_byte(1481, 108); init_wat_byte(1482, 101);
+
   __mem_store(wat_lit_inited_addr(), 1);
   return 0;
 }
@@ -743,6 +1024,8 @@ fn wl_memory_export_real_len() -> i32 { return 28; }
 // ---------------------------------------------------------------------------
 // State: feature flags, string table, locals table, fn names
 // ---------------------------------------------------------------------------
+
+fn is_v1_addr() -> i32 { return state_base() + 8412; }
 
 fn feat_fd_write_addr() -> i32 { return state_base() + 8416; }
 fn feat_fd_read_addr() -> i32 { return state_base() + 8420; }
@@ -843,13 +1126,19 @@ fn str_data_addr(idx: i32) -> i32 {
 }
 
 // Locals table: per-function, up to 128 locals
-// Each entry is (atom_off, atom_len) - 8 bytes
+// Each entry is (atom_off, atom_len, wasm_type) - 12 bytes
 fn locals_table_base() -> i32 { return 9441280; }  // str_table_base + 4096
-fn locals_entry_size() -> i32 { return 8; }
+fn locals_entry_size() -> i32 { return 12; }
 fn locals_count_addr() -> i32 { return state_base() + 8448; }
 fn locals_param_count_addr() -> i32 { return state_base() + 8452; }
 
 fn locals_entry_addr(i: i32) -> i32 { return locals_table_base() + i * locals_entry_size(); }
+
+// Wasm type codes
+fn wasm_type_i32() -> i32 { return 1; }
+fn wasm_type_i64() -> i32 { return 2; }
+fn wasm_type_f32() -> i32 { return 3; }
+fn wasm_type_f64() -> i32 { return 4; }
 
 fn reset_locals() -> i32 {
   __mem_store(locals_count_addr(), 0);
@@ -858,6 +1147,10 @@ fn reset_locals() -> i32 {
 }
 
 fn add_local(atom_off: i32, atom_len: i32) -> i32 {
+  return add_local_with_type(atom_off, atom_len, wasm_type_i32());
+}
+
+fn add_local_with_type(atom_off: i32, atom_len: i32, wasm_type: i32) -> i32 {
   let count: i32 = __mem_load(locals_count_addr());
   // Check for duplicates
   let i: i32 = 0;
@@ -882,8 +1175,24 @@ fn add_local(atom_off: i32, atom_len: i32) -> i32 {
   let entry: i32 = locals_entry_addr(count);
   __mem_store(entry, atom_off);
   __mem_store(entry + 4, atom_len);
+  __mem_store(entry + 8, wasm_type);
   __mem_store(locals_count_addr(), count + 1);
   return count;
+}
+
+fn local_wasm_type(idx: i32) -> i32 {
+  return __mem_load(locals_entry_addr(idx) + 8);
+}
+
+fn ir_type_to_wasm(type_node: i32) -> i32 {
+  // Map IR type atom to wasm type code
+  if (atom_equals(type_node, literal_i32_ptr(), literal_i32_len()) == 1) { return wasm_type_i32(); }
+  if (atom_equals(type_node, literal_bool_ptr(), literal_bool_len()) == 1) { return wasm_type_i32(); }
+  if (atom_equals(type_node, literal_i64_ptr(), literal_i64_len()) == 1) { return wasm_type_i64(); }
+  if (atom_equals(type_node, literal_f32_ptr(), literal_f32_len()) == 1) { return wasm_type_f32(); }
+  if (atom_equals(type_node, literal_f64_ptr(), literal_f64_len()) == 1) { return wasm_type_f64(); }
+  if (atom_equals(type_node, literal_str_type_ptr(), literal_str_type_len()) == 1) { return wasm_type_i32(); }
+  return wasm_type_i32(); // default
 }
 
 fn local_index(name_node: i32) -> i32 {
@@ -1030,8 +1339,16 @@ fn collect_features_expr(node: i32) -> i32 {
     }
   } else {
     if (atom_equals(tag, literal_binary_ptr(), literal_binary_len()) == 1) {
-      collect_features_expr(list_child_at(node, 2));
-      collect_features_expr(list_child_at(node, 3));
+      // v0: (binary op lhs rhs) - 4 children
+      // v1: (binary op type lhs rhs) - 5 children  OR (binary op lhs rhs) - 4 children
+      let nchildren: i32 = list_child_count(node);
+      if (nchildren >= 5) {
+        collect_features_expr(list_child_at(node, 3));
+        collect_features_expr(list_child_at(node, 4));
+      } else {
+        collect_features_expr(list_child_at(node, 2));
+        collect_features_expr(list_child_at(node, 3));
+      }
     }
     if (atom_equals(tag, wl_unary_ptr(), wl_unary_len()) == 1) {
       collect_features_expr(list_child_at(node, 2));
@@ -1093,9 +1410,22 @@ fn collect_strings_expr(node: i32) -> i32 {
     }
     return 0;
   }
+  if (atom_equals(tag, literal_string_typed_ptr(), literal_string_typed_len()) == 1) {
+    let str_tok: i32 = list_child_at(node, 1);
+    if (str_tok != 0) {
+      str_table_add(node_atom_off(str_tok), node_atom_len(str_tok));
+    }
+    return 0;
+  }
   if (atom_equals(tag, literal_binary_ptr(), literal_binary_len()) == 1) {
-    collect_strings_expr(list_child_at(node, 2));
-    collect_strings_expr(list_child_at(node, 3));
+    let nchildren: i32 = list_child_count(node);
+    if (nchildren >= 5) {
+      collect_strings_expr(list_child_at(node, 3));
+      collect_strings_expr(list_child_at(node, 4));
+    } else {
+      collect_strings_expr(list_child_at(node, 2));
+      collect_strings_expr(list_child_at(node, 3));
+    }
     return 0;
   }
   if (atom_equals(tag, wl_unary_ptr(), wl_unary_len()) == 1) {
@@ -1108,6 +1438,15 @@ fn collect_strings_expr(node: i32) -> i32 {
       collect_strings_expr(arg);
       arg = node_next(arg);
     }
+    return 0;
+  }
+  // str_len and str_ptr have one child expr at position 1
+  if (atom_equals(tag, literal_str_len_fn_ptr(), literal_str_len_fn_len()) == 1) {
+    collect_strings_expr(list_child_at(node, 1));
+    return 0;
+  }
+  if (atom_equals(tag, literal_str_ptr_fn_ptr(), literal_str_ptr_fn_len()) == 1) {
+    collect_strings_expr(list_child_at(node, 1));
     return 0;
   }
   return 0;
@@ -1161,7 +1500,14 @@ fn collect_locals_block(node: i32) -> i32 {
     if (s_tag != 0) {
       if (atom_equals(s_tag, literal_let_ptr(), literal_let_len()) == 1) {
         let name: i32 = list_child_at(stmt, 1);
-        add_local(node_atom_off(name), node_atom_len(name));
+        let wt: i32 = wasm_type_i32();
+        if (__mem_load(is_v1_addr()) == 1) {
+          let type_node: i32 = list_child_at(stmt, 2);
+          if (type_node != 0) {
+            wt = ir_type_to_wasm(type_node);
+          }
+        }
+        add_local_with_type(node_atom_off(name), node_atom_len(name), wt);
       }
       if (atom_equals(s_tag, literal_if_ptr(), literal_if_len()) == 1) {
         collect_locals_block(list_child_at(stmt, 2));
@@ -1201,6 +1547,73 @@ fn emit_wat_opcode(ptr: i32, len: i32) -> i32 {
 // Expression emitter
 // ---------------------------------------------------------------------------
 
+fn parse_int_from_atom(off: i32, len: i32) -> i32 {
+  let val: i32 = 0;
+  let i: i32 = 0;
+  while (i < len) {
+    let c: i32 = __mem_load8(ir_buf_base() + off + i);
+    val = val * 10 + c - 48;
+    i = i + 1;
+  }
+  return val;
+}
+
+fn emit_typed_binop(op: i32, wt: i32) -> i32 {
+  if (wt == wasm_type_i64()) {
+    if (atom_equals(op, literal_add_ptr(), literal_add_len()) == 1) { emit_wat_opcode(wl_i64_add_ptr(), wl_i64_add_len()); return 0; }
+    if (atom_equals(op, literal_sub_ptr(), literal_sub_len()) == 1) { emit_wat_opcode(wl_i64_sub_ptr(), wl_i64_sub_len()); return 0; }
+    if (atom_equals(op, literal_mul_ptr(), literal_mul_len()) == 1) { emit_wat_opcode(wl_i64_mul_ptr(), wl_i64_mul_len()); return 0; }
+    if (atom_equals(op, literal_div_ptr(), literal_div_len()) == 1) { emit_wat_opcode(wl_i64_div_s_ptr(), wl_i64_div_s_len()); return 0; }
+    if (atom_equals(op, literal_eq_ptr(), literal_eq_len()) == 1) { emit_wat_opcode(wl_i64_eq_ptr(), wl_i64_eq_len()); return 0; }
+    if (atom_equals(op, literal_ne_ptr(), literal_ne_len()) == 1) { emit_wat_opcode(wl_i64_ne_ptr(), wl_i64_ne_len()); return 0; }
+    if (atom_equals(op, literal_lt_ptr(), literal_lt_len()) == 1) { emit_wat_opcode(wl_i64_lt_s_ptr(), wl_i64_lt_s_len()); return 0; }
+    if (atom_equals(op, literal_gt_ptr(), literal_gt_len()) == 1) { emit_wat_opcode(wl_i64_gt_s_ptr(), wl_i64_gt_s_len()); return 0; }
+    if (atom_equals(op, literal_le_ptr(), literal_le_len()) == 1) { emit_wat_opcode(wl_i64_le_s_ptr(), wl_i64_le_s_len()); return 0; }
+    if (atom_equals(op, literal_ge_ptr(), literal_ge_len()) == 1) { emit_wat_opcode(wl_i64_ge_s_ptr(), wl_i64_ge_s_len()); return 0; }
+    return 0 - 121;
+  }
+  if (wt == wasm_type_f32()) {
+    if (atom_equals(op, literal_add_ptr(), literal_add_len()) == 1) { emit_wat_opcode(wl_f32_add_ptr(), wl_f32_add_len()); return 0; }
+    if (atom_equals(op, literal_sub_ptr(), literal_sub_len()) == 1) { emit_wat_opcode(wl_f32_sub_ptr(), wl_f32_sub_len()); return 0; }
+    if (atom_equals(op, literal_mul_ptr(), literal_mul_len()) == 1) { emit_wat_opcode(wl_f32_mul_ptr(), wl_f32_mul_len()); return 0; }
+    if (atom_equals(op, literal_div_ptr(), literal_div_len()) == 1) { emit_wat_opcode(wl_f32_div_ptr(), wl_f32_div_len()); return 0; }
+    if (atom_equals(op, literal_eq_ptr(), literal_eq_len()) == 1) { emit_wat_opcode(wl_f32_eq_ptr(), wl_f32_eq_len()); return 0; }
+    if (atom_equals(op, literal_ne_ptr(), literal_ne_len()) == 1) { emit_wat_opcode(wl_f32_ne_ptr(), wl_f32_ne_len()); return 0; }
+    if (atom_equals(op, literal_lt_ptr(), literal_lt_len()) == 1) { emit_wat_opcode(wl_f32_lt_ptr(), wl_f32_lt_len()); return 0; }
+    if (atom_equals(op, literal_gt_ptr(), literal_gt_len()) == 1) { emit_wat_opcode(wl_f32_gt_ptr(), wl_f32_gt_len()); return 0; }
+    if (atom_equals(op, literal_le_ptr(), literal_le_len()) == 1) { emit_wat_opcode(wl_f32_le_ptr(), wl_f32_le_len()); return 0; }
+    if (atom_equals(op, literal_ge_ptr(), literal_ge_len()) == 1) { emit_wat_opcode(wl_f32_ge_ptr(), wl_f32_ge_len()); return 0; }
+    return 0 - 122;
+  }
+  if (wt == wasm_type_f64()) {
+    if (atom_equals(op, literal_add_ptr(), literal_add_len()) == 1) { emit_wat_opcode(wl_f64_add_ptr(), wl_f64_add_len()); return 0; }
+    if (atom_equals(op, literal_sub_ptr(), literal_sub_len()) == 1) { emit_wat_opcode(wl_f64_sub_ptr(), wl_f64_sub_len()); return 0; }
+    if (atom_equals(op, literal_mul_ptr(), literal_mul_len()) == 1) { emit_wat_opcode(wl_f64_mul_ptr(), wl_f64_mul_len()); return 0; }
+    if (atom_equals(op, literal_div_ptr(), literal_div_len()) == 1) { emit_wat_opcode(wl_f64_div_ptr(), wl_f64_div_len()); return 0; }
+    if (atom_equals(op, literal_eq_ptr(), literal_eq_len()) == 1) { emit_wat_opcode(wl_f64_eq_ptr(), wl_f64_eq_len()); return 0; }
+    if (atom_equals(op, literal_ne_ptr(), literal_ne_len()) == 1) { emit_wat_opcode(wl_f64_ne_ptr(), wl_f64_ne_len()); return 0; }
+    if (atom_equals(op, literal_lt_ptr(), literal_lt_len()) == 1) { emit_wat_opcode(wl_f64_lt_ptr(), wl_f64_lt_len()); return 0; }
+    if (atom_equals(op, literal_gt_ptr(), literal_gt_len()) == 1) { emit_wat_opcode(wl_f64_gt_ptr(), wl_f64_gt_len()); return 0; }
+    if (atom_equals(op, literal_le_ptr(), literal_le_len()) == 1) { emit_wat_opcode(wl_f64_le_ptr(), wl_f64_le_len()); return 0; }
+    if (atom_equals(op, literal_ge_ptr(), literal_ge_len()) == 1) { emit_wat_opcode(wl_f64_ge_ptr(), wl_f64_ge_len()); return 0; }
+    return 0 - 123;
+  }
+  // Default: i32
+  if (atom_equals(op, literal_add_ptr(), literal_add_len()) == 1) { emit_wat_opcode(wl_i32_add_ptr(), wl_i32_add_len()); return 0; }
+  if (atom_equals(op, literal_sub_ptr(), literal_sub_len()) == 1) { emit_wat_opcode(wl_i32_sub_ptr(), wl_i32_sub_len()); return 0; }
+  if (atom_equals(op, literal_mul_ptr(), literal_mul_len()) == 1) { emit_wat_opcode(wl_i32_mul_ptr(), wl_i32_mul_len()); return 0; }
+  if (atom_equals(op, literal_div_ptr(), literal_div_len()) == 1) { emit_wat_opcode(wl_i32_div_s_ptr(), wl_i32_div_s_len()); return 0; }
+  if (atom_equals(op, literal_eq_ptr(), literal_eq_len()) == 1) { emit_wat_opcode(wl_i32_eq_ptr(), wl_i32_eq_len()); return 0; }
+  if (atom_equals(op, literal_ne_ptr(), literal_ne_len()) == 1) { emit_wat_opcode(wl_i32_ne_ptr(), wl_i32_ne_len()); return 0; }
+  if (atom_equals(op, literal_lt_ptr(), literal_lt_len()) == 1) { emit_wat_opcode(wl_i32_lt_s_ptr(), wl_i32_lt_s_len()); return 0; }
+  if (atom_equals(op, literal_gt_ptr(), literal_gt_len()) == 1) { emit_wat_opcode(wl_i32_gt_s_ptr(), wl_i32_gt_s_len()); return 0; }
+  if (atom_equals(op, literal_le_ptr(), literal_le_len()) == 1) { emit_wat_opcode(wl_i32_le_s_ptr(), wl_i32_le_s_len()); return 0; }
+  if (atom_equals(op, literal_ge_ptr(), literal_ge_len()) == 1) { emit_wat_opcode(wl_i32_ge_s_ptr(), wl_i32_ge_s_len()); return 0; }
+  if (atom_equals(op, literal_and_ptr(), literal_and_len()) == 1) { emit_wat_opcode(wl_i32_and_ptr(), wl_i32_and_len()); return 0; }
+  if (atom_equals(op, literal_or_ptr(), literal_or_len()) == 1) { emit_wat_opcode(wl_i32_or_ptr(), wl_i32_or_len()); return 0; }
+  return 0 - 120;
+}
+
 fn emit_expr(node: i32) -> i32 {
   if (node == 0) { return 0 - 100; }
   if (node_kind(node) != 1) { return 0 - 101; }
@@ -1221,6 +1634,155 @@ fn emit_expr(node: i32) -> i32 {
     out_spaces(4);
     out_str(wl_i32_const_ptr(), wl_i32_const_len());
     out_atom(list_child_at(node, 1));
+    out_nl();
+    return 0;
+  }
+
+  // (int_i64 N)
+  if (atom_equals(tag, literal_int_i64_ptr(), literal_int_i64_len()) == 1) {
+    out_spaces(4);
+    out_str(wl_i64_const_ptr(), wl_i64_const_len());
+    out_atom(list_child_at(node, 1));
+    out_nl();
+    return 0;
+  }
+
+  // (float_f32 N)
+  if (atom_equals(tag, literal_float_f32_ptr(), literal_float_f32_len()) == 1) {
+    out_spaces(4);
+    out_str(wl_f32_const_ptr(), wl_f32_const_len());
+    out_atom(list_child_at(node, 1));
+    out_nl();
+    return 0;
+  }
+
+  // (float_f64 N)
+  if (atom_equals(tag, literal_float_f64_ptr(), literal_float_f64_len()) == 1) {
+    out_spaces(4);
+    out_str(wl_f64_const_ptr(), wl_f64_const_len());
+    out_atom(list_child_at(node, 1));
+    out_nl();
+    return 0;
+  }
+
+  // (array_alloc T N)
+  if (atom_equals(tag, literal_array_alloc_ptr(), literal_array_alloc_len()) == 1) {
+    // child 1 = elem type atom, child 2 = size atom
+    let elem_type: i32 = list_child_at(node, 1);
+    let size_node: i32 = list_child_at(node, 2);
+    let elem_wt: i32 = ir_type_to_wasm(elem_type);
+    let elem_sz: i32 = 4;
+    if (elem_wt == wasm_type_i64()) { elem_sz = 8; }
+    if (elem_wt == wasm_type_f64()) { elem_sz = 8; }
+    // Read heap pointer
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(__mem_load(heap_ptr_addr()));
+    out_nl();
+    // Compute total bytes = N * elem_sz
+    // Parse N from atom
+    let n_off: i32 = node_atom_off(size_node);
+    let n_len: i32 = node_atom_len(size_node);
+    let n_val: i32 = parse_int_from_atom(n_off, n_len);
+    let total: i32 = n_val * elem_sz;
+    // Advance heap pointer
+    __mem_store(heap_ptr_addr(), __mem_load(heap_ptr_addr()) + total);
+    return 0;
+  }
+
+  // (array_get T base index)
+  if (atom_equals(tag, literal_array_get_ptr(), literal_array_get_len()) == 1) {
+    let elem_type: i32 = list_child_at(node, 1);
+    let base_expr: i32 = list_child_at(node, 2);
+    let index_expr: i32 = list_child_at(node, 3);
+    let elem_wt: i32 = ir_type_to_wasm(elem_type);
+    let elem_sz: i32 = 4;
+    if (elem_wt == wasm_type_i64()) { elem_sz = 8; }
+    if (elem_wt == wasm_type_f64()) { elem_sz = 8; }
+    // Compute address: base + index * elem_sz
+    emit_expr(base_expr);
+    emit_expr(index_expr);
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(elem_sz);
+    out_nl();
+    emit_wat_opcode(wl_i32_mul_ptr(), wl_i32_mul_len());
+    emit_wat_opcode(wl_i32_add_ptr(), wl_i32_add_len());
+    // Load value
+    if (elem_wt == wasm_type_i64()) {
+      // i64.load
+      out_spaces(4);
+      out_str(wl_i64_const_ptr(), 3); // "i64"
+      out_char(46); out_char(108); out_char(111); out_char(97); out_char(100); // ".load"
+      out_nl();
+    } else {
+      if (elem_wt == wasm_type_f32()) {
+        out_spaces(4);
+        out_str(wl_f32_const_ptr(), 3); // "f32"
+        out_char(46); out_char(108); out_char(111); out_char(97); out_char(100);
+        out_nl();
+      } else {
+        if (elem_wt == wasm_type_f64()) {
+          out_spaces(4);
+          out_str(wl_f64_const_ptr(), 3); // "f64"
+          out_char(46); out_char(108); out_char(111); out_char(97); out_char(100);
+          out_nl();
+        } else {
+          emit_wat_opcode(wl_i32_load_ptr(), wl_i32_load_len());
+        }
+      }
+    }
+    return 0;
+  }
+
+  // (array_set T base index val)
+  if (atom_equals(tag, literal_array_set_ptr(), literal_array_set_len()) == 1) {
+    let elem_type: i32 = list_child_at(node, 1);
+    let base_expr: i32 = list_child_at(node, 2);
+    let index_expr: i32 = list_child_at(node, 3);
+    let val_expr: i32 = list_child_at(node, 4);
+    let elem_wt: i32 = ir_type_to_wasm(elem_type);
+    let elem_sz: i32 = 4;
+    if (elem_wt == wasm_type_i64()) { elem_sz = 8; }
+    if (elem_wt == wasm_type_f64()) { elem_sz = 8; }
+    // Compute address: base + index * elem_sz
+    emit_expr(base_expr);
+    emit_expr(index_expr);
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(elem_sz);
+    out_nl();
+    emit_wat_opcode(wl_i32_mul_ptr(), wl_i32_mul_len());
+    emit_wat_opcode(wl_i32_add_ptr(), wl_i32_add_len());
+    // Push value
+    emit_expr(val_expr);
+    // Store value
+    if (elem_wt == wasm_type_i64()) {
+      out_spaces(4);
+      out_str(wl_i64_const_ptr(), 3);
+      out_char(46); out_char(115); out_char(116); out_char(111); out_char(114); out_char(101); // ".store"
+      out_nl();
+    } else {
+      if (elem_wt == wasm_type_f32()) {
+        out_spaces(4);
+        out_str(wl_f32_const_ptr(), 3);
+        out_char(46); out_char(115); out_char(116); out_char(111); out_char(114); out_char(101);
+        out_nl();
+      } else {
+        if (elem_wt == wasm_type_f64()) {
+          out_spaces(4);
+          out_str(wl_f64_const_ptr(), 3);
+          out_char(46); out_char(115); out_char(116); out_char(111); out_char(114); out_char(101);
+          out_nl();
+        } else {
+          emit_wat_opcode(wl_i32_store_ptr(), wl_i32_store_len());
+        }
+      }
+    }
+    // Return 0
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_char(48);
     out_nl();
     return 0;
   }
@@ -1249,66 +1811,111 @@ fn emit_expr(node: i32) -> i32 {
     return 0;
   }
 
-  // (binary op lhs rhs)
+  // (string_typed "...") - returns pointer to {ptr: i32, len: i32} header
+  if (atom_equals(tag, literal_string_typed_ptr(), literal_string_typed_len()) == 1) {
+    let str_tok: i32 = list_child_at(node, 1);
+    let si: i32 = str_table_find(node_atom_off(str_tok), node_atom_len(str_tok));
+    if (si < 0) { return 0 - 111; }
+    let data_addr: i32 = str_data_addr(si);
+    let str_len: i32 = decode_str_len(node_atom_off(str_tok), node_atom_len(str_tok));
+    // Allocate 8 bytes from heap for the str header
+    let hdr_addr: i32 = __mem_load(heap_ptr_addr());
+    __mem_store(heap_ptr_addr(), hdr_addr + 8);
+    // Emit: push hdr_addr, then store ptr and len at runtime
+    // We need hdr_addr on the stack at the end, so use a sequence:
+    // i32.const hdr_addr  (result)
+    // i32.const hdr_addr  (for store of ptr)
+    // i32.const data_addr
+    // i32.store           (store ptr at hdr_addr)
+    // i32.const hdr_addr+4 (for store of len)
+    // i32.const str_len
+    // i32.store           (store len at hdr_addr+4)
+    // The first i32.const hdr_addr remains on stack as result
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(hdr_addr);
+    out_nl();
+    // Store ptr at hdr_addr
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(hdr_addr);
+    out_nl();
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(data_addr);
+    out_nl();
+    emit_wat_opcode(wl_i32_store_ptr(), wl_i32_store_len());
+    // Store len at hdr_addr+4
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(hdr_addr + 4);
+    out_nl();
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(str_len);
+    out_nl();
+    emit_wat_opcode(wl_i32_store_ptr(), wl_i32_store_len());
+    return 0;
+  }
+
+  // (str_len expr) - load length from str header (offset 4)
+  if (atom_equals(tag, literal_str_len_fn_ptr(), literal_str_len_fn_len()) == 1) {
+    emit_expr(list_child_at(node, 1));
+    // Emit: i32.load offset=4
+    out_spaces(4);
+    out_str(wl_i32_load_ptr(), wl_i32_load_len()); // "i32.load"
+    out_char(32); // ' '
+    // "offset=4"
+    out_char(111); out_char(102); out_char(102); out_char(115); // "offs"
+    out_char(101); out_char(116); out_char(61); out_char(52);   // "et=4"
+    out_nl();
+    return 0;
+  }
+
+  // (str_ptr expr) - load pointer from str header (offset 0)
+  if (atom_equals(tag, literal_str_ptr_fn_ptr(), literal_str_ptr_fn_len()) == 1) {
+    emit_expr(list_child_at(node, 1));
+    emit_wat_opcode(wl_i32_load_ptr(), wl_i32_load_len());
+    return 0;
+  }
+
+  // (binary op [type] lhs rhs)
+  // v0: (binary op lhs rhs) - children: tag, op, lhs, rhs
+  // v1: (binary op type lhs rhs) - children: tag, op, type, lhs, rhs  (when type present)
+  // v1: (binary op lhs rhs) - children: tag, op, lhs, rhs  (default i32)
   if (atom_equals(tag, literal_binary_ptr(), literal_binary_len()) == 1) {
     let op: i32 = list_child_at(node, 1);
-    let lhs: i32 = list_child_at(node, 2);
-    let rhs: i32 = list_child_at(node, 3);
+    let wt: i32 = wasm_type_i32();
+    let lhs: i32 = 0;
+    let rhs: i32 = 0;
+    // In v1, check if child 2 is a type atom (i32/i64/f32/f64/bool)
+    if (__mem_load(is_v1_addr()) == 1) {
+      let child2: i32 = list_child_at(node, 2);
+      let is_type: i32 = 0;
+      if (child2 != 0 && node_kind(child2) == 0) {
+        // It's an atom - check if it matches a known type
+        if (atom_equals(child2, literal_i32_ptr(), literal_i32_len()) == 1) { is_type = 1; wt = wasm_type_i32(); }
+        if (atom_equals(child2, literal_i64_ptr(), literal_i64_len()) == 1) { is_type = 1; wt = wasm_type_i64(); }
+        if (atom_equals(child2, literal_f32_ptr(), literal_f32_len()) == 1) { is_type = 1; wt = wasm_type_f32(); }
+        if (atom_equals(child2, literal_f64_ptr(), literal_f64_len()) == 1) { is_type = 1; wt = wasm_type_f64(); }
+        if (atom_equals(child2, literal_bool_ptr(), literal_bool_len()) == 1) { is_type = 1; wt = wasm_type_i32(); }
+      }
+      if (is_type == 1) {
+        lhs = list_child_at(node, 3);
+        rhs = list_child_at(node, 4);
+      } else {
+        lhs = list_child_at(node, 2);
+        rhs = list_child_at(node, 3);
+      }
+    } else {
+      lhs = list_child_at(node, 2);
+      rhs = list_child_at(node, 3);
+    }
     let rc1: i32 = emit_expr(lhs);
     if (rc1 != 0) { return rc1; }
     let rc2: i32 = emit_expr(rhs);
     if (rc2 != 0) { return rc2; }
-    // Emit the WAT opcode based on op
-    if (atom_equals(op, literal_add_ptr(), literal_add_len()) == 1) {
-      emit_wat_opcode(wl_i32_add_ptr(), wl_i32_add_len());
-    } else {
-      if (atom_equals(op, literal_sub_ptr(), literal_sub_len()) == 1) {
-        emit_wat_opcode(wl_i32_sub_ptr(), wl_i32_sub_len());
-      } else {
-        if (atom_equals(op, literal_mul_ptr(), literal_mul_len()) == 1) {
-          emit_wat_opcode(wl_i32_mul_ptr(), wl_i32_mul_len());
-        } else {
-          if (atom_equals(op, literal_div_ptr(), literal_div_len()) == 1) {
-            emit_wat_opcode(wl_i32_div_s_ptr(), wl_i32_div_s_len());
-          } else {
-            if (atom_equals(op, literal_eq_ptr(), literal_eq_len()) == 1) {
-              emit_wat_opcode(wl_i32_eq_ptr(), wl_i32_eq_len());
-            } else {
-              if (atom_equals(op, literal_ne_ptr(), literal_ne_len()) == 1) {
-                emit_wat_opcode(wl_i32_ne_ptr(), wl_i32_ne_len());
-              } else {
-                if (atom_equals(op, literal_lt_ptr(), literal_lt_len()) == 1) {
-                  emit_wat_opcode(wl_i32_lt_s_ptr(), wl_i32_lt_s_len());
-                } else {
-                  if (atom_equals(op, literal_gt_ptr(), literal_gt_len()) == 1) {
-                    emit_wat_opcode(wl_i32_gt_s_ptr(), wl_i32_gt_s_len());
-                  } else {
-                    if (atom_equals(op, literal_le_ptr(), literal_le_len()) == 1) {
-                      emit_wat_opcode(wl_i32_le_s_ptr(), wl_i32_le_s_len());
-                    } else {
-                      if (atom_equals(op, literal_ge_ptr(), literal_ge_len()) == 1) {
-                        emit_wat_opcode(wl_i32_ge_s_ptr(), wl_i32_ge_s_len());
-                      } else {
-                        if (atom_equals(op, literal_and_ptr(), literal_and_len()) == 1) {
-                          emit_wat_opcode(wl_i32_and_ptr(), wl_i32_and_len());
-                        } else {
-                          if (atom_equals(op, literal_or_ptr(), literal_or_len()) == 1) {
-                            emit_wat_opcode(wl_i32_or_ptr(), wl_i32_or_len());
-                          } else {
-                            return 0 - 120;
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    return 0;
+    return emit_typed_binop(op, wt);
   }
 
   // (unary op expr) - only "not" supported
@@ -1736,11 +2343,103 @@ fn emit_path_open_import() -> i32 {
 // Function emission
 // ---------------------------------------------------------------------------
 
+fn emit_param_by_type(wt: i32) -> i32 {
+  out_char(32);
+  if (wt == wasm_type_i64()) {
+    out_str(wl_param_i64_ptr(), wl_param_i64_len());
+  } else {
+    if (wt == wasm_type_f32()) {
+      out_str(wl_param_f32_ptr(), wl_param_f32_len());
+    } else {
+      if (wt == wasm_type_f64()) {
+        out_str(wl_param_f64_ptr(), wl_param_f64_len());
+      } else {
+        out_str(wl_param_i32_ptr(), wl_param_i32_len());
+      }
+    }
+  }
+  out_char(41);
+  return 0;
+}
+
+fn emit_result_by_type(wt: i32) -> i32 {
+  if (wt == wasm_type_i64()) {
+    out_str(wl_result_i64_ptr(), wl_result_i64_len());
+  } else {
+    if (wt == wasm_type_f32()) {
+      out_str(wl_result_f32_ptr(), wl_result_f32_len());
+    } else {
+      if (wt == wasm_type_f64()) {
+        out_str(wl_result_f64_ptr(), wl_result_f64_len());
+      } else {
+        out_str(wl_result_i32_ptr(), wl_result_i32_len());
+      }
+    }
+  }
+  out_char(41);
+  return 0;
+}
+
+fn emit_local_by_type(wt: i32) -> i32 {
+  out_spaces(4);
+  if (wt == wasm_type_i64()) {
+    out_str(wl_local_i64_ptr(), wl_local_i64_len());
+  } else {
+    if (wt == wasm_type_f32()) {
+      out_str(wl_local_f32_ptr(), wl_local_f32_len());
+    } else {
+      if (wt == wasm_type_f64()) {
+        out_str(wl_local_f64_ptr(), wl_local_f64_len());
+      } else {
+        out_str(wl_local_i32_ptr(), wl_local_i32_len());
+      }
+    }
+  }
+  out_char(41);
+  out_nl();
+  return 0;
+}
+
+fn emit_zero_by_type(wt: i32) -> i32 {
+  out_spaces(4);
+  if (wt == wasm_type_i64()) {
+    out_str(wl_i64_const_ptr(), wl_i64_const_len());
+  } else {
+    if (wt == wasm_type_f32()) {
+      out_str(wl_f32_const_ptr(), wl_f32_const_len());
+    } else {
+      if (wt == wasm_type_f64()) {
+        out_str(wl_f64_const_ptr(), wl_f64_const_len());
+      } else {
+        out_str(wl_i32_const_ptr(), wl_i32_const_len());
+      }
+    }
+  }
+  out_char(48);
+  out_nl();
+  return 0;
+}
+
+fn fn_ret_wasm_type_addr() -> i32 { return state_base() + 8460; }
+// Heap pointer for array bump allocation
+fn heap_ptr_addr() -> i32 { return state_base() + 8464; }
+fn heap_base() -> i32 { return 65536; } // Start heap at 64KB
+
 fn emit_function(fn_node: i32) -> i32 {
   let name_node: i32 = list_child_at(fn_node, 1);
   let params_node: i32 = list_child_at(fn_node, 2);
   let ret_node: i32 = list_child_at(fn_node, 3);
   let block_node: i32 = list_child_at(fn_node, 4);
+
+  // Determine return wasm type
+  let ret_wt: i32 = wasm_type_i32();
+  if (__mem_load(is_v1_addr()) == 1) {
+    let ret_type_node: i32 = list_child_at(ret_node, 1);
+    if (ret_type_node != 0) {
+      ret_wt = ir_type_to_wasm(ret_type_node);
+    }
+  }
+  __mem_store(fn_ret_wasm_type_addr(), ret_wt);
 
   // Reset locals and collect params
   reset_locals();
@@ -1748,7 +2447,14 @@ fn emit_function(fn_node: i32) -> i32 {
   let param_count: i32 = 0;
   while (param != 0) {
     let pname: i32 = list_child_at(param, 1);
-    add_local(node_atom_off(pname), node_atom_len(pname));
+    let pwt: i32 = wasm_type_i32();
+    if (__mem_load(is_v1_addr()) == 1) {
+      let ptype_node: i32 = list_child_at(param, 2);
+      if (ptype_node != 0) {
+        pwt = ir_type_to_wasm(ptype_node);
+      }
+    }
+    add_local_with_type(node_atom_off(pname), node_atom_len(pname), pwt);
     param_count = param_count + 1;
     param = node_next(param);
   }
@@ -1767,24 +2473,18 @@ fn emit_function(fn_node: i32) -> i32 {
   // Emit params
   let pi: i32 = 0;
   while (pi < param_count) {
-    out_char(32);  // ' '
-    out_str(wl_param_i32_ptr(), wl_param_i32_len());
-    out_char(41);  // )
+    emit_param_by_type(local_wasm_type(pi));
     pi = pi + 1;
   }
 
   // Emit result
-  out_str(wl_result_i32_ptr(), wl_result_i32_len());
-  out_char(41);  // )
+  emit_result_by_type(ret_wt);
   out_nl();
 
   // Emit local declarations
   let li: i32 = 0;
   while (li < let_locals) {
-    out_spaces(4);
-    out_str(wl_local_i32_ptr(), wl_local_i32_len());
-    out_char(41);  // )
-    out_nl();
+    emit_local_by_type(local_wasm_type(param_count + li));
     li = li + 1;
   }
 
@@ -1793,10 +2493,7 @@ fn emit_function(fn_node: i32) -> i32 {
   if (rc != 0) { return rc; }
 
   // Emit trailing return
-  out_spaces(4);
-  out_str(wl_i32_const_ptr(), wl_i32_const_len());
-  out_char(48);  // '0'
-  out_nl();
+  emit_zero_by_type(ret_wt);
   emit_wat_opcode(wl_return_ptr(), wl_return_len());
 
   // Close function
@@ -1817,6 +2514,7 @@ fn lower_ir_to_wat(ir_len: i32) -> i32 {
   reset_features();
   reset_str_table();
   reset_fn_names();
+  __mem_store(heap_ptr_addr(), heap_base());
 
   // Parse the IR
   __mem_store(node_count_addr(), 0);
@@ -1830,7 +2528,16 @@ fn lower_ir_to_wat(ir_len: i32) -> i32 {
   let tag: i32 = list_child_at(root, 0);
   if (atom_equals(tag, literal_coatl_ir_ptr(), literal_coatl_ir_len()) != 1) { return 0 - 502; }
   let ver: i32 = list_child_at(root, 1);
-  if (atom_equals(ver, literal_v0_ptr(), literal_v0_len()) != 1) { return 0 - 503; }
+  let ver_ok: i32 = 0;
+  if (atom_equals(ver, literal_v0_ptr(), literal_v0_len()) == 1) {
+    ver_ok = 1;
+    __mem_store(is_v1_addr(), 0);
+  }
+  if (atom_equals(ver, literal_v1_ptr(), literal_v1_len()) == 1) {
+    ver_ok = 1;
+    __mem_store(is_v1_addr(), 1);
+  }
+  if (ver_ok != 1) { return 0 - 503; }
 
   let structs: i32 = list_child_at(root, 2);
   if (child_tag_equals(structs, literal_structs_ptr(), literal_structs_len()) != 1) { return 0 - 504; }
@@ -2276,6 +2983,34 @@ fn literal_tty_restore_ptr() -> i32 { return literal_tty_set_raw_ptr() + literal
 fn literal_tty_restore_len() -> i32 { return 13; }
 fn literal_main_ptr() -> i32 { return literal_tty_restore_ptr() + literal_tty_restore_len(); }
 fn literal_main_len() -> i32 { return 4; }
+fn literal_v1_ptr() -> i32 { return literal_main_ptr() + literal_main_len(); }
+fn literal_v1_len() -> i32 { return 2; }
+fn literal_i64_ptr() -> i32 { return literal_v1_ptr() + literal_v1_len(); }
+fn literal_i64_len() -> i32 { return 3; }
+fn literal_f32_ptr() -> i32 { return literal_i64_ptr() + literal_i64_len(); }
+fn literal_f32_len() -> i32 { return 3; }
+fn literal_f64_ptr() -> i32 { return literal_f32_ptr() + literal_f32_len(); }
+fn literal_f64_len() -> i32 { return 3; }
+fn literal_str_type_ptr() -> i32 { return literal_f64_ptr() + literal_f64_len(); }
+fn literal_str_type_len() -> i32 { return 3; }
+fn literal_int_i64_ptr() -> i32 { return literal_str_type_ptr() + literal_str_type_len(); }
+fn literal_int_i64_len() -> i32 { return 7; }
+fn literal_float_f32_ptr() -> i32 { return literal_int_i64_ptr() + literal_int_i64_len(); }
+fn literal_float_f32_len() -> i32 { return 9; }
+fn literal_float_f64_ptr() -> i32 { return literal_float_f32_ptr() + literal_float_f32_len(); }
+fn literal_float_f64_len() -> i32 { return 9; }
+fn literal_array_alloc_ptr() -> i32 { return literal_float_f64_ptr() + literal_float_f64_len(); }
+fn literal_array_alloc_len() -> i32 { return 11; }
+fn literal_array_get_ptr() -> i32 { return literal_array_alloc_ptr() + literal_array_alloc_len(); }
+fn literal_array_get_len() -> i32 { return 9; }
+fn literal_array_set_ptr() -> i32 { return literal_array_get_ptr() + literal_array_get_len(); }
+fn literal_array_set_len() -> i32 { return 9; }
+fn literal_string_typed_ptr() -> i32 { return literal_array_set_ptr() + literal_array_set_len(); }
+fn literal_string_typed_len() -> i32 { return 12; }
+fn literal_str_len_fn_ptr() -> i32 { return literal_string_typed_ptr() + literal_string_typed_len(); }
+fn literal_str_len_fn_len() -> i32 { return 7; }
+fn literal_str_ptr_fn_ptr() -> i32 { return literal_str_len_fn_ptr() + literal_str_len_fn_len(); }
+fn literal_str_ptr_fn_len() -> i32 { return 7; }
 
 fn init_literals() -> i32 {
   if (__mem_load(literals_inited_addr()) != 0) { return 0; }
@@ -2547,6 +3282,114 @@ fn init_literals() -> i32 {
   __mem_store8(literals_base() + 265, 97);  // 'a'
   __mem_store8(literals_base() + 266, 105);  // 'i'
   __mem_store8(literals_base() + 267, 110);  // 'n'
+  // "v1" at offset 268
+  __mem_store8(literals_base() + 268, 118);  // 'v'
+  __mem_store8(literals_base() + 269, 49);  // '1'
+  // "i64" at offset 270
+  __mem_store8(literals_base() + 270, 105);  // 'i'
+  __mem_store8(literals_base() + 271, 54);  // '6'
+  __mem_store8(literals_base() + 272, 52);  // '4'
+  // "f32" at offset 273
+  __mem_store8(literals_base() + 273, 102);  // 'f'
+  __mem_store8(literals_base() + 274, 51);  // '3'
+  __mem_store8(literals_base() + 275, 50);  // '2'
+  // "f64" at offset 276
+  __mem_store8(literals_base() + 276, 102);  // 'f'
+  __mem_store8(literals_base() + 277, 54);  // '6'
+  __mem_store8(literals_base() + 278, 52);  // '4'
+  // "str" at offset 279
+  __mem_store8(literals_base() + 279, 115);  // 's'
+  __mem_store8(literals_base() + 280, 116);  // 't'
+  __mem_store8(literals_base() + 281, 114);  // 'r'
+  // "int_i64" at offset 282
+  __mem_store8(literals_base() + 282, 105);  // 'i'
+  __mem_store8(literals_base() + 283, 110);  // 'n'
+  __mem_store8(literals_base() + 284, 116);  // 't'
+  __mem_store8(literals_base() + 285, 95);  // '_'
+  __mem_store8(literals_base() + 286, 105);  // 'i'
+  __mem_store8(literals_base() + 287, 54);  // '6'
+  __mem_store8(literals_base() + 288, 52);  // '4'
+  // "float_f32" at offset 289
+  __mem_store8(literals_base() + 289, 102);  // 'f'
+  __mem_store8(literals_base() + 290, 108);  // 'l'
+  __mem_store8(literals_base() + 291, 111);  // 'o'
+  __mem_store8(literals_base() + 292, 97);  // 'a'
+  __mem_store8(literals_base() + 293, 116);  // 't'
+  __mem_store8(literals_base() + 294, 95);  // '_'
+  __mem_store8(literals_base() + 295, 102);  // 'f'
+  __mem_store8(literals_base() + 296, 51);  // '3'
+  __mem_store8(literals_base() + 297, 50);  // '2'
+  // "float_f64" at offset 298
+  __mem_store8(literals_base() + 298, 102);  // 'f'
+  __mem_store8(literals_base() + 299, 108);  // 'l'
+  __mem_store8(literals_base() + 300, 111);  // 'o'
+  __mem_store8(literals_base() + 301, 97);  // 'a'
+  __mem_store8(literals_base() + 302, 116);  // 't'
+  __mem_store8(literals_base() + 303, 95);  // '_'
+  __mem_store8(literals_base() + 304, 102);  // 'f'
+  __mem_store8(literals_base() + 305, 54);  // '6'
+  __mem_store8(literals_base() + 306, 52);  // '4'
+  // "array_alloc" at offset 307
+  __mem_store8(literals_base() + 307, 97);  // 'a'
+  __mem_store8(literals_base() + 308, 114);  // 'r'
+  __mem_store8(literals_base() + 309, 114);  // 'r'
+  __mem_store8(literals_base() + 310, 97);  // 'a'
+  __mem_store8(literals_base() + 311, 121);  // 'y'
+  __mem_store8(literals_base() + 312, 95);  // '_'
+  __mem_store8(literals_base() + 313, 97);  // 'a'
+  __mem_store8(literals_base() + 314, 108);  // 'l'
+  __mem_store8(literals_base() + 315, 108);  // 'l'
+  __mem_store8(literals_base() + 316, 111);  // 'o'
+  __mem_store8(literals_base() + 317, 99);  // 'c'
+  // "array_get" at offset 318
+  __mem_store8(literals_base() + 318, 97);  // 'a'
+  __mem_store8(literals_base() + 319, 114);  // 'r'
+  __mem_store8(literals_base() + 320, 114);  // 'r'
+  __mem_store8(literals_base() + 321, 97);  // 'a'
+  __mem_store8(literals_base() + 322, 121);  // 'y'
+  __mem_store8(literals_base() + 323, 95);  // '_'
+  __mem_store8(literals_base() + 324, 103);  // 'g'
+  __mem_store8(literals_base() + 325, 101);  // 'e'
+  __mem_store8(literals_base() + 326, 116);  // 't'
+  // "array_set" at offset 327
+  __mem_store8(literals_base() + 327, 97);  // 'a'
+  __mem_store8(literals_base() + 328, 114);  // 'r'
+  __mem_store8(literals_base() + 329, 114);  // 'r'
+  __mem_store8(literals_base() + 330, 97);  // 'a'
+  __mem_store8(literals_base() + 331, 121);  // 'y'
+  __mem_store8(literals_base() + 332, 95);  // '_'
+  __mem_store8(literals_base() + 333, 115);  // 's'
+  __mem_store8(literals_base() + 334, 101);  // 'e'
+  __mem_store8(literals_base() + 335, 116);  // 't'
+  // "string_typed" at offset 336
+  __mem_store8(literals_base() + 336, 115);  // 's'
+  __mem_store8(literals_base() + 337, 116);  // 't'
+  __mem_store8(literals_base() + 338, 114);  // 'r'
+  __mem_store8(literals_base() + 339, 105);  // 'i'
+  __mem_store8(literals_base() + 340, 110);  // 'n'
+  __mem_store8(literals_base() + 341, 103);  // 'g'
+  __mem_store8(literals_base() + 342, 95);  // '_'
+  __mem_store8(literals_base() + 343, 116);  // 't'
+  __mem_store8(literals_base() + 344, 121);  // 'y'
+  __mem_store8(literals_base() + 345, 112);  // 'p'
+  __mem_store8(literals_base() + 346, 101);  // 'e'
+  __mem_store8(literals_base() + 347, 100);  // 'd'
+  // "str_len" at offset 348
+  __mem_store8(literals_base() + 348, 115);  // 's'
+  __mem_store8(literals_base() + 349, 116);  // 't'
+  __mem_store8(literals_base() + 350, 114);  // 'r'
+  __mem_store8(literals_base() + 351, 95);  // '_'
+  __mem_store8(literals_base() + 352, 108);  // 'l'
+  __mem_store8(literals_base() + 353, 101);  // 'e'
+  __mem_store8(literals_base() + 354, 110);  // 'n'
+  // "str_ptr" at offset 355
+  __mem_store8(literals_base() + 355, 115);  // 's'
+  __mem_store8(literals_base() + 356, 116);  // 't'
+  __mem_store8(literals_base() + 357, 114);  // 'r'
+  __mem_store8(literals_base() + 358, 95);  // '_'
+  __mem_store8(literals_base() + 359, 112);  // 'p'
+  __mem_store8(literals_base() + 360, 116);  // 't'
+  __mem_store8(literals_base() + 361, 114);  // 'r'
   __mem_store(literals_inited_addr(), 1);
   return 0;
 }
