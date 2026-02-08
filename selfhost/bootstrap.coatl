@@ -6297,6 +6297,62 @@ fn gen_wat_module_all() -> i32 {
     out_char(41); // )
     out_char(41); // )
     out_nl();
+
+    // _start wrapper: (func $_start (call $main) (drop))
+    out_indent(1);
+    out_str_func();
+    out_sp();
+    out_char(36);  // $
+    out_char(95);  // _
+    out_char(115); // s
+    out_char(116); // t
+    out_char(97);  // a
+    out_char(114); // r
+    out_char(116); // t
+    out_nl();
+    out_indent(2);
+    out_char(99);  // c
+    out_char(97);  // a
+    out_char(108); // l
+    out_char(108); // l
+    out_sp();
+    out_fn_name(main_idx);
+    out_nl();
+    out_indent(2);
+    out_char(100); // d
+    out_char(114); // r
+    out_char(111); // o
+    out_char(112); // p
+    out_nl();
+    out_indent(1);
+    out_char(41); // )
+    out_nl();
+
+    // (export "_start" (func $_start))
+    out_indent(1);
+    out_str_export();
+    out_sp();
+    out_char(34); // "
+    out_char(95);  // _
+    out_char(115); // s
+    out_char(116); // t
+    out_char(97);  // a
+    out_char(114); // r
+    out_char(116); // t
+    out_char(34); // "
+    out_sp();
+    out_str_func();
+    out_sp();
+    out_char(36);  // $
+    out_char(95);  // _
+    out_char(115); // s
+    out_char(116); // t
+    out_char(97);  // a
+    out_char(114); // r
+    out_char(116); // t
+    out_char(41); // )
+    out_char(41); // )
+    out_nl();
   }
 
   // Close module

@@ -25129,6 +25129,149 @@
   drop
   call $f444
   drop
+  i32.const 1
+  call $f446
+  drop
+  call $f450
+  drop
+  call $f445
+  drop
+  i32.const 36
+  call $f443
+  drop
+  i32.const 95
+  call $f443
+  drop
+  i32.const 115
+  call $f443
+  drop
+  i32.const 116
+  call $f443
+  drop
+  i32.const 97
+  call $f443
+  drop
+  i32.const 114
+  call $f443
+  drop
+  i32.const 116
+  call $f443
+  drop
+  call $f444
+  drop
+  i32.const 2
+  call $f446
+  drop
+  i32.const 99
+  call $f443
+  drop
+  i32.const 97
+  call $f443
+  drop
+  i32.const 108
+  call $f443
+  drop
+  i32.const 108
+  call $f443
+  drop
+  call $f445
+  drop
+  local.get $l0
+  call $f497
+  drop
+  call $f444
+  drop
+  i32.const 2
+  call $f446
+  drop
+  i32.const 100
+  call $f443
+  drop
+  i32.const 114
+  call $f443
+  drop
+  i32.const 111
+  call $f443
+  drop
+  i32.const 112
+  call $f443
+  drop
+  call $f444
+  drop
+  i32.const 1
+  call $f446
+  drop
+  i32.const 41
+  call $f443
+  drop
+  call $f444
+  drop
+  i32.const 1
+  call $f446
+  drop
+  call $f482
+  drop
+  call $f445
+  drop
+  i32.const 34
+  call $f443
+  drop
+  i32.const 95
+  call $f443
+  drop
+  i32.const 115
+  call $f443
+  drop
+  i32.const 116
+  call $f443
+  drop
+  i32.const 97
+  call $f443
+  drop
+  i32.const 114
+  call $f443
+  drop
+  i32.const 116
+  call $f443
+  drop
+  i32.const 34
+  call $f443
+  drop
+  call $f445
+  drop
+  call $f450
+  drop
+  call $f445
+  drop
+  i32.const 36
+  call $f443
+  drop
+  i32.const 95
+  call $f443
+  drop
+  i32.const 115
+  call $f443
+  drop
+  i32.const 116
+  call $f443
+  drop
+  i32.const 97
+  call $f443
+  drop
+  i32.const 114
+  call $f443
+  drop
+  i32.const 116
+  call $f443
+  drop
+  i32.const 41
+  call $f443
+  drop
+  i32.const 41
+  call $f443
+  drop
+  call $f444
+  drop
   end
   i32.const 41
   call $f443
@@ -37514,4 +37657,9 @@
   return
  )
  (export "main" (func $f0))
+ (func $_start
+  call $f0
+  drop
+ )
+ (export "_start" (func $_start))
 )
