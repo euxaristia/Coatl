@@ -60,7 +60,7 @@ if ! command -v wasmtime >/dev/null 2>&1; then
 fi
 
 if [[ ! -f "$MODULE" ]]; then
-  "$COATL_BIN" build "$ROOT_DIR/tools/ir_to_x86_64_asm.coatl" --emit=wat --toolchain=selfhost -o "$MODULE" >/dev/null
+  "$COATL_BIN" build "$ROOT_DIR/tools/ir_to_x86_64_asm.coatl" --toolchain=selfhost -o "$MODULE" >/dev/null
 fi
 
 # WASI path_open uses fd 3 as base directory.

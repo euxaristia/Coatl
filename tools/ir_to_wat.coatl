@@ -1817,50 +1817,16 @@ fn emit_expr(node: i32) -> i32 {
     return 0;
   }
 
-  // (string_typed "...") - returns pointer to {ptr: i32, len: i32} header
+  // (string_typed "...") - returns data segment pointer for the string
   if (atom_equals(tag, literal_string_typed_ptr(), literal_string_typed_len()) == 1) {
     let str_tok: i32 = list_child_at(node, 1);
     let si: i32 = str_table_find(node_atom_off(str_tok), node_atom_len(str_tok));
     if (si < 0) { return 0 - 111; }
     let data_addr: i32 = str_data_addr(si);
-    let str_len: i32 = decode_str_len(node_atom_off(str_tok), node_atom_len(str_tok));
-    // Allocate 8 bytes from heap for the str header
-    let hdr_addr: i32 = __mem_load(heap_ptr_addr());
-    __mem_store(heap_ptr_addr(), hdr_addr + 8);
-    // Emit: push hdr_addr, then store ptr and len at runtime
-    // We need hdr_addr on the stack at the end, so use a sequence:
-    // i32.const hdr_addr  (result)
-    // i32.const hdr_addr  (for store of ptr)
-    // i32.const data_addr
-    // i32.store           (store ptr at hdr_addr)
-    // i32.const hdr_addr+4 (for store of len)
-    // i32.const str_len
-    // i32.store           (store len at hdr_addr+4)
-    // The first i32.const hdr_addr remains on stack as result
-    out_spaces(4);
-    out_str(wl_i32_const_ptr(), wl_i32_const_len());
-    out_int(hdr_addr);
-    out_nl();
-    // Store ptr at hdr_addr
-    out_spaces(4);
-    out_str(wl_i32_const_ptr(), wl_i32_const_len());
-    out_int(hdr_addr);
-    out_nl();
     out_spaces(4);
     out_str(wl_i32_const_ptr(), wl_i32_const_len());
     out_int(data_addr);
     out_nl();
-    emit_wat_opcode(wl_i32_store_ptr(), wl_i32_store_len());
-    // Store len at hdr_addr+4
-    out_spaces(4);
-    out_str(wl_i32_const_ptr(), wl_i32_const_len());
-    out_int(hdr_addr + 4);
-    out_nl();
-    out_spaces(4);
-    out_str(wl_i32_const_ptr(), wl_i32_const_len());
-    out_int(str_len);
-    out_nl();
-    emit_wat_opcode(wl_i32_store_ptr(), wl_i32_store_len());
     return 0;
   }
 

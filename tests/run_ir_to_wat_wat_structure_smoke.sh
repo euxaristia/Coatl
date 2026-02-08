@@ -15,7 +15,7 @@ echo "[wat-structure] validate WAT output structure for hello.coatl"
 IR="$TMP_DIR/hello.ir"
 WAT="$TMP_DIR/hello.wat"
 
-"$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --emit=ir --toolchain=ir -o "$IR"
+"$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --toolchain=ir -o "$IR"
 "$ROOT_DIR/coatl" lower-ir "$IR" -o "$WAT"
 
 fail() {

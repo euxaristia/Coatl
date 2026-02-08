@@ -8,7 +8,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 failed=0
 while IFS= read -r src; do
   out="$TMP_DIR/$(basename "$src" .coatl).wat"
-  if ! COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat -o "$out" >/dev/null 2>"$TMP_DIR/err.log"; then
+  if ! COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" -o "$out" >/dev/null 2>"$TMP_DIR/err.log"; then
     failed=1
     echo "[FAIL] $src"
     sed -n '1,4p' "$TMP_DIR/err.log"

@@ -21,7 +21,7 @@ build_bin() {
   local src="$1"
   local out="$2"
   local asm="$TMP_DIR/$(basename "$out").s"
-  "$ROOT_DIR/coatl" build "$src" --emit=asm --toolchain="$TOOLCHAIN" -o "$asm"
+  "$ROOT_DIR/coatl" build "$src" --toolchain="$TOOLCHAIN" -o "$asm"
   cat "$ROOT_DIR/tests/intrinsics.s" >> "$asm"
   link_x86_asm_binary "$asm" "$out"
 }

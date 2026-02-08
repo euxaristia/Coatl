@@ -31,8 +31,8 @@ run_case() {
   local asm="$TMP_DIR/$stem.s"
   local bin="$TMP_DIR/$stem.bin"
 
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat --toolchain=ir -o "$wat"
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=asm --toolchain=ir -o "$asm"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=ir -o "$wat"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=ir -o "$asm"
   link_x86_asm_binary "$asm" "$bin"
 
   local wat_out wat_proc_rc asm_out asm_rc

@@ -8,7 +8,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 emit_ir() {
   local src="$1"
   local out="$2"
-  "$ROOT_DIR/coatl" build "$src" --emit=ir --toolchain=ir -o "$out"
+  "$ROOT_DIR/coatl" build "$src" --toolchain=ir -o "$out"
 }
 
 echo "[ir-smoke] hello"

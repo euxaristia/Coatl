@@ -45,7 +45,7 @@ echo "[strict-no-rust] emit=ir via toolchain=ir (subset frontend)"
 COATL_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_frontend_smoke.sh"
 
 echo "[strict-no-rust] emit=ir via toolchain=auto (subset frontend fallback)"
-COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --emit=ir --toolchain=auto -o "$TMP_DIR/auto-ir.ir"
+COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --toolchain=auto -o "$TMP_DIR/auto-ir.ir"
 grep -Fq "(coatl_ir v0" "$TMP_DIR/auto-ir.ir"
 grep -Fq "(call __fd_write" "$TMP_DIR/auto-ir.ir"
 
@@ -62,7 +62,7 @@ echo "[strict-no-rust] toolchain=ir subset I/O (path_open + fd_write + fd_close)
 COATL_NO_RUST=1 "$ROOT_DIR/tests/run_ir_subset_path_open_write_close_smoke.sh"
 
 echo "[strict-no-rust] struct support in no-rust mode (auto + ir subset)"
-COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_param_pass.coatl" --emit=wat --toolchain=auto -o "$TMP_DIR/struct-auto.wat"
+COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_param_pass.coatl" --toolchain=auto -o "$TMP_DIR/struct-auto.wat"
 struct_auto_out="$(wasmtime --invoke main "$TMP_DIR/struct-auto.wat")"
 struct_auto_ret="$(printf '%s\n' "$struct_auto_out" | awk 'NF { line=$0 } END { print line }')"
 if [[ "$struct_auto_ret" != "9" ]]; then
@@ -70,7 +70,7 @@ if [[ "$struct_auto_ret" != "9" ]]; then
   printf '%s\n' "$struct_auto_out"
   exit 1
 fi
-COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_param_pass.coatl" --emit=wat --toolchain=ir -o "$TMP_DIR/struct-ir.wat"
+COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_param_pass.coatl" --toolchain=ir -o "$TMP_DIR/struct-ir.wat"
 struct_ir_out="$(wasmtime --invoke main "$TMP_DIR/struct-ir.wat")"
 struct_ir_ret="$(printf '%s\n' "$struct_ir_out" | awk 'NF { line=$0 } END { print line }')"
 if [[ "$struct_ir_ret" != "9" ]]; then
@@ -79,7 +79,7 @@ if [[ "$struct_ir_ret" != "9" ]]; then
   exit 1
 fi
 
-COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_return_basic.coatl" --emit=wat --toolchain=ir -o "$TMP_DIR/struct-ret-ir.wat"
+COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_return_basic.coatl" --toolchain=ir -o "$TMP_DIR/struct-ret-ir.wat"
 struct_ret_ir_out="$(wasmtime --invoke main "$TMP_DIR/struct-ret-ir.wat")"
 struct_ret_ir="$(printf '%s\n' "$struct_ret_ir_out" | awk 'NF { line=$0 } END { print line }')"
 if [[ "$struct_ret_ir" != "15" ]]; then
@@ -88,7 +88,7 @@ if [[ "$struct_ret_ir" != "15" ]]; then
   exit 1
 fi
 
-COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_chain_calls.coatl" --emit=wat --toolchain=ir -o "$TMP_DIR/struct-chain-ir.wat"
+COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/struct_chain_calls.coatl" --toolchain=ir -o "$TMP_DIR/struct-chain-ir.wat"
 struct_chain_ir_out="$(wasmtime --invoke main "$TMP_DIR/struct-chain-ir.wat")"
 struct_chain_ir="$(printf '%s\n' "$struct_chain_ir_out" | awk 'NF { line=$0 } END { print line }')"
 if [[ "$struct_chain_ir" != "6" ]]; then
@@ -98,7 +98,7 @@ if [[ "$struct_chain_ir" != "6" ]]; then
 fi
 
 echo "[strict-no-rust] auto mode fallback: selfhost failure -> ir pipeline"
-COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --emit=wat --toolchain=auto --compiler /tmp/coatl-missing-seed.wat -o "$TMP_DIR/auto-fallback.wat"
+COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --toolchain=auto --compiler /tmp/coatl-missing-seed.wat -o "$TMP_DIR/auto-fallback.wat"
 auto_out="$(wasmtime --invoke main "$TMP_DIR/auto-fallback.wat")"
 auto_ret="$(printf '%s\n' "$auto_out" | awk 'NF { line=$0 } END { print line }')"
 if [[ "$auto_ret" != "0" ]]; then

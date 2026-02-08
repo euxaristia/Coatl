@@ -16,7 +16,7 @@ IR="$TMP_DIR/bootstrap.ir"
 WAT="$TMP_DIR/bootstrap.wat"
 
 # Generate IR for the selfhost bootstrap (largest program in the repo)
-"$ROOT_DIR/coatl" build "$ROOT_DIR/selfhost/bootstrap.coatl" --emit=ir --toolchain=ir -o "$IR"
+"$ROOT_DIR/coatl" build "$ROOT_DIR/selfhost/bootstrap.coatl" --toolchain=ir -o "$IR"
 
 if [[ ! -s "$IR" ]]; then
   echo "[FAIL] IR generation produced empty file" >&2

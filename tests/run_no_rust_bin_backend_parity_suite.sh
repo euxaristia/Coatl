@@ -25,8 +25,8 @@ run_case() {
   local wat="$TMP_DIR/$stem.wat"
   local bin="$TMP_DIR/$stem.bin"
 
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat --toolchain=ir -o "$wat"
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=bin --toolchain=ir -o "$bin"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=ir -o "$wat"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=ir -o "$bin"
 
   local wat_out wat_proc_rc bin_out bin_rc
   if [[ "$mode" == "stdin" ]]; then

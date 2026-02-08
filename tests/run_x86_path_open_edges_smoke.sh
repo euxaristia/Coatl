@@ -14,7 +14,7 @@ run_case() {
   local src="$1"
   local expected="$2"
   local bin="$TMP_DIR/$(basename "$src" .coatl).bin"
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=bin --toolchain=ir -o "$bin"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=ir -o "$bin"
   set +e
   "$bin" >/dev/null 2>&1
   local rc=$?

@@ -23,7 +23,7 @@ build_all_emit() {
   local failed=0
   while IFS= read -r src; do
     local out="$TMP_DIR/${emit}_$(basename "$src" .coatl).$ext"
-    if ! "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit="$emit" -o "$out" >/dev/null 2>"$TMP_DIR/${emit}.err"; then
+    if ! "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" -o "$out" >/dev/null 2>"$TMP_DIR/${emit}.err"; then
       failed=1
       echo "[FAIL] emit=$emit $src"
       sed -n '1,4p' "$TMP_DIR/${emit}.err"

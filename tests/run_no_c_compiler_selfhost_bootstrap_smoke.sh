@@ -22,7 +22,7 @@ done
 
 BOOTSTRAP_WAT="$TMP_DIR/bootstrap-no-c.wat"
 COATL_NO_RUST=1 COATL_IR_FIRST_BUILD=1 PATH="$TMP_DIR/bin:$PATH" \
-  "$ROOT_DIR/coatl" build "$ROOT_DIR/selfhost/bootstrap.coatl" --emit=wat --toolchain=auto -o "$BOOTSTRAP_WAT"
+  "$ROOT_DIR/coatl" build "$ROOT_DIR/selfhost/bootstrap.coatl" --toolchain=auto -o "$BOOTSTRAP_WAT"
 
 if [[ ! -s "$BOOTSTRAP_WAT" ]]; then
   echo "[FAIL] bootstrap WAT was not produced"

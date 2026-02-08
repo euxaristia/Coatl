@@ -16,7 +16,7 @@ check_case() {
   local src="$1"
   local expected="$2"
   local out_wat="$TMP_DIR/$(basename "$src" .coatl).wat"
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat --toolchain=auto --compiler "$MISSING_SEED" -o "$out_wat"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=auto --compiler "$MISSING_SEED" -o "$out_wat"
   local out
   out="$(wasmtime --invoke main "$out_wat")"
   local ret
@@ -34,7 +34,7 @@ check_case_stdin() {
   local expected="$2"
   local stdin_text="$3"
   local out_wat="$TMP_DIR/$(basename "$src" .coatl).wat"
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat --toolchain=auto --compiler "$MISSING_SEED" -o "$out_wat"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=auto --compiler "$MISSING_SEED" -o "$out_wat"
   local out
   out="$(printf '%s' "$stdin_text" | wasmtime --invoke main "$out_wat")"
   local ret
@@ -52,7 +52,7 @@ check_case_path_open_write_close() {
   local expected="$2"
   local out_wat="$TMP_DIR/$(basename "$src" .coatl).wat"
   local out_file="$TMP_DIR/probe_out.txt"
-  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat --toolchain=auto --compiler "$MISSING_SEED" -o "$out_wat"
+  COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=auto --compiler "$MISSING_SEED" -o "$out_wat"
   local out
   out="$(wasmtime --dir "$TMP_DIR" --invoke main "$out_wat")"
   local ret

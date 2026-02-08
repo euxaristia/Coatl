@@ -31,7 +31,7 @@ done
 
 echo "[no-rust-bin-ir-no-cc] hello"
 HELLO_BIN="$TMP_DIR/hello.bin"
-PATH="$TMP_DIR/bin:$PATH" COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --emit=bin --toolchain=ir -o "$HELLO_BIN"
+PATH="$TMP_DIR/bin:$PATH" COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --toolchain=ir -o "$HELLO_BIN"
 hello_out="$("$HELLO_BIN")"
 hello_rc=$?
 if [[ "$hello_out" != "Hello, world!" ]]; then
@@ -46,7 +46,7 @@ fi
 
 echo "[no-rust-bin-ir-no-cc] mem_test"
 MEM_BIN="$TMP_DIR/mem.bin"
-PATH="$TMP_DIR/bin:$PATH" COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/mem_test.coatl" --emit=bin --toolchain=ir -o "$MEM_BIN"
+PATH="$TMP_DIR/bin:$PATH" COATL_NO_RUST=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/mem_test.coatl" --toolchain=ir -o "$MEM_BIN"
 set +e
 "$MEM_BIN" >/dev/null 2>&1
 mem_rc=$?

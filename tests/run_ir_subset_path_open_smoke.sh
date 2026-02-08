@@ -11,7 +11,7 @@ if ! command -v wasmtime >/dev/null 2>&1; then
 fi
 
 WAT="$TMP_DIR/path_open_probe.wat"
-"$ROOT_DIR/coatl" build "$ROOT_DIR/tests/ir_subset_path_open_probe.coatl" --emit=wat --toolchain=ir -o "$WAT"
+"$ROOT_DIR/coatl" build "$ROOT_DIR/tests/ir_subset_path_open_probe.coatl" --toolchain=ir -o "$WAT"
 
 out="$(wasmtime --dir "$TMP_DIR" --invoke main "$WAT")"
 ret="$(printf '%s\n' "$out" | awk 'NF { line=$0 } END { print line }')"

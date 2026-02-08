@@ -62,7 +62,7 @@ if ! command -v wasmtime >/dev/null 2>&1; then
 fi
 
 if [[ ! -f "$MODULE" ]]; then
-  "$COATL_BIN" build "$ROOT_DIR/tools/coatl_subset_to_ir.coatl" --emit=wat --toolchain=selfhost -o "$MODULE" >/dev/null
+  "$COATL_BIN" build "$ROOT_DIR/tools/coatl_subset_to_ir.coatl" --toolchain=selfhost -o "$MODULE" >/dev/null
 fi
 
 abs_input="$(realpath "$input")"

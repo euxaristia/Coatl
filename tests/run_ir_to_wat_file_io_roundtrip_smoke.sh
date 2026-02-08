@@ -17,7 +17,7 @@ WAT_TOOL="$TMP_DIR/hello-tool.wat"
 WAT_REF="$TMP_DIR/hello-ref.wat"
 
 # Generate IR
-"$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --emit=ir --toolchain=ir -o "$IR"
+"$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --toolchain=ir -o "$IR"
 
 # Lower via the tool wrapper (exercises write_output with WASI oflags)
 "$ROOT_DIR/tools/ir_to_wat.sh" "$IR" -o "$WAT_TOOL"

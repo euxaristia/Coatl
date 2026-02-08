@@ -20,7 +20,7 @@ build_bin() {
   local src="$1"
   local bin="$2"
   local asm="$TMP_DIR/$(basename "$bin").s"
-  "$ROOT_DIR/coatl" build "$src" --emit=asm --toolchain="$TOOLCHAIN" -o "$asm"
+  "$ROOT_DIR/coatl" build "$src" --toolchain="$TOOLCHAIN" -o "$asm"
   link_x86_asm_binary "$asm" "$bin"
 }
 

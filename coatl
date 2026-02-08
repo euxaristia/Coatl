@@ -31,18 +31,22 @@ X86_INTRINSICS="$ROOT_DIR/tests/intrinsics.s"
 usage() {
   cat <<'EOF'
 usage:
-  ./coatl build <input.coatl> [--emit=wat|asm|ir|obj|bin] [-o <output>] [--toolchain=auto|selfhost|ir] [--arch=x86_64|aarch64] [--compiler <seed.wat>]
+  ./coatl [build] <input.coatl> [-o <output>] [--toolchain=auto|selfhost|ir] [--arch=x86_64|aarch64] [--compiler <seed.wat>]
   ./coatl lower-ir <input.ir> -o <output.wat>
   ./coatl --version
 
+  "build" is optional — passing a .coatl file directly implies build.
+
+  output type is inferred from -o extension:
+    .wat → WAT    .s → asm    .ir → IR    .o → obj    (no ext) → bin
+  omitting -o prints WAT to stdout.
+
 notes:
-  - default toolchain is "auto" (or $COATL_TOOLCHAIN), preferring selfhost for --emit=wat
+  - default toolchain is "auto" (or $COATL_TOOLCHAIN), preferring selfhost for wat output
   - default arch is "x86_64" (or $COATL_ARCH)
   - toolchain=ir uses subset frontend + external lowerers (IR/WAT/ASM/OBJ/BIN)
-  - --emit=asm/obj/bin support toolchain=ir for subset lane
-  - --emit=obj emits x86_64 ELF relocatable object from asm output (only for x86_64)
-  - --emit=bin links x86_64 Linux executable from asm output (only for x86_64)
-  - --emit=ir supports toolchain=ir (subset frontend)
+  - .o output emits x86_64 ELF relocatable object from asm output (only for x86_64)
+  - bin output links x86_64 Linux executable from asm output (only for x86_64)
   - set COATL_IR_FIRST_BUILD=1 to force auto mode to skip selfhost-first attempt
   - set COATL_HOME to a Coatl repo/install root if tools are not found beside this script
 EOF
@@ -82,15 +86,21 @@ case "${1:-}" in
     ;;
 esac
 
-if [[ $# -lt 2 ]]; then
-  usage
-  exit 1
+# If $1 looks like a .coatl file, treat as implicit "build"
+if [[ "$1" == *.coatl ]]; then
+  cmd="build"
+else
+  cmd="$1"
+  shift
 fi
 
-cmd="$1"
 if [[ "$cmd" == "lower-ir" ]]; then
-  input_ir="$2"
-  shift 2
+  if [[ $# -lt 1 ]]; then
+    usage
+    exit 1
+  fi
+  input_ir="$1"
+  shift
   out_wat=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -122,7 +132,12 @@ if [[ "$cmd" != "build" ]]; then
   exit 1
 fi
 
-input="$2"
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 1
+fi
+
+input="$1"
 if [[ ! -f "$input" ]]; then
   echo "input file not found: $input"
   exit 1
@@ -133,19 +148,14 @@ if [[ "$input" != *.coatl ]]; then
 fi
 input_abs="$(realpath "$input")"
 
-emit="wat"
 out=""
 toolchain="${COATL_TOOLCHAIN:-auto}"
 arch="${COATL_ARCH:-x86_64}"
 seed="$SEED_DEFAULT"
 
-shift 2
+shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --emit=*)
-      emit="${1#--emit=}"
-      shift
-      ;;
     -o)
       out="${2:-}"
       shift 2
@@ -170,9 +180,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$emit" != "wat" && "$emit" != "asm" && "$emit" != "ir" && "$emit" != "obj" && "$emit" != "bin" ]]; then
-  echo "unsupported emit target: $emit"
-  exit 1
+if [[ -z "$out" ]]; then
+  emit="wat"
+else
+  case "$out" in
+    *.wat) emit="wat" ;;
+    *.s)   emit="asm" ;;
+    *.ir)  emit="ir"  ;;
+    *.o)   emit="obj" ;;
+    *)     emit="bin" ;;
+  esac
 fi
 if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "ir" ]]; then
   echo "unsupported toolchain: $toolchain"
@@ -406,7 +423,7 @@ ir_pipeline_build_asm() {
     echo "subset frontend not found: $SUBSET_FRONTEND" >&2
     echo "set COATL_HOME to a Coatl root containing tools/ and selfhost/" >&2
   else
-    echo "subset frontend failed for --emit=asm --toolchain=ir" >&2
+    echo "subset frontend failed for asm output --toolchain=ir" >&2
     cat "$subset_err" >&2
   fi
   rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
@@ -428,7 +445,7 @@ ir_pipeline_build_asm_to_file() {
 if [[ "$emit" != "wat" ]]; then
   if [[ "$emit" == "asm" ]]; then
     if [[ "$toolchain" == "selfhost" ]]; then
-      echo "--emit=$emit is not supported by toolchain=$toolchain"
+      echo "output type "$emit" is not supported by toolchain=$toolchain"
       exit 1
     fi
     if [[ "$toolchain" == "ir" ]]; then
@@ -442,21 +459,21 @@ if [[ "$emit" != "wat" ]]; then
       echo "ir asm pipeline failed in auto mode" >&2
       exit 1
     fi
-    echo "--emit=$emit is not supported by toolchain=$toolchain"
+    echo "output type "$emit" is not supported by toolchain=$toolchain"
     exit 1
   fi
 
   if [[ "$emit" == "bin" ]]; then
     if [[ -z "$out_abs" ]]; then
-      echo "missing -o <output.bin> for --emit=bin"
+      echo "missing -o <output.bin> for bin output"
       exit 1
     fi
     if [[ "$(uname -s)" != "Linux" ]]; then
-      echo "--emit=bin currently supports Linux only"
+      echo "bin output currently supports Linux only"
       exit 1
     fi
     if [[ "$toolchain" == "selfhost" ]]; then
-      echo "--emit=$emit is not supported by toolchain=$toolchain"
+      echo "output type "$emit" is not supported by toolchain=$toolchain"
       exit 1
     fi
 
@@ -489,22 +506,22 @@ if [[ "$emit" != "wat" ]]; then
       exit 1
     fi
 
-    echo "--emit=$emit is not supported by toolchain=$toolchain"
+    echo "output type "$emit" is not supported by toolchain=$toolchain"
     rm -f "$tmp_asm"
     exit 1
   fi
 
   if [[ "$emit" == "obj" ]]; then
     if [[ -z "$out_abs" ]]; then
-      echo "missing -o <output.o> for --emit=obj"
+      echo "missing -o <output.o> for obj output"
       exit 1
     fi
     if [[ "$(uname -s)" != "Linux" ]]; then
-      echo "--emit=obj currently supports Linux only"
+      echo "obj output currently supports Linux only"
       exit 1
     fi
     if [[ "$toolchain" == "selfhost" ]]; then
-      echo "--emit=$emit is not supported by toolchain=$toolchain"
+      echo "output type "$emit" is not supported by toolchain=$toolchain"
       exit 1
     fi
 
@@ -537,7 +554,7 @@ if [[ "$emit" != "wat" ]]; then
       exit 1
     fi
 
-    echo "--emit=$emit is not supported by toolchain=$toolchain"
+    echo "output type "$emit" is not supported by toolchain=$toolchain"
     rm -f "$tmp_asm"
     exit 1
   fi
@@ -547,7 +564,7 @@ if [[ "$emit" != "wat" ]]; then
     if subset_emit_ir; then
       exit 0
     fi
-    echo "subset frontend failed for --emit=ir --toolchain=ir" >&2
+    echo "subset frontend failed for ir output --toolchain=ir" >&2
     exit 1
   fi
   if [[ "$toolchain" == "auto" ]]; then
@@ -558,10 +575,10 @@ if [[ "$emit" != "wat" ]]; then
     exit 1
   fi
   if [[ "$toolchain" == "selfhost" ]]; then
-    echo "--emit=$emit is not supported by toolchain=$toolchain"
+    echo "output type "$emit" is not supported by toolchain=$toolchain"
     exit 1
   fi
-  echo "--emit=$emit is not supported by toolchain=$toolchain"
+  echo "output type "$emit" is not supported by toolchain=$toolchain"
   exit 1
 fi
 
@@ -575,17 +592,16 @@ if [[ "$toolchain" == "ir" ]]; then
   exit 0
 fi
 
-# auto
-if ! ir_first_build_mode && [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
-  if selfhost_build_wat; then
-    exit 0
-  fi
-  echo "warning: selfhost build failed, trying ir pipeline" >&2
-fi
-
+# auto: prefer IR pipeline, fall back to selfhost
 if ir_pipeline_build_wat; then
   exit 0
 fi
 
-echo "selfhost/ir pipelines failed"
+if [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
+  if selfhost_build_wat; then
+    exit 0
+  fi
+fi
+
+echo "ir/selfhost pipelines failed"
 exit 1

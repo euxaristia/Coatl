@@ -8,7 +8,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 out_wat="$TMP_DIR/control.wat"
 out_err="$TMP_DIR/control.err"
 
-COATL_IR_FIRST_BUILD=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/ir_subset_control_flow.coatl" --emit=wat -o "$out_wat" 2>"$out_err"
+COATL_IR_FIRST_BUILD=1 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/ir_subset_control_flow.coatl" -o "$out_wat" 2>"$out_err"
 
 if grep -Fq "selfhost build failed" "$out_err"; then
   echo "[FAIL] no-rust-build mode should skip selfhost-first auto path"

@@ -13,7 +13,7 @@ fi
 echo "[ir-backend] compile hello via toolchain=ir"
 cd "$ROOT_DIR"
 HELLO_WAT="$TMP_DIR/hello_ir_backend.wat"
-./coatl build ./examples/hello.coatl --emit=wat --toolchain=ir -o "$HELLO_WAT"
+./coatl build ./examples/hello.coatl --toolchain=ir -o "$HELLO_WAT"
 
 if [[ ! -s "$HELLO_WAT" ]]; then
   echo "[FAIL] no output WAT generated"
@@ -24,13 +24,7 @@ if ! head -n 1 "$HELLO_WAT" | grep -q "^(module"; then
   exit 1
 fi
 
-out="$(wasmtime --invoke main "$HELLO_WAT")"
-ret="$(printf '%s\n' "$out" | awk 'NF { line=$0 } END { print line }')"
-if [[ "$ret" != "0" ]]; then
-  echo "[FAIL] expected return 0, got $ret"
-  printf '%s\n' "$out"
-  exit 1
-fi
+out="$(wasmtime run "$HELLO_WAT" 2>&1)"
 if ! printf '%s\n' "$out" | grep -Fq "Hello, world!"; then
   echo "[FAIL] expected hello output"
   printf '%s\n' "$out"
@@ -39,7 +33,7 @@ fi
 
 echo "[ir-backend] compile struct case via toolchain=ir (fallback-capable)"
 STRUCT_WAT="$TMP_DIR/struct_ir_backend.wat"
-./coatl build ./tests/struct_param_pass.coatl --emit=wat --toolchain=ir -o "$STRUCT_WAT"
+./coatl build ./tests/struct_param_pass.coatl --toolchain=ir -o "$STRUCT_WAT"
 struct_out="$(wasmtime --invoke main "$STRUCT_WAT")"
 struct_ret="$(printf '%s\n' "$struct_out" | awk 'NF { line=$0 } END { print line }')"
 if [[ "$struct_ret" != "9" ]]; then

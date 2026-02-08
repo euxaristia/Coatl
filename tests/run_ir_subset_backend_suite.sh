@@ -14,7 +14,7 @@ check_case() {
   local src="$1"
   local expected="$2"
   local out_wat="$TMP_DIR/$(basename "$src" .coatl).wat"
-  "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --emit=wat --toolchain=ir -o "$out_wat"
+  "$ROOT_DIR/coatl" build "$ROOT_DIR/$src" --toolchain=ir -o "$out_wat"
   local out
   out="$(wasmtime --invoke main "$out_wat")"
   local ret

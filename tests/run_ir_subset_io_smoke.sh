@@ -11,7 +11,7 @@ if ! command -v wasmtime >/dev/null 2>&1; then
 fi
 
 WAT="$TMP_DIR/fdread.wat"
-"$ROOT_DIR/coatl" build "$ROOT_DIR/tests/x86_fd_read_test.coatl" --emit=wat --toolchain=ir -o "$WAT"
+"$ROOT_DIR/coatl" build "$ROOT_DIR/tests/x86_fd_read_test.coatl" --toolchain=ir -o "$WAT"
 
 set +e
 out="$(printf "abcd" | wasmtime --invoke main "$WAT")"
