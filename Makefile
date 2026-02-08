@@ -17,6 +17,8 @@ install:
 	install -d "$(SHAREDIR)"
 	cp -a "tools" "$(SHAREDIR)/"
 	cp -a "selfhost" "$(SHAREDIR)/"
+	install -d "$(SHAREDIR)/tests"
+	install -m 0644 "tests/intrinsics.s" "$(SHAREDIR)/tests/intrinsics.s"
 	@echo "Installed $(PROGRAM) to $(TARGET)"
 	@echo "Installed man page to $(MAN1_TARGET)"
 	@echo "Installed runtime assets to $(SHAREDIR)"

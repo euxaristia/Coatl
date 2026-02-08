@@ -14,7 +14,7 @@
 __mem_store:
   lea r8, [rip+__coatl_mem]
   add rdi, r8
-  mov [rdi], rsi
+  mov [rdi], esi
   ret
 
 __mem_store8:
@@ -26,7 +26,7 @@ __mem_store8:
 __mem_load:
   lea r8, [rip+__coatl_mem]
   add rdi, r8
-  mov rax, [rdi]
+  mov eax, [rdi]
   ret
 
 __mem_load8:
@@ -36,44 +36,54 @@ __mem_load8:
   ret
 
 __fd_write:
-  # rdi=fd, rsi=iov, rdx=cnt, rcx=res
+  # rdi=fd, rsi=iov_off, rdx=cnt, rcx=res_off
+  # Build native iovec on stack from 32-bit coatl memory fields
   lea r8, [rip+__coatl_mem]
-  push rcx             # save res_ptr
-  add rsi, r8          # fix iov pointer
-  # fix iov_base
-  mov rax, [rsi]       # rax = msg_offset
-  add rax, r8          # rax = real msg ptr
-  mov [rsi], rax       # iov[0].iov_base = real msg ptr
+  push rcx             # save res_off
+  add rsi, r8          # rsi = real iov pointer in coatl_mem
+  # Read 32-bit iov fields and build 64-bit native iovec on stack
+  mov eax, [rsi+4]     # iov_len (32-bit)
+  push rax             # native iov_len (64-bit, zero-extended)
+  mov eax, [rsi]       # iov_base offset (32-bit)
+  add rax, r8          # real pointer
+  push rax             # native iov_base (64-bit)
+  mov rsi, rsp         # rsi = pointer to native iovec on stack
 
   mov eax, 20          # writev
   syscall
+  add rsp, 16          # free native iovec
 
-  # store bytes written at res_ptr and return 0
-  pop rcx              # rcx = res_ptr
+  # store bytes written at res_off and return 0
+  pop rcx              # rcx = res_off
   lea r8, [rip+__coatl_mem]
   add rcx, r8
-  mov [rcx], eax       # *res_ptr = bytes written
+  mov [rcx], eax       # *res_ptr = bytes written (32-bit)
   mov eax, 0           # WASI success
   ret
 
 __fd_read:
-  # rdi=fd, rsi=iov, rdx=cnt, rcx=res
+  # rdi=fd, rsi=iov_off, rdx=cnt, rcx=res_off
+  # Build native iovec on stack from 32-bit coatl memory fields
   lea r8, [rip+__coatl_mem]
-  push rcx             # save res_ptr
-  add rsi, r8
-  # fix iov_base
-  mov rax, [rsi]
-  add rax, r8
-  mov [rsi], rax
+  push rcx             # save res_off
+  add rsi, r8          # rsi = real iov pointer in coatl_mem
+  # Read 32-bit iov fields and build 64-bit native iovec on stack
+  mov eax, [rsi+4]     # iov_len (32-bit)
+  push rax             # native iov_len (64-bit, zero-extended)
+  mov eax, [rsi]       # iov_base offset (32-bit)
+  add rax, r8          # real pointer
+  push rax             # native iov_base (64-bit)
+  mov rsi, rsp         # rsi = pointer to native iovec on stack
 
   mov eax, 19          # readv
   syscall
+  add rsp, 16          # free native iovec
 
-  # store bytes read at res_ptr and return 0
+  # store bytes read at res_off and return 0
   pop rcx
   lea r8, [rip+__coatl_mem]
   add rcx, r8
-  mov [rcx], eax
+  mov [rcx], eax       # *res_ptr = bytes read (32-bit)
   mov eax, 0           # WASI success
   ret
 

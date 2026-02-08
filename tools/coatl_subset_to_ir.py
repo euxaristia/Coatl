@@ -61,6 +61,10 @@ while pos < length:
                 pos += 1
         pos += 1
         s_content = src[start+1:pos-1]
+        import re
+        def _hex_esc(m):
+            return chr(int(m.group(1), 16))
+        s_content = re.sub(r'\\x([0-9a-fA-F]{2})', _hex_esc, s_content)
         s_content = s_content.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r').replace('\\"', '"').replace('\\\\', '\\')
         tokens.append(('str', f'"{s_content}"'))
         continue
@@ -360,7 +364,7 @@ def parse_term():
             return f"          (int_i64 {val[:-3]}){NL}", 'i64'
         return f"          (int {val}){NL}", 'i32'
     if t[0] == 'str':
-        return f"          (string {t[1]}){NL}", 'i32'
+        return f"          (string_typed {t[1]}){NL}", 'str'
     if t[0] == 'ident':
         if t[1] == 'true':
             return f"          (bool 1){NL}", 'bool'

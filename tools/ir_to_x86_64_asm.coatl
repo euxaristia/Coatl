@@ -25,6 +25,7 @@ fn parse_end_addr() -> i32 { return state_base() + 8412; }
 fn var_count_addr() -> i32 { return state_base() + 8416; }
 fn str_count_addr() -> i32 { return state_base() + 8420; }
 fn next_str_addr_addr() -> i32 { return state_base() + 8424; }
+fn next_str_desc_addr_addr() -> i32 { return state_base() + 8440; }
 fn label_id_addr() -> i32 { return state_base() + 8428; }
 fn literals_inited_addr() -> i32 { return state_base() + 8432; }
 fn struct_count_addr() -> i32 { return state_base() + 8436; }
@@ -154,7 +155,7 @@ fn l_i64_ptr() -> i32 { return literals_base() + 272; }
 fn l_add_ptr() -> i32 { return literals_base() + 288; }
 fn l_eq_ptr() -> i32 { return literals_base() + 464; }
 fn l_v1_ptr() -> i32 { return literals_base() + 320; }
-fn l_struct_lit_ptr() -> i32 { return literals_base() + 336; }
+fn l_struct_lit_ptr() -> i32 { return literals_base() + 640; }
 fn l_field_ptr() -> i32 { return literals_base() + 352; }
 fn l_struct_ptr() -> i32 { return literals_base() + 368; }
 fn l_structs_ptr() -> i32 { return literals_base() + 384; }
@@ -172,6 +173,9 @@ fn l_le_ptr() -> i32 { return literals_base() + 576; }
 fn l_ge_ptr() -> i32 { return literals_base() + 592; }
 fn l_div_ptr() -> i32 { return literals_base() + 608; }
 fn l_field_assign_ptr() -> i32 { return literals_base() + 624; }
+fn l_string_typed_ptr() -> i32 { return literals_base() + 336; }
+fn l_str_len_ptr() -> i32 { return literals_base() + 656; }
+fn l_str_ptr_ptr() -> i32 { return literals_base() + 672; }
 
 fn init_literals() -> i32 {
   if (__mem_load(literals_inited_addr()) != 0) { return 0; }
@@ -191,8 +195,8 @@ fn init_literals() -> i32 {
   __mem_store8(b+288, 97); __mem_store8(b+289, 100); __mem_store8(b+290, 100);
   __mem_store8(b+304, 115); __mem_store8(b+305, 116); __mem_store8(b+306, 114); __mem_store8(b+307, 105); __mem_store8(b+308, 110); __mem_store8(b+309, 103);
   __mem_store8(b+320, 118); __mem_store8(b+321, 49);
-  // "struct_lit" at 336
-  __mem_store8(b+336, 115); __mem_store8(b+337, 116); __mem_store8(b+338, 114); __mem_store8(b+339, 117); __mem_store8(b+340, 99); __mem_store8(b+341, 116); __mem_store8(b+342, 95); __mem_store8(b+343, 108); __mem_store8(b+344, 105); __mem_store8(b+345, 116);
+  // "string_typed" at 336
+  __mem_store8(b+336, 115); __mem_store8(b+337, 116); __mem_store8(b+338, 114); __mem_store8(b+339, 105); __mem_store8(b+340, 110); __mem_store8(b+341, 103); __mem_store8(b+342, 95); __mem_store8(b+343, 116); __mem_store8(b+344, 121); __mem_store8(b+345, 112); __mem_store8(b+346, 101); __mem_store8(b+347, 100);
   // "field" at 352
   __mem_store8(b+352, 102); __mem_store8(b+353, 105); __mem_store8(b+354, 101); __mem_store8(b+355, 108); __mem_store8(b+356, 100);
   // "struct" at 368
@@ -229,6 +233,12 @@ fn init_literals() -> i32 {
   __mem_store8(b+608, 100); __mem_store8(b+609, 105); __mem_store8(b+610, 118);
   // "field_assign" at 624
   __mem_store8(b+624, 102); __mem_store8(b+625, 105); __mem_store8(b+626, 101); __mem_store8(b+627, 108); __mem_store8(b+628, 100); __mem_store8(b+629, 95); __mem_store8(b+630, 97); __mem_store8(b+631, 115); __mem_store8(b+632, 115); __mem_store8(b+633, 105); __mem_store8(b+634, 103); __mem_store8(b+635, 110);
+  // "struct_lit" at 640
+  __mem_store8(b+640, 115); __mem_store8(b+641, 116); __mem_store8(b+642, 114); __mem_store8(b+643, 117); __mem_store8(b+644, 99); __mem_store8(b+645, 116); __mem_store8(b+646, 95); __mem_store8(b+647, 108); __mem_store8(b+648, 105); __mem_store8(b+649, 116);
+  // "str_len" at 656
+  __mem_store8(b+656, 115); __mem_store8(b+657, 116); __mem_store8(b+658, 114); __mem_store8(b+659, 95); __mem_store8(b+660, 108); __mem_store8(b+661, 101); __mem_store8(b+662, 110);
+  // "str_ptr" at 672
+  __mem_store8(b+672, 115); __mem_store8(b+673, 116); __mem_store8(b+674, 114); __mem_store8(b+675, 95); __mem_store8(b+676, 112); __mem_store8(b+677, 116); __mem_store8(b+678, 114);
   return 0;
 }
 
@@ -356,6 +366,10 @@ fn emit_expr(node: i32) -> i32 {
     out_str_ptr(ir_buf_base() + node_atom_off(val_node), node_atom_len(val_node)); out_nl(); return 0;
   }
   if (atom_equals(head, l_string_ptr(), 6) == 1) {
+    let val_node: i32 = node_next(head); let s_addr: i32 = str_find_or_add(val_node);
+    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(101); out_char(97); out_char(120); out_char(44); out_char(32); out_int(s_addr); out_nl(); return 0;
+  }
+  if (atom_equals(head, l_string_typed_ptr(), 12) == 1) {
     let val_node: i32 = node_next(head); let s_addr: i32 = str_find_or_add(val_node);
     out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(101); out_char(97); out_char(120); out_char(44); out_char(32); out_int(s_addr); out_nl(); return 0;
   }
@@ -509,14 +523,25 @@ fn emit_expr(node: i32) -> i32 {
   if (atom_equals(head, l_call_ptr(), 4) == 1) {
     let name_node: i32 = node_next(head); let arg: i32 = node_next(name_node); let arg_count: i32 = 0;
     while (arg != 0) { emit_expr(arg); out_char(32); out_char(32); out_char(112); out_char(117); out_char(115); out_char(104); out_char(32); out_char(114); out_char(97); out_char(120); out_nl(); arg_count = arg_count + 1; arg = node_next(arg); }
-    let i: i32 = arg_count - 1; while (i >= 0) {
-      if (i < 6) {
-        out_char(32); out_char(32); out_char(112); out_char(111); out_char(112); out_char(32);
-        if (i == 0) { out_char(114); out_char(100); out_char(105); } if (i == 1) { out_char(114); out_char(115); out_char(105); } if (i == 2) { out_char(114); out_char(100); out_char(120); } if (i == 3) { out_char(114); out_char(99); out_char(120); } if (i == 4) { out_char(114); out_char(56); } if (i == 5) { out_char(114); out_char(57); } out_nl();
-      }
+    let extra: i32 = arg_count - 6; if (extra < 0) { extra = 0; }
+    // Pop extra args (>6) into temp regs so first 6 can be popped into ABI regs
+    if (extra >= 1) { out_char(32); out_char(32); out_char(112); out_char(111); out_char(112); out_char(32); out_char(114); out_char(97); out_char(120); out_nl(); }
+    if (extra >= 2) { out_char(32); out_char(32); out_char(112); out_char(111); out_char(112); out_char(32); out_char(114); out_char(49); out_char(48); out_nl(); }
+    if (extra >= 3) { out_char(32); out_char(32); out_char(112); out_char(111); out_char(112); out_char(32); out_char(114); out_char(49); out_char(49); out_nl(); }
+    let reg_count: i32 = arg_count; if (reg_count > 6) { reg_count = 6; }
+    let i: i32 = reg_count - 1; while (i >= 0) {
+      out_char(32); out_char(32); out_char(112); out_char(111); out_char(112); out_char(32);
+      if (i == 0) { out_char(114); out_char(100); out_char(105); } if (i == 1) { out_char(114); out_char(115); out_char(105); } if (i == 2) { out_char(114); out_char(100); out_char(120); } if (i == 3) { out_char(114); out_char(99); out_char(120); } if (i == 4) { out_char(114); out_char(56); } if (i == 5) { out_char(114); out_char(57); } out_nl();
       i = i - 1;
     }
-    out_char(32); out_char(32); out_char(99); out_char(97); out_char(108); out_char(108); out_char(32); out_str_ptr(ir_buf_base() + node_atom_off(name_node), node_atom_len(name_node)); out_nl(); return 0;
+    // Push extra args back onto stack for callee
+    if (extra >= 1) { out_char(32); out_char(32); out_char(112); out_char(117); out_char(115); out_char(104); out_char(32); out_char(114); out_char(97); out_char(120); out_nl(); }
+    if (extra >= 2) { out_char(32); out_char(32); out_char(112); out_char(117); out_char(115); out_char(104); out_char(32); out_char(114); out_char(49); out_char(48); out_nl(); }
+    if (extra >= 3) { out_char(32); out_char(32); out_char(112); out_char(117); out_char(115); out_char(104); out_char(32); out_char(114); out_char(49); out_char(49); out_nl(); }
+    out_char(32); out_char(32); out_char(99); out_char(97); out_char(108); out_char(108); out_char(32); out_str_ptr(ir_buf_base() + node_atom_off(name_node), node_atom_len(name_node)); out_nl();
+    // Clean up stack-passed args
+    if (extra > 0) { out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(114); out_char(115); out_char(112); out_char(44); out_char(32); out_int(extra * 8); out_nl(); }
+    return 0;
   }
   return 0;
 }
@@ -656,6 +681,23 @@ fn emit_function(fn_node: i32) -> i32 {
       if (is_qword_type(param_ty) == 1) { out_char(113); out_char(119); out_char(111); out_char(114); out_char(100); } else { out_char(100); out_char(119); out_char(111); out_char(114); out_char(100); }
       out_char(32); out_char(112); out_char(116); out_char(114); out_char(32); out_char(91); out_char(114); out_char(98); out_char(112); out_char(45); out_int((i+1) * 8); out_char(93); out_char(44); out_char(32);
       if (is_qword_type(param_ty) == 1) { if (i == 0) { out_char(114); out_char(100); out_char(105); } if (i == 1) { out_char(114); out_char(115); out_char(105); } if (i == 2) { out_char(114); out_char(100); out_char(120); } if (i == 3) { out_char(114); out_char(99); out_char(120); } if (i == 4) { out_char(114); out_char(56); } if (i == 5) { out_char(114); out_char(57); } } else { if (i == 0) { out_char(101); out_char(100); out_char(105); } if (i == 1) { out_char(101); out_char(115); out_char(105); } if (i == 2) { out_char(101); out_char(100); out_char(120); } if (i == 3) { out_char(101); out_char(99); out_char(120); } if (i == 4) { out_char(114); out_char(56); out_char(100); } if (i == 5) { out_char(114); out_char(57); out_char(100); } } out_nl();
+    } else {
+      // Load stack-passed param: mov eax, dword ptr [rbp+<16+(i-6)*8>]
+      out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32);
+      out_char(101); out_char(97); out_char(120); out_char(44); out_char(32);
+      out_char(100); out_char(119); out_char(111); out_char(114); out_char(100); out_char(32);
+      out_char(112); out_char(116); out_char(114); out_char(32);
+      out_char(91); out_char(114); out_char(98); out_char(112); out_char(43);
+      out_int(16 + (i - 6) * 8);
+      out_char(93); out_nl();
+      // mov dword ptr [rbp-<(i+1)*8>], eax
+      out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32);
+      out_char(100); out_char(119); out_char(111); out_char(114); out_char(100); out_char(32);
+      out_char(112); out_char(116); out_char(114); out_char(32);
+      out_char(91); out_char(114); out_char(98); out_char(112); out_char(45);
+      out_int((i + 1) * 8);
+      out_char(93); out_char(44); out_char(32);
+      out_char(101); out_char(97); out_char(120); out_nl();
     }
     i = i + 1;
   }
@@ -671,6 +713,7 @@ fn walk_for_strings(node: i32) -> i32 {
   if (node_kind(node) == 0) { return 0; }
   let head: i32 = node_child_head(node);
   if (atom_equals(head, l_string_ptr(), 6) == 1) { str_find_or_add(node_next(head)); return 0; }
+  if (atom_equals(head, l_string_typed_ptr(), 12) == 1) { str_find_or_add(node_next(head)); return 0; }
   let c: i32 = head; while (c != 0) { walk_for_strings(c); c = node_next(c); } return 0;
 }
 
@@ -730,6 +773,7 @@ fn emit_program(root: i32) -> i32 {
   while (f != 0) { emit_function(f); f = node_next(f); }
   out_char(46); out_char(103); out_char(108); out_char(111); out_char(98); out_char(108); out_char(32); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(115); out_char(116); out_char(97); out_char(114); out_char(116); out_nl();
   out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(115); out_char(116); out_char(97); out_char(114); out_char(116); out_char(58); out_nl();
+  out_char(32); out_char(32); out_char(99); out_char(97); out_char(108); out_char(108); out_char(32); out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(105); out_char(110); out_char(105); out_char(116); out_char(95); out_char(109); out_char(101); out_char(109); out_char(111); out_char(114); out_char(121); out_nl();
   out_char(32); out_char(32); out_char(99); out_char(97); out_char(108); out_char(108); out_char(32); out_char(109); out_char(97); out_char(105); out_char(110); out_nl();
   out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(101); out_char(100); out_char(105); out_char(44); out_char(32); out_char(101); out_char(97); out_char(120); out_nl();
   out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(101); out_char(97); out_char(120); out_char(44); out_char(32); out_char(54); out_char(48); out_nl();
