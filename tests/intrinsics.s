@@ -7,6 +7,9 @@
 .globl __fd_read
 .globl __fd_close
 .globl __path_open
+.globl __tty_get_mode
+.globl __tty_set_raw
+.globl __tty_restore
 
 __mem_store:
   lea r8, [rip+__coatl_mem]
@@ -116,5 +119,98 @@ __path_open:
   mov [r11], eax       # store fd
 
   mov eax, 0           # WASI success
+  pop rbp
+  ret
+
+# __tty_get_mode(fd, out_ptr) -> i32
+# Saves current termios at out_ptr in linear memory via ioctl TCGETS
+__tty_get_mode:
+  push rbp
+  mov rbp, rsp
+  # rdi=fd, rsi=out_ptr
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8          # real pointer into linear memory
+  # ioctl(fd, TCGETS=0x5401, termios_ptr)
+  mov rdx, rsi
+  mov rsi, 0x5401
+  mov eax, 16          # SYS_ioctl
+  syscall
+  # return 0 on success, errno on failure
+  test rax, rax
+  js .L_tty_get_fail
+  mov eax, 0
+  pop rbp
+  ret
+.L_tty_get_fail:
+  neg rax
+  pop rbp
+  ret
+
+# __tty_set_raw(fd, mode_ptr, vmin, vtime) -> i32
+# Copies saved termios, clears ICANON|ECHO in c_lflag, sets VMIN/VTIME, applies via TCSETS
+__tty_set_raw:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 64
+  # rdi=fd, rsi=mode_ptr, rdx=vmin, rcx=vtime
+  push rdi             # save fd
+  push rdx             # save vmin
+  push rcx             # save vtime
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8          # real mode_ptr
+  # Copy 60 bytes of termios from mode_ptr to stack buffer
+  lea rdi, [rbp-64]
+  mov rcx, 60
+.L_tty_copy:
+  mov al, [rsi]
+  mov [rdi], al
+  inc rsi
+  inc rdi
+  dec rcx
+  jnz .L_tty_copy
+  # Clear ICANON(2) and ECHO(8) in c_lflag at offset 12
+  mov eax, [rbp-64+12]
+  and eax, ~0x0A       # ~(ICANON|ECHO)
+  mov [rbp-64+12], eax
+  # Set VMIN (c_cc[6]) and VTIME (c_cc[5]) at offset 17+6 and 17+5
+  pop rcx              # vtime
+  pop rdx              # vmin
+  mov [rbp-64+17+6], dl
+  mov [rbp-64+17+5], cl
+  # ioctl(fd, TCSETS=0x5402, &stack_termios)
+  pop rdi              # fd
+  mov rsi, 0x5402
+  lea rdx, [rbp-64]
+  mov eax, 16          # SYS_ioctl
+  syscall
+  test rax, rax
+  js .L_tty_raw_fail
+  mov eax, 0
+  leave
+  ret
+.L_tty_raw_fail:
+  neg rax
+  leave
+  ret
+
+# __tty_restore(fd, mode_ptr) -> i32
+# Restores saved termios via ioctl TCSETS
+__tty_restore:
+  push rbp
+  mov rbp, rsp
+  # rdi=fd, rsi=mode_ptr
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8
+  mov rdx, rsi
+  mov rsi, 0x5402
+  mov eax, 16          # SYS_ioctl
+  syscall
+  test rax, rax
+  js .L_tty_restore_fail
+  mov eax, 0
+  pop rbp
+  ret
+.L_tty_restore_fail:
+  neg rax
   pop rbp
   ret

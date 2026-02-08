@@ -26,6 +26,7 @@ SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.sh"
 IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.sh"
 IR_TO_AARCH64_ASM="$ROOT_DIR/tools/ir_to_aarch64_asm.sh"
 IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat.sh"
+X86_INTRINSICS="$ROOT_DIR/tests/intrinsics.s"
 
 usage() {
   cat <<'EOF'
@@ -382,6 +383,10 @@ ir_pipeline_build_asm() {
   if [[ -x "$SUBSET_FRONTEND" ]]; then
     if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
       if "$backend_tool" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
+        # Append x86_64 intrinsics if available and targeting x86
+        if [[ "$arch" == "x86_64" && -f "$X86_INTRINSICS" ]]; then
+          cat "$X86_INTRINSICS" >> "$tmp_asm"
+        fi
         if [[ -n "$out_abs" ]]; then
           cp "$tmp_asm" "$out_abs"
         else

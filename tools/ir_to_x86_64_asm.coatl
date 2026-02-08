@@ -390,6 +390,21 @@ fn emit_expr(node: i32) -> i32 {
       else { out_char(32); out_char(32); out_char(105); out_char(109); out_char(117); out_char(108); out_char(32); out_char(101); out_char(97); out_char(120); out_char(44); out_char(32); out_char(101); out_char(99); out_char(120); }
       out_nl(); return 0;
     }
+    // div: cdq; idiv ecx  /  cqo; idiv rcx
+    if (atom_equals(op_node, l_div_ptr(), 3) == 1) {
+      if (ty_node != 0 && atom_equals(ty_node, l_i64_ptr(), 3) == 1) {
+        // cqo
+        out_char(32); out_char(32); out_char(99); out_char(113); out_char(111); out_nl();
+        // idiv rcx
+        out_char(32); out_char(32); out_char(105); out_char(100); out_char(105); out_char(118); out_char(32); out_char(114); out_char(99); out_char(120); out_nl();
+      } else {
+        // cdq
+        out_char(32); out_char(32); out_char(99); out_char(100); out_char(113); out_nl();
+        // idiv ecx
+        out_char(32); out_char(32); out_char(105); out_char(100); out_char(105); out_char(118); out_char(32); out_char(101); out_char(99); out_char(120); out_nl();
+      }
+      return 0;
+    }
     if (atom_equals(op_node, l_eq_ptr(), 2) == 1) {
       if (ty_node != 0 && atom_equals(ty_node, l_i64_ptr(), 3) == 1) { out_char(32); out_char(32); out_char(99); out_char(109); out_char(112); out_char(32); out_char(114); out_char(97); out_char(120); out_char(44); out_char(32); out_char(114); out_char(99); out_char(120); }
       else { out_char(32); out_char(32); out_char(99); out_char(109); out_char(112); out_char(32); out_char(101); out_char(97); out_char(120); out_char(44); out_char(32); out_char(101); out_char(99); out_char(120); }
