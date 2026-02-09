@@ -150,7 +150,23 @@ input_abs="$(realpath "$input")"
 
 out=""
 toolchain="${COATL_TOOLCHAIN:-auto}"
-arch="${COATL_ARCH:-x86_64}"
+# Auto-detect architecture if not explicitly set
+if [[ -z "${COATL_ARCH:-}" ]]; then
+  host_arch="$(uname -m)"
+  case "$host_arch" in
+    aarch64|arm64)
+      arch="aarch64"
+      ;;
+    x86_64|amd64)
+      arch="x86_64"
+      ;;
+    *)
+      arch="x86_64"  # default fallback
+      ;;
+  esac
+else
+  arch="${COATL_ARCH:-x86_64}"
+fi
 seed="$SEED_DEFAULT"
 
 shift
@@ -206,6 +222,15 @@ fi
 
 ir_first_build_mode() {
   [[ "${COATL_IR_FIRST_BUILD:-0}" == "1" ]]
+}
+
+print_debug() {
+  local emit="$1"
+  local toolchain="$2"
+  local arch="$3"
+  local pipeline="$4"
+  local out="$5"
+  echo "DEBUG: emit=$emit, toolchain=$toolchain, arch=$arch, pipeline=$pipeline, out=$out"
 }
 
 cc_bin() {
@@ -449,10 +474,12 @@ if [[ "$emit" != "wat" ]]; then
       exit 1
     fi
     if [[ "$toolchain" == "ir" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
       ir_pipeline_build_asm
       exit 0
     fi
     if [[ "$toolchain" == "auto" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
       if ir_pipeline_build_asm; then
         exit 0
       fi
@@ -480,6 +507,7 @@ if [[ "$emit" != "wat" ]]; then
     tmp_asm="$(mktemp /tmp/coatl-bin-link.XXXXXX.s)"
 
     if [[ "$toolchain" == "ir" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
       if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
         rm -f "$tmp_asm"
         exit 1
@@ -493,6 +521,7 @@ if [[ "$emit" != "wat" ]]; then
     fi
 
     if [[ "$toolchain" == "auto" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
       if ir_pipeline_build_asm_to_file "$tmp_asm"; then
         if ! link_asm_to_bin "$tmp_asm" "$out_abs" "any"; then
           rm -f "$tmp_asm"
@@ -528,6 +557,7 @@ if [[ "$emit" != "wat" ]]; then
     tmp_asm="$(mktemp /tmp/coatl-obj-asm.XXXXXX.s)"
 
     if [[ "$toolchain" == "ir" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
       if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
         rm -f "$tmp_asm"
         exit 1
@@ -541,6 +571,7 @@ if [[ "$emit" != "wat" ]]; then
     fi
 
     if [[ "$toolchain" == "auto" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
       if ir_pipeline_build_asm_to_file "$tmp_asm"; then
         if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
           rm -f "$tmp_asm"
@@ -561,6 +592,7 @@ if [[ "$emit" != "wat" ]]; then
 
   # emit=ir
   if [[ "$toolchain" == "ir" ]]; then
+    print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
     if subset_emit_ir; then
       exit 0
     fi
@@ -568,6 +600,7 @@ if [[ "$emit" != "wat" ]]; then
     exit 1
   fi
   if [[ "$toolchain" == "auto" ]]; then
+    print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
     if subset_emit_ir; then
       exit 0
     fi
@@ -583,21 +616,25 @@ if [[ "$emit" != "wat" ]]; then
 fi
 
 if [[ "$toolchain" == "selfhost" ]]; then
+  print_debug "$emit" "$toolchain" "$arch" "selfhost" "${out_abs:-stdout}"
   selfhost_build_wat
   exit 0
 fi
 
 if [[ "$toolchain" == "ir" ]]; then
+  print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
   ir_pipeline_build_wat
   exit 0
 fi
 
 # auto: prefer IR pipeline, fall back to selfhost
 if ir_pipeline_build_wat; then
+  print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
   exit 0
 fi
 
 if [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
+  print_debug "$emit" "$toolchain" "$arch" "selfhost" "${out_abs:-stdout}"
   if selfhost_build_wat; then
     exit 0
   fi
