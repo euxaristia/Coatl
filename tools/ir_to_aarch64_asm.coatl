@@ -372,7 +372,7 @@ fn emit_program(root: i32) -> i32 {
   let sc: i32 = __mem_load(str_count_addr()); let si: i32 = 0;
   while (si < sc) {
     let ma: i32 = str_map_base() + si * str_entry_size(); let sa: i32 = __mem_load(ma+4); let an: i32 = __mem_load(ma);
-    let sl: i32 = node_atom_len(an); let so: i32 = node_atom_off(an); let sj: i32 = 0;
+    let sl: i32 = node_atom_len(an); let so: i32 = node_atom_off(an); let content_off: i32 = so + 1; let content_len: i32 = sl - 2; let sj: i32 = 0;
     // emit: mov x2, #<sa_lo16>
     out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sa - (sa / 65536) * 65536); out_nl();
     if (sa >= 65536) {
@@ -381,8 +381,8 @@ fn emit_program(root: i32) -> i32 {
     }
     // emit: add x2, x0, x2
     out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(120); out_char(50); out_char(44); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(120); out_char(50); out_nl();
-    while (sj < sl) { out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_int(__mem_load8(ir_buf_base()+so+sj)); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sj); out_char(93); out_nl(); sj = sj + 1; }
-    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_char(48); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sl); out_char(93); out_nl();
+    while (sj < content_len) { out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_int(__mem_load8(ir_buf_base()+content_off+sj)); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sj); out_char(93); out_nl(); sj = sj + 1; }
+    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_char(48); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(content_len); out_char(93); out_nl();
     si = si + 1;
   }
   out_char(46); out_char(76); out_char(95); out_char(109); out_char(101); out_char(109); out_char(95); out_char(100); out_char(111); out_char(110); out_char(101); out_char(58); out_nl();
