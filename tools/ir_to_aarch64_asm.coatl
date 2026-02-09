@@ -148,6 +148,7 @@ fn l_string_ptr() -> i32 { return literals_base() + 304; }
 fn l_i64_ptr() -> i32 { return literals_base() + 272; }
 fn l_add_ptr() -> i32 { return literals_base() + 288; }
 fn l_eq_ptr() -> i32 { return literals_base() + 304; }
+fn l_string_typed_ptr() -> i32 { return literals_base() + 336; }
 
 fn init_literals() -> i32 {
   if (__mem_load(literals_inited_addr()) != 0) { return 0; }
@@ -166,6 +167,7 @@ fn init_literals() -> i32 {
   __mem_store8(b+272, 105); __mem_store8(b+273, 54); __mem_store8(b+274, 52);
   __mem_store8(b+288, 97); __mem_store8(b+289, 100); __mem_store8(b+290, 100);
   __mem_store8(b+304, 115); __mem_store8(b+305, 116); __mem_store8(b+306, 114); __mem_store8(b+307, 105); __mem_store8(b+308, 110); __mem_store8(b+309, 103);
+  __mem_store8(b+336, 115); __mem_store8(b+337, 116); __mem_store8(b+338, 114); __mem_store8(b+339, 105); __mem_store8(b+340, 110); __mem_store8(b+341, 103); __mem_store8(b+342, 95); __mem_store8(b+343, 116); __mem_store8(b+344, 121); __mem_store8(b+345, 112); __mem_store8(b+346, 101); __mem_store8(b+347, 100);
   return 0;
 }
 
@@ -245,19 +247,23 @@ fn emit_expr(node: i32) -> i32 {
     let val_node: i32 = node_next(head); let s_addr: i32 = str_find_or_add(val_node);
     out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(48); out_char(44); out_char(32); out_char(35); out_int(s_addr); out_nl(); return 0;
   }
+  if (atom_equals(head, l_string_typed_ptr(), 12) == 1) {
+    let val_node: i32 = node_next(head); let s_addr: i32 = str_find_or_add(val_node);
+    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(48); out_char(44); out_char(32); out_char(35); out_int(s_addr); out_nl(); return 0;
+  }
   if (atom_equals(head, l_ident_ptr(), 5) == 1) {
     let name_node: i32 = node_next(head); let v_addr: i32 = var_find_addr(name_node); if (v_addr == 0) { return 0 - 1; }
     let off: i32 = __mem_load(v_addr + 4); let ty_atom: i32 = __mem_load(v_addr + 8);
     out_char(32); out_char(32); out_char(108); out_char(100); out_char(114); out_char(32);
     if (atom_equals(ty_atom, l_i64_ptr(), 3) == 1) { out_char(120); } else { out_char(119); }
-    out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_int(off); out_char(93); out_nl(); return 0;
+    out_char(48); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(57); out_char(44); out_char(32); out_char(35); out_char(45); out_int(off + 8); out_char(93); out_nl(); return 0;
   }
   if (atom_equals(head, l_binary_ptr(), 6) == 1) {
     let op_node: i32 = node_next(head); let ty_node: i32 = node_next(op_node); let lhs: i32 = node_next(ty_node); let rhs: i32 = node_next(lhs);
     if (node_kind(ty_node) == 1) { rhs = lhs; lhs = ty_node; ty_node = 0; }
     emit_expr(lhs); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_char(45); out_char(49); out_char(54); out_char(93); out_char(33); out_nl();
     emit_expr(rhs); out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(120); out_char(49); out_char(44); out_char(32); out_char(120); out_char(48); out_nl();
-    out_char(32); out_char(32); out_char(108); out_char(100); out_char(114); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(93); out_char(44); out_char(32); out_char(35); out_char(49); out_char(54); out_nl();
+    out_char(32); out_char(32); out_char(108); out_char(100); out_char(114); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(93); out_char(44); out_char(32); out_char(35); out_int(16); out_nl();
     if (atom_equals(op_node, l_add_ptr(), 3) == 1) {
       out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32);
       if (ty_node != 0 && atom_equals(ty_node, l_i64_ptr(), 3) == 1) { out_char(120); out_char(48); out_char(44); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(120); out_char(49); }
@@ -273,7 +279,7 @@ fn emit_expr(node: i32) -> i32 {
       arg_count = arg_count + 1; arg = node_next(arg);
     }
     let i: i32 = 0; while (i < arg_count) {
-      if (i < 8) { out_char(32); out_char(32); out_char(108); out_char(100); out_char(114); out_char(32); out_char(120); out_int(arg_count - 1 - i); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(93); out_char(44); out_char(32); out_char(35); out_char(49); out_char(54); out_nl(); }
+      if (i < 8) { out_char(32); out_char(32); out_char(108); out_char(100); out_char(114); out_char(32); out_char(120); out_int(arg_count - 1 - i); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(93); out_char(44); out_char(32); out_char(35); out_int(16); out_nl(); }
       else { out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(115); out_char(112); out_char(44); out_char(32); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_char(49); out_char(54); out_nl(); }
       i = i + 1;
     }
@@ -289,7 +295,7 @@ fn emit_stmt(node: i32, r_ptr: i32, r_len: i32) -> i32 {
     emit_expr(val_node); let v_addr: i32 = var_find_addr(name_node); let off: i32 = __mem_load(v_addr + 4);
     out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(32);
     if (atom_equals(ty_node, l_i64_ptr(), 3) == 1) { out_char(120); } else { out_char(119); }
-    out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_int(off); out_char(93); out_nl(); return 0;
+    out_char(48); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(57); out_char(44); out_char(32); out_char(35); out_char(45); out_int(off + 8); out_char(93); out_nl(); return 0;
   }
   if (atom_equals(head, l_return_ptr(), 6) == 1) { emit_expr(node_next(head)); out_char(32); out_char(32); out_char(98); out_char(32); out_str_ptr(r_ptr, r_len); out_nl(); return 0; }
   if (atom_equals(head, l_expr_ptr(), 4) == 1) { return emit_expr(node_next(head)); }
@@ -323,14 +329,14 @@ fn emit_function(fn_node: i32) -> i32 {
   out_char(32); out_char(32); out_char(115); out_char(116); out_char(112); out_char(32); out_char(120); out_char(50); out_char(57); out_char(44); out_char(32); out_char(120); out_char(51); out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_char(45); out_char(49); out_char(54); out_char(93); out_char(33); out_nl();
   out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(120); out_char(50); out_char(57); out_char(44); out_char(32); out_char(115); out_char(112); out_nl();
   if (stack_sz > 0) { out_char(32); out_char(32); out_char(115); out_char(117); out_char(98); out_char(32); out_char(115); out_char(112); out_char(44); out_char(32); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_int(stack_sz); out_nl(); }
-  let i: i32 = 0; while (i < p_idx) { if (i < 8) { out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(32); out_char(120); out_int(i); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_int(i * 8); out_char(93); out_nl(); } i = i + 1; }
+  let i: i32 = 0; while (i < p_idx) { if (i < 8) { out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(32); out_char(120); out_int(i); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(57); out_char(44); out_char(32); out_char(35); out_char(45); out_int(i * 8 + 8); out_char(93); out_nl(); } i = i + 1; }
   out_char(32); out_char(32); out_char(98); out_char(108); out_char(32); out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(105); out_char(110); out_char(105); out_char(116); out_char(95); out_char(109); out_char(101); out_char(109); out_char(111); out_char(114); out_char(121); out_nl();
   let rl: i32 = state_base() + 10000; __mem_store8(rl, 46); __mem_store8(rl+1, 76); __mem_store8(rl+2, 95);
   let j: i32 = 0; while (j < node_atom_len(name_node)) { __mem_store8(rl+3+j, __mem_load8(ir_buf_base() + node_atom_off(name_node) + j)); j = j + 1; }
   __mem_store8(rl+3+j, 95); __mem_store8(rl+4+j, 114); __mem_store8(rl+5+j, 101); __mem_store8(rl+6+j, 116);
   emit_block(block_node, rl, 7 + j); out_str_ptr(rl, 7 + j); out_char(58); out_nl();
   if (stack_sz > 0) { out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(115); out_char(112); out_char(44); out_char(32); out_char(115); out_char(112); out_char(44); out_char(32); out_char(35); out_int(stack_sz); out_nl(); }
-  out_char(32); out_char(32); out_char(108); out_char(100); out_char(112); out_char(32); out_char(120); out_char(50); out_char(57); out_char(44); out_char(32); out_char(120); out_char(51); out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(93); out_char(44); out_char(32); out_char(35); out_char(49); out_char(54); out_nl();
+  out_char(32); out_char(32); out_char(108); out_char(100); out_char(112); out_char(32); out_char(120); out_char(50); out_char(57); out_char(44); out_char(32); out_char(120); out_char(51); out_char(48); out_char(44); out_char(32); out_char(91); out_char(115); out_char(112); out_char(93); out_char(44); out_char(32); out_char(35); out_int(16); out_nl();
   out_char(32); out_char(32); out_char(114); out_char(101); out_char(116); out_nl(); out_nl(); return 0;
 }
 
@@ -338,6 +344,7 @@ fn walk_for_strings(node: i32) -> i32 {
   if (node_kind(node) == 0) { return 0; }
   let head: i32 = node_child_head(node);
   if (atom_equals(head, l_string_ptr(), 6) == 1) { str_find_or_add(node_next(head)); return 0; }
+  if (atom_equals(head, l_string_typed_ptr(), 12) == 1) { str_find_or_add(node_next(head)); return 0; }
   let c: i32 = head; while (c != 0) { walk_for_strings(c); c = node_next(c); } return 0;
 }
 
@@ -347,6 +354,7 @@ fn emit_program(root: i32) -> i32 {
   walk_for_strings(functions);
   out_char(46); out_char(98); out_char(115); out_char(115); out_nl();
   out_char(46); out_char(97); out_char(108); out_char(105); out_char(103); out_char(110); out_char(32); out_char(52); out_nl();
+  out_char(46); out_char(103); out_char(108); out_char(111); out_char(98); out_char(108); out_char(32); out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(109); out_char(101); out_char(109); out_nl();
   out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(109); out_char(101); out_char(109); out_char(58); out_nl();
   out_char(32); out_char(32); out_char(46); out_char(122); out_char(101); out_char(114); out_char(111); out_char(32); out_char(49); out_char(48); out_char(52); out_char(56); out_char(53); out_char(55); out_char(54); out_nl();
   out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(109); out_char(101); out_char(109); out_char(95); out_char(105); out_char(110); out_char(105); out_char(116); out_char(101); out_char(100); out_char(58); out_nl();
@@ -358,15 +366,23 @@ fn emit_program(root: i32) -> i32 {
   out_char(32); out_char(32); out_char(108); out_char(100); out_char(114); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(48); out_char(93); out_nl();
   out_char(32); out_char(32); out_char(99); out_char(98); out_char(110); out_char(122); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(46); out_char(76); out_char(95); out_char(109); out_char(101); out_char(109); out_char(95); out_char(100); out_char(111); out_char(110); out_char(101); out_nl();
   out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_char(49); out_nl();
-  out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(48); out_char(93); out_nl();
+  out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(48); out_char(93); out_nl();
   out_char(32); out_char(32); out_char(97); out_char(100); out_char(114); out_char(112); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(109); out_char(101); out_char(109); out_nl();
   out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(58); out_char(108); out_char(111); out_char(49); out_char(50); out_char(58); out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(109); out_char(101); out_char(109); out_nl();
   let sc: i32 = __mem_load(str_count_addr()); let si: i32 = 0;
   while (si < sc) {
     let ma: i32 = str_map_base() + si * str_entry_size(); let sa: i32 = __mem_load(ma+4); let an: i32 = __mem_load(ma);
     let sl: i32 = node_atom_len(an); let so: i32 = node_atom_off(an); let sj: i32 = 0;
-    while (sj < sl) { out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_int(__mem_load8(ir_buf_base()+so+sj)); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(48); out_char(44); out_char(32); out_char(35); out_int(sa+sj); out_char(93); out_nl(); sj = sj + 1; }
-    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_char(48); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(48); out_char(44); out_char(32); out_char(35); out_int(sa+sl); out_char(93); out_nl();
+    // emit: mov x2, #<sa_lo16>
+    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sa - (sa / 65536) * 65536); out_nl();
+    if (sa >= 65536) {
+      // emit: movk x2, #<sa_hi16>, lsl #16
+      out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(107); out_char(32); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sa / 65536); out_char(44); out_char(32); out_char(108); out_char(115); out_char(108); out_char(32); out_char(35); out_char(49); out_char(54); out_nl();
+    }
+    // emit: add x2, x0, x2
+    out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(120); out_char(50); out_char(44); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(120); out_char(50); out_nl();
+    while (sj < sl) { out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_int(__mem_load8(ir_buf_base()+so+sj)); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sj); out_char(93); out_nl(); sj = sj + 1; }
+    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_char(48); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sl); out_char(93); out_nl();
     si = si + 1;
   }
   out_char(46); out_char(76); out_char(95); out_char(109); out_char(101); out_char(109); out_char(95); out_char(100); out_char(111); out_char(110); out_char(101); out_char(58); out_nl();
