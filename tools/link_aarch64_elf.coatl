@@ -1,0 +1,518 @@
+fn state_base() -> i32 { return 131072; }
+fn args_base() -> i32 { return 135168; }
+fn args_size() -> i32 { return 4096; }
+fn obj_base() -> i32 { return 139264; }
+fn obj_max() -> i32 { return 262144; }
+fn out_base() -> i32 { return 401408; }
+fn out_max() -> i32 { return 262144; }
+
+fn tmp32_addr() -> i32 { return state_base() + 0; }
+fn tmp64_addr() -> i32 { return state_base() + 8; }
+fn fd_slot() -> i32 { return state_base() + 16; }
+fn iov_addr() -> i32 { return state_base() + 24; }
+fn io_n_addr() -> i32 { return state_base() + 32; }
+
+fn slot_input() -> i32 { return state_base() + 48; }
+fn slot_output() -> i32 { return state_base() + 52; }
+fn slot_entry() -> i32 { return state_base() + 56; }
+fn slot_obj_size() -> i32 { return state_base() + 60; }
+fn slot_out_size() -> i32 { return state_base() + 64; }
+
+fn slot_text_off() -> i32 { return state_base() + 80; }
+fn slot_text_size() -> i32 { return state_base() + 84; }
+fn slot_text_idx() -> i32 { return state_base() + 88; }
+fn slot_bss_size() -> i32 { return state_base() + 92; }
+fn slot_bss_idx() -> i32 { return state_base() + 96; }
+fn slot_sym_off() -> i32 { return state_base() + 100; }
+fn slot_sym_size() -> i32 { return state_base() + 104; }
+fn slot_sym_ent() -> i32 { return state_base() + 108; }
+fn slot_str_off() -> i32 { return state_base() + 112; }
+fn slot_str_size() -> i32 { return state_base() + 116; }
+fn slot_rela_off() -> i32 { return state_base() + 120; }
+fn slot_rela_size() -> i32 { return state_base() + 124; }
+fn slot_rela_ent() -> i32 { return state_base() + 128; }
+fn slot_shstr_off() -> i32 { return state_base() + 132; }
+fn slot_shstr_size() -> i32 { return state_base() + 136; }
+
+fn slot_text_vaddr() -> i32 { return state_base() + 140; }
+fn slot_bss_vaddr() -> i32 { return state_base() + 144; }
+fn slot_entry_addr() -> i32 { return state_base() + 148; }
+fn slot_filesz() -> i32 { return state_base() + 152; }
+fn slot_memsz() -> i32 { return state_base() + 156; }
+
+fn set_slot(addr: i32, val: i32) -> i32 { __mem_store(addr, val); return 0; }
+fn get_slot(addr: i32) -> i32 { return __mem_load(addr); }
+
+fn read_u8(off: i32) -> i32 {
+  return __mem_load8(obj_base() + off);
+}
+
+fn read_u16(off: i32) -> i32 {
+  let b0: i32 = read_u8(off);
+  let b1: i32 = read_u8(off + 1);
+  return b0 + b1 * 256;
+}
+
+fn read_u32(off: i32) -> i32 {
+  let b0: i32 = read_u8(off);
+  let b1: i32 = read_u8(off + 1);
+  let b2: i32 = read_u8(off + 2);
+  let b3: i32 = read_u8(off + 3);
+  return b0 + b1 * 256 + b2 * 65536 + b3 * 16777216;
+}
+
+fn read_u64_low(off: i32) -> i32 {
+  let lo: i32 = read_u32(off);
+  let hi: i32 = read_u32(off + 4);
+  if (hi != 0) { return 0 - 900; }
+  return lo;
+}
+
+fn read_i64_low(off: i32) -> i32 {
+  let lo: i32 = read_u32(off);
+  let hi: i32 = read_u32(off + 4);
+  if (hi != 0 && hi != (0 - 1)) { return 0 - 901; }
+  return lo;
+}
+
+fn cstr_len(ptr: i32) -> i32 {
+  let i: i32 = 0;
+  while (1 == 1) {
+    let c: i32 = __mem_load8(ptr + i);
+    if (c == 0) { return i; }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn cstr_eq(a: i32, b: i32) -> i32 {
+  let i: i32 = 0;
+  while (1 == 1) {
+    let ca: i32 = __mem_load8(a + i);
+    let cb: i32 = __mem_load8(b + i);
+    if (ca != cb) { return 0; }
+    if (ca == 0) { return 1; }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn parse_args() -> i32 {
+  let total: i32 = 0;
+  let done: i32 = 0;
+  let max_len: i32 = args_size() - 1;
+
+  while (done == 0) {
+    if (total >= max_len) {
+      done = 1;
+    } else {
+      let remain: i32 = max_len - total;
+      __mem_store(iov_addr(), args_base() + total);
+      __mem_store(iov_addr() + 4, remain);
+      __mem_store(io_n_addr(), 0);
+      let rc: i32 = __fd_read(0, iov_addr(), 1, io_n_addr());
+      if (rc != 0) { return 0 - 10; }
+      let nread: i32 = __mem_load(io_n_addr());
+      if (nread <= 0) {
+        done = 1;
+      } else {
+        total = total + nread;
+      }
+    }
+  }
+  __mem_store8(args_base() + total, 0);
+
+  let p: i32 = args_base();
+  let end: i32 = args_base() + total;
+  while (p < end && __mem_load8(p) <= 32) { p = p + 1; }
+  if (p >= end) { return 0 - 11; }
+  let in_ptr: i32 = p;
+  while (p < end && __mem_load8(p) > 32) { p = p + 1; }
+  if (p < end) { __mem_store8(p, 0); p = p + 1; }
+
+  while (p < end && __mem_load8(p) <= 32) { p = p + 1; }
+  if (p >= end) { return 0 - 12; }
+  let out_ptr: i32 = p;
+  while (p < end && __mem_load8(p) > 32) { p = p + 1; }
+  if (p < end) { __mem_store8(p, 0); p = p + 1; }
+
+  while (p < end && __mem_load8(p) <= 32) { p = p + 1; }
+  let entry_ptr: i32 = 0;
+  if (p < end) {
+    entry_ptr = p;
+    while (p < end && __mem_load8(p) > 32) { p = p + 1; }
+    if (p < end) { __mem_store8(p, 0); }
+  } else {
+    entry_ptr = "coatl_start";
+  }
+
+  __mem_store(slot_input(), in_ptr);
+  __mem_store(slot_output(), out_ptr);
+  __mem_store(slot_entry(), entry_ptr);
+  return 0;
+}
+
+fn read_file_into_obj(path_ptr: i32, path_len: i32) -> i32 {
+  __mem_store(fd_slot(), 0);
+  let rc_open: i32 = __path_open(3, 0, path_ptr, path_len, 0, 1, 0, 0, fd_slot());
+  if (rc_open != 0) { return 0 - 20; }
+  let fd: i32 = __mem_load(fd_slot());
+
+  let total: i32 = 0;
+  let done: i32 = 0;
+  let max_len: i32 = obj_max();
+  while (done == 0) {
+    if (total >= max_len) {
+      __fd_close(fd);
+      return 0 - 21;
+    }
+    let remain: i32 = max_len - total;
+    __mem_store(iov_addr(), obj_base() + total);
+    __mem_store(iov_addr() + 4, remain);
+    __mem_store(io_n_addr(), 0);
+    let rc: i32 = __fd_read(fd, iov_addr(), 1, io_n_addr());
+    if (rc != 0) {
+      __fd_close(fd);
+      return 0 - 22;
+    }
+    let nread: i32 = __mem_load(io_n_addr());
+    if (nread <= 0) {
+      done = 1;
+    } else {
+      total = total + nread;
+    }
+  }
+
+  let rc_close: i32 = __fd_close(fd);
+  if (rc_close != 0) { return 0 - 23; }
+  return total;
+}
+
+fn align16(n: i32) -> i32 {
+  return ((n + 15) / 16) * 16;
+}
+
+fn find_sections(shoff: i32, shentsize: i32, shnum: i32, shstrndx: i32) -> i32 {
+  let shstr_hdr: i32 = shoff + shstrndx * shentsize;
+  let shstr_off: i32 = read_u64_low(shstr_hdr + 24);
+  if (shstr_off < 0) { return 0 - 30; }
+  let shstr_size: i32 = read_u64_low(shstr_hdr + 32);
+  if (shstr_size < 0) { return 0 - 31; }
+  __mem_store(slot_shstr_off(), shstr_off);
+  __mem_store(slot_shstr_size(), shstr_size);
+
+  __mem_store(slot_text_off(), 0 - 1);
+  __mem_store(slot_text_size(), 0);
+  __mem_store(slot_text_idx(), 0 - 1);
+  __mem_store(slot_bss_size(), 0);
+  __mem_store(slot_bss_idx(), 0 - 1);
+  __mem_store(slot_sym_off(), 0 - 1);
+  __mem_store(slot_sym_size(), 0);
+  __mem_store(slot_sym_ent(), 0);
+  __mem_store(slot_str_off(), 0 - 1);
+  __mem_store(slot_str_size(), 0);
+  __mem_store(slot_rela_off(), 0 - 1);
+  __mem_store(slot_rela_size(), 0);
+  __mem_store(slot_rela_ent(), 0);
+
+  let i: i32 = 0;
+  while (i < shnum) {
+    let sh: i32 = shoff + i * shentsize;
+    let name_off: i32 = read_u32(sh + 0);
+    let name_ptr: i32 = obj_base() + shstr_off + name_off;
+
+    if (cstr_eq(name_ptr, ".text") == 1) {
+      let off: i32 = read_u64_low(sh + 24);
+      let size: i32 = read_u64_low(sh + 32);
+      __mem_store(slot_text_off(), off);
+      __mem_store(slot_text_size(), size);
+      __mem_store(slot_text_idx(), i);
+    }
+    if (cstr_eq(name_ptr, ".bss") == 1) {
+      let size2: i32 = read_u64_low(sh + 32);
+      __mem_store(slot_bss_size(), size2);
+      __mem_store(slot_bss_idx(), i);
+    }
+    if (cstr_eq(name_ptr, ".symtab") == 1) {
+      let off2: i32 = read_u64_low(sh + 24);
+      let size3: i32 = read_u64_low(sh + 32);
+      let ent3: i32 = read_u64_low(sh + 56);
+      __mem_store(slot_sym_off(), off2);
+      __mem_store(slot_sym_size(), size3);
+      __mem_store(slot_sym_ent(), ent3);
+    }
+    if (cstr_eq(name_ptr, ".strtab") == 1) {
+      let off3: i32 = read_u64_low(sh + 24);
+      let size4: i32 = read_u64_low(sh + 32);
+      __mem_store(slot_str_off(), off3);
+      __mem_store(slot_str_size(), size4);
+    }
+    if (cstr_eq(name_ptr, ".rela.text") == 1) {
+      let off4: i32 = read_u64_low(sh + 24);
+      let size5: i32 = read_u64_low(sh + 32);
+      let ent5: i32 = read_u64_low(sh + 56);
+      __mem_store(slot_rela_off(), off4);
+      __mem_store(slot_rela_size(), size5);
+      __mem_store(slot_rela_ent(), ent5);
+    }
+    i = i + 1;
+  }
+
+  if (__mem_load(slot_text_off()) < 0) { return 0 - 32; }
+  if (__mem_load(slot_sym_off()) < 0) { return 0 - 33; }
+  if (__mem_load(slot_str_off()) < 0) { return 0 - 34; }
+  if (__mem_load(slot_sym_ent()) <= 0) { return 0 - 35; }
+  return 0;
+}
+
+fn sym_addr(sym_idx: i32) -> i32 {
+  let sym_off: i32 = __mem_load(slot_sym_off());
+  let sym_ent: i32 = __mem_load(slot_sym_ent());
+  let sym: i32 = sym_off + sym_idx * sym_ent;
+  let st_name: i32 = read_u32(sym + 0);
+  let st_shndx: i32 = read_u16(sym + 6);
+  let st_value: i32 = read_u64_low(sym + 8);
+
+  if (st_shndx == 0) { return 0 - 40; }
+  if (st_shndx == 65521) { return st_value; }
+
+  let text_idx: i32 = __mem_load(slot_text_idx());
+  let bss_idx: i32 = __mem_load(slot_bss_idx());
+  if (st_shndx == text_idx) {
+    let text_vaddr: i32 = __mem_load(slot_text_vaddr());
+    return text_vaddr + st_value;
+  }
+  if (bss_idx >= 0 && st_shndx == bss_idx) {
+    let bss_vaddr: i32 = __mem_load(slot_bss_vaddr());
+    return bss_vaddr + st_value;
+  }
+
+  return 0 - 41;
+}
+
+fn find_entry_symbol(entry_ptr: i32) -> i32 {
+  let sym_off: i32 = __mem_load(slot_sym_off());
+  let sym_size: i32 = __mem_load(slot_sym_size());
+  let sym_ent: i32 = __mem_load(slot_sym_ent());
+  if (sym_ent <= 0) { return 0 - 43; }
+  let sym_count: i32 = sym_size / sym_ent;
+  let str_off: i32 = __mem_load(slot_str_off());
+
+  let i: i32 = 0;
+  while (i < sym_count) {
+    let sym: i32 = sym_off + i * sym_ent;
+    let st_name: i32 = read_u32(sym + 0);
+    let st_shndx: i32 = read_u16(sym + 6);
+    if (st_name != 0 && st_shndx != 0) {
+      let name_ptr: i32 = obj_base() + str_off + st_name;
+      if (cstr_eq(name_ptr, entry_ptr) == 1) {
+        return sym_addr(i);
+      }
+    }
+    i = i + 1;
+  }
+  return 0 - 42;
+}
+
+fn copy_text_to_out(text_off: i32, text_size: i32) -> i32 {
+  let i: i32 = 0;
+  let out_text: i32 = out_base() + 4096;
+  while (i < text_size) {
+    let b: i32 = __mem_load8(obj_base() + text_off + i);
+    __mem_store8(out_text + i, b);
+    i = i + 1;
+  }
+  return 0;
+}
+
+// Apply AArch64 relocations
+// AArch64 uses different relocation types than x86_64
+// For now, this linker supports only simple static binaries without relocations
+// Full relocation support would require bitwise operators not available in Coatl
+fn apply_relocations() -> i32 {
+  // Check if there are any relocations to apply
+  let rela_off: i32 = __mem_load(slot_rela_off());
+  if (rela_off < 0) { return 0; }
+  let rela_size: i32 = __mem_load(slot_rela_size());
+  if (rela_size == 0) { return 0; }
+  
+  // Relocations present but not supported in this simplified linker
+  // For full support, the assembler should emit position-independent code
+  // or use a more sophisticated linker
+  return 0 - 53;
+}
+
+fn write_u16(out_off: i32, val: i32) -> i32 {
+  __mem_store(tmp32_addr(), val);
+  let b0: i32 = __mem_load8(tmp32_addr());
+  let b1: i32 = __mem_load8(tmp32_addr() + 1);
+  __mem_store8(out_base() + out_off + 0, b0);
+  __mem_store8(out_base() + out_off + 1, b1);
+  return 0;
+}
+
+fn write_u32(out_off: i32, val: i32) -> i32 {
+  __mem_store(tmp32_addr(), val);
+  let b0: i32 = __mem_load8(tmp32_addr());
+  let b1: i32 = __mem_load8(tmp32_addr() + 1);
+  let b2: i32 = __mem_load8(tmp32_addr() + 2);
+  let b3: i32 = __mem_load8(tmp32_addr() + 3);
+  __mem_store8(out_base() + out_off + 0, b0);
+  __mem_store8(out_base() + out_off + 1, b1);
+  __mem_store8(out_base() + out_off + 2, b2);
+  __mem_store8(out_base() + out_off + 3, b3);
+  return 0;
+}
+
+fn write_u64(out_off: i32, val: i32) -> i32 {
+  write_u32(out_off, val);
+  write_u32(out_off + 4, 0);
+  return 0;
+}
+
+fn build_output(entry_addr: i32) -> i32 {
+  let text_size: i32 = __mem_load(slot_text_size());
+  let bss_size: i32 = __mem_load(slot_bss_size());
+
+  let base: i32 = 4194304; // 0x400000
+  let text_off: i32 = 4096; // 0x1000
+  let text_vaddr: i32 = base + text_off;
+  let bss_vaddr: i32 = align16(text_vaddr + text_size);
+  let bss_end: i32 = bss_vaddr + bss_size;
+  let filesz: i32 = text_off + text_size;
+  let memsz: i32 = bss_end - base;
+
+  __mem_store(slot_text_vaddr(), text_vaddr);
+  __mem_store(slot_bss_vaddr(), bss_vaddr);
+  __mem_store(slot_filesz(), filesz);
+  __mem_store(slot_memsz(), memsz);
+
+  let i: i32 = 0;
+  while (i < text_off) {
+    __mem_store8(out_base() + i, 0);
+    i = i + 1;
+  }
+
+  // ELF64 header for AArch64
+  __mem_store8(out_base() + 0, 127);
+  __mem_store8(out_base() + 1, 69);
+  __mem_store8(out_base() + 2, 76);
+  __mem_store8(out_base() + 3, 70);
+  __mem_store8(out_base() + 4, 2);  // 64-bit
+  __mem_store8(out_base() + 5, 1);  // Little endian
+  __mem_store8(out_base() + 6, 1);  // ELF version
+
+  // e_machine = 183 (AArch64) instead of 62 (x86-64)
+  write_u16(16, 2);   // e_type = ET_EXEC
+  write_u16(18, 183); // e_machine = EM_AARCH64
+  write_u32(20, 1);   // e_version
+  write_u64(24, entry_addr);
+  write_u64(32, 64);  // e_phoff
+  write_u64(40, 0);   // e_shoff
+  write_u32(48, 0);   // e_flags
+  write_u16(52, 64);  // e_ehsize
+  write_u16(54, 56);  // e_phentsize
+  write_u16(56, 1);   // e_phnum
+  write_u16(58, 64);  // e_shentsize
+  write_u16(60, 0);   // e_shnum
+  write_u16(62, 0);   // e_shstrndx
+
+  // Program header for PT_LOAD
+  write_u32(64, 1);       // p_type = PT_LOAD
+  write_u32(68, 7);       // p_flags = RWX
+  write_u64(72, 0);       // p_offset
+  write_u64(80, base);    // p_vaddr
+  write_u64(88, base);    // p_paddr
+  write_u64(96, filesz);  // p_filesz
+  write_u64(104, memsz);  // p_memsz
+  write_u64(112, 4096);   // p_align
+
+  return filesz;
+}
+
+fn write_output_file(path_ptr: i32, path_len: i32, out_size: i32) -> i32 {
+  __mem_store(fd_slot(), 0);
+  let rc_open: i32 = __path_open(3, 0, path_ptr, path_len, 9, 64, 0, 0, fd_slot());
+  if (rc_open != 0) { return 0 - 60; }
+  let fd: i32 = __mem_load(fd_slot());
+
+  __mem_store(iov_addr(), out_base());
+  __mem_store(iov_addr() + 4, out_size);
+  __mem_store(io_n_addr(), 0);
+  let rc_write: i32 = __fd_write(fd, iov_addr(), 1, io_n_addr());
+  if (rc_write != 0) {
+    __fd_close(fd);
+    return 0 - 61;
+  }
+
+  let rc_close: i32 = __fd_close(fd);
+  if (rc_close != 0) { return 0 - 62; }
+  return 0;
+}
+
+fn link_obj(entry_ptr: i32) -> i32 {
+  let obj_size: i32 = __mem_load(slot_obj_size());
+  if (obj_size < 64) { return 0 - 70; }
+
+  if (read_u8(0) != 127) { return 0 - 71; }
+  if (read_u8(1) != 69) { return 0 - 72; }
+  if (read_u8(2) != 76) { return 0 - 72; }
+  if (read_u8(3) != 70) { return 0 - 73; }
+  if (read_u8(4) != 2) { return 0 - 75; }
+  if (read_u8(5) != 1) { return 0 - 76; }
+
+  let e_shoff: i32 = read_u64_low(40);
+  if (e_shoff < 0) { return 0 - 77; }
+  let e_shentsize: i32 = read_u16(58);
+  let e_shnum: i32 = read_u16(60);
+  let e_shstrndx: i32 = read_u16(62);
+
+  let rc_sec: i32 = find_sections(e_shoff, e_shentsize, e_shnum, e_shstrndx);
+  if (rc_sec != 0) { return rc_sec; }
+
+  let text_off: i32 = __mem_load(slot_text_off());
+  let text_size: i32 = __mem_load(slot_text_size());
+  if (text_off + text_size > obj_size) { return 0 - 78; }
+
+  let ent_addr: i32 = find_entry_symbol(entry_ptr);
+  if (ent_addr < 0) { return ent_addr; }
+  __mem_store(slot_entry_addr(), ent_addr);
+
+  let out_sz: i32 = build_output(ent_addr);
+  if (out_sz <= 0) { return 0 - 79; }
+  if (out_sz > out_max()) { return 0 - 80; }
+
+  let rc_copy: i32 = copy_text_to_out(text_off, text_size);
+  if (rc_copy != 0) { return rc_copy; }
+
+  let rc_reloc: i32 = apply_relocations();
+  if (rc_reloc != 0) { return rc_reloc; }
+
+  __mem_store(slot_out_size(), out_sz);
+  return 0;
+}
+
+fn main() -> i32 {
+  let rc_args: i32 = parse_args();
+  if (rc_args != 0) { return 10; }
+
+  let in_ptr: i32 = __mem_load(slot_input());
+  let out_ptr: i32 = __mem_load(slot_output());
+  let entry_ptr: i32 = __mem_load(slot_entry());
+
+  let in_len: i32 = cstr_len(in_ptr);
+  let out_len: i32 = cstr_len(out_ptr);
+
+  let obj_sz: i32 = read_file_into_obj(in_ptr, in_len);
+  if (obj_sz < 0) { return 20; }
+  __mem_store(slot_obj_size(), obj_sz);
+
+  let rc_link: i32 = link_obj(entry_ptr);
+  if (rc_link != 0) { return 30; }
+
+  let out_sz: i32 = __mem_load(slot_out_size());
+  let rc_write: i32 = write_output_file(out_ptr, out_len, out_sz);
+  if (rc_write != 0) { return 40; }
+
+  return 0;
+}

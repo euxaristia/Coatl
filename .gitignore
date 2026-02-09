@@ -9,3 +9,18 @@
 
 # OS
 .DS_Store
+
+# Build artifacts
+*.s
+*.dump
+*.bin
+*.log
+*.asm
+*.ir
+examples/*.wat
+examples/hello
+examples/hello_arm
+examples/test_fd
+examples/debug_hello
+examples/*.coatl
+tools/ir_to_aarch64_asm
