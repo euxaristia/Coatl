@@ -10,7 +10,7 @@ fn main() -> i32 {
   let msg: i32 = "OK\n";
 
   __mem_store(iov, msg);
-  __mem_store(iov + 8, 3);
+  __mem_store(iov + 4, 3);
   __mem_store(nwritten, 0);
 
   let wrc: i32 = __fd_write(fd, iov, 1, nwritten);

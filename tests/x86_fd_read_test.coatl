@@ -4,7 +4,7 @@ fn main() -> i32 {
   let nread: i32 = 12316;
 
   __mem_store(iov, buf);
-  __mem_store(iov + 8, 4);
+  __mem_store(iov + 4, 4);
   __mem_store(nread, 0);
 
   let rc: i32 = __fd_read(0, iov, 1, nread);
