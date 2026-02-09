@@ -1,0 +1,14 @@
+fn write_stdout(msg: i32, len: i32) -> i32 {
+  let iov: i32 = 64;
+  let nwritten: i32 = 80;
+  __mem_store(iov, msg);
+  __mem_store(iov + 4, len);
+  __mem_store(nwritten, 0);
+  return __fd_write(1, iov, 1, nwritten);
+}
+
+fn main() -> i32 {
+  write_stdout("Hello, x86_64!
+", 15);
+  return 0;
+}
