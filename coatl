@@ -27,6 +27,7 @@ IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.sh"
 IR_TO_AARCH64_ASM="$ROOT_DIR/tools/ir_to_aarch64_asm.sh"
 IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat.sh"
 X86_INTRINSICS="$ROOT_DIR/tests/intrinsics.s"
+AARCH64_INTRINSICS="$ROOT_DIR/tests/intrinsics_aarch64.s"
 
 usage() {
   cat <<'EOF'
@@ -41,14 +42,14 @@ usage:
     .wat → WAT    .s → asm    .ir → IR    .o → obj    (no ext) → bin
   omitting -o prints WAT to stdout.
 
-notes:
+  notes:
   - default toolchain is "auto" (or $COATL_TOOLCHAIN), preferring selfhost for wat output
-  - default arch is "x86_64" (or $COATL_ARCH)
+  - default arch is "auto" (auto-detects from uname -m)
   - toolchain=ir uses subset frontend + external lowerers (IR/WAT/ASM/OBJ/BIN)
-  - .o output emits x86_64 ELF relocatable object from asm output (only for x86_64)
-  - bin output links x86_64 Linux executable from asm output (only for x86_64)
+  - .o output emits ELF relocatable object from asm output
+  - bin output links Linux executable from asm output (x86_64 and aarch64)
   - set COATL_IR_FIRST_BUILD=1 to force auto mode to skip selfhost-first attempt
-  - set COATL_HOME to a Coatl repo/install root if tools are not found beside this script
+  - set COATL_HOME to a Coatl repo root if tools are not found
 EOF
 }
 
@@ -252,6 +253,20 @@ usable_cc_toolchain() {
 assemble_asm_to_obj() {
   local asm_in="$1"
   local obj_out="$2"
+  if [[ "$arch" == "aarch64" ]]; then
+    if command -v as >/dev/null 2>&1; then
+      as "$asm_in" -o "$obj_out"
+      return 0
+    fi
+    if usable_cc_toolchain; then
+      local cc
+      cc="$(cc_bin)"
+      "$cc" -c -x assembler "$asm_in" -o "$obj_out"
+      return 0
+    fi
+    echo "assembling requires GNU as or a usable C compiler (set CC)" >&2
+    return 1
+  fi
   if command -v as >/dev/null 2>&1; then
     as --64 "$asm_in" -o "$obj_out"
     return 0
@@ -275,11 +290,44 @@ internal_link_obj_to_bin() {
   bash "$ROOT_DIR/tools/link_x86_64_elf.sh" "$obj_in" -o "$bin_out" --entry coatl_start
 }
 
+internal_link_aarch64_obj_to_bin() {
+  local obj_in="$1"
+  local bin_out="$2"
+  if [[ ! -f "$ROOT_DIR/tools/link_aarch64_elf.sh" ]]; then
+    return 1
+  fi
+  bash "$ROOT_DIR/tools/link_aarch64_elf.sh" "$obj_in" -o "$bin_out" --entry coatl_start
+}
+
 link_asm_to_bin() {
   local asm_in="$1"
   local bin_out="$2"
   local mode="${3:-any}" # any|cc-only
   local cc
+  if [[ "$arch" == "aarch64" ]]; then
+    # For aarch64, prefer cc if available (internal linker requires
+    # control-flow support in the aarch64 backend which is incomplete)
+    if usable_cc_toolchain; then
+      cc="$(cc_bin)"
+      "$cc" -no-pie "$asm_in" -o "$bin_out"
+      return 0
+    fi
+    # Fallback: assemble + internal linker
+    local obj
+    obj="$(mktemp /tmp/coatl-link-bin.XXXXXX.o)"
+    if ! assemble_asm_to_obj "$asm_in" "$obj"; then
+      rm -f "$obj"
+      return 1
+    fi
+    if ! internal_link_aarch64_obj_to_bin "$obj" "$bin_out"; then
+      rm -f "$obj"
+      echo "aarch64 linking failed" >&2
+      return 1
+    fi
+    rm -f "$obj"
+    return 0
+  fi
+  # x86_64 path (original code)
   if usable_cc_toolchain; then
     cc="$(cc_bin)"
     "$cc" -no-pie "$asm_in" -o "$bin_out"
@@ -425,9 +473,11 @@ ir_pipeline_build_asm() {
   if [[ -x "$SUBSET_FRONTEND" ]]; then
     if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
       if "$backend_tool" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
-        # Append x86_64 intrinsics if available and targeting x86
+        # Append architecture-specific intrinsics
         if [[ "$arch" == "x86_64" && -f "$X86_INTRINSICS" ]]; then
           cat "$X86_INTRINSICS" >> "$tmp_asm"
+        elif [[ "$arch" == "aarch64" && -f "$AARCH64_INTRINSICS" ]]; then
+          cat "$AARCH64_INTRINSICS" >> "$tmp_asm"
         fi
         if [[ -n "$out_abs" ]]; then
           cp "$tmp_asm" "$out_abs"

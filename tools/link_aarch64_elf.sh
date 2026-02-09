@@ -56,12 +56,17 @@ bin="/tmp/coatl-link-aarch64_elf.bin"
 if [[ ! -x "$bin" ]]; then
   asm="/tmp/coatl-link-aarch64_elf.s"
   obj="/tmp/coatl-link-aarch64_elf.o"
-  "$ROOT_DIR/coatl" build "$ROOT_DIR/tools/link_aarch64_elf.coatl" --emit=asm --toolchain=ir -o "$asm" >/dev/null
+  "$ROOT_DIR/coatl" build "$ROOT_DIR/tools/link_aarch64_elf.coatl" --toolchain=ir --arch=aarch64 -o "$asm" >/dev/null
+  # Fix large immediates that exceed 16 bits in aarch64
+  sed -i 's/mov w0, #135168/mov w0, #0x2100\n  movk w0, #0x2, lsl #16/' "$asm"
+  sed -i 's/mov w0, #139264/mov w0, #0x2200\n  movk w0, #0x2, lsl #16/' "$asm"
+  sed -i 's/mov w0, #262144/mov w0, #0\n  movk w0, #0x4, lsl #16/' "$asm"
+  sed -i 's/mov w0, #401408/mov w0, #0x200\n  movk w0, #0x6, lsl #16/' "$asm"
   if command -v cc >/dev/null 2>&1; then
     cc -no-pie "$asm" -o "$bin"
   elif command -v ld >/dev/null 2>&1 && command -v as >/dev/null 2>&1; then
     as "$asm" -o "$obj"
-    ld "$obj" -o "$bin" -e coatl_start
+    ld "$obj" -o "$bin" -e main
   else
     echo "linker build requires cc or as+ld" >&2
     exit 1

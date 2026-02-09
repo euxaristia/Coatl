@@ -97,15 +97,18 @@ __fd_close:
   ret
 
 __path_open:
+  // Coatl calling convention: all 9 args in x0-x8
+  // x0=dirfd, x1=dirflags, x2=path_ptr, x3=path_len,
+  // x4=oflags, x5=rights_base, x6=rights_inh, x7=fdflags, x8=fd_ptr
   stp x29, x30, [sp, #-16]!
   mov x29, sp
   sub sp, sp, #32
-  str x5, [sp, #16]          // save fd_ptr (coatl offset)
-  mov x11, x1                // save oflags
+  str x8, [sp, #16]          // save fd_ptr (coatl offset) from x8 (arg 9)
+  mov x11, x4                // save oflags from x4 (arg 5)
+  mov x12, x2                // save path_ptr from x2 (arg 3)
   GET_COATL_MEM x8
   str x8, [sp, #8]           // save coatl_mem base
-  ldr x1, [x29, #16]         // load path_off
-  add x1, x1, x8             // path = path_off + base
+  add x1, x12, x8            // path = path_off + base
   mov x0, #-100              // AT_FDCWD
   mov x2, #0
   tst x11, #1                // check CREAT bit

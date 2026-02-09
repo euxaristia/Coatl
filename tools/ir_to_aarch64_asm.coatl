@@ -206,7 +206,7 @@ fn str_find_or_add(atom_idx: i32) -> i32 {
   let m_addr: i32 = str_map_base() + count * str_entry_size();
   __mem_store(m_addr, atom_idx); __mem_store(m_addr + 4, s_addr);
   __mem_store(str_count_addr(), count + 1);
-  __mem_store(next_str_addr_addr(), s_addr + node_atom_len(atom_idx) + 1);
+  __mem_store(next_str_addr_addr(), s_addr + node_atom_len(atom_idx) - 1); // exclude closing quote
   return s_addr;
 }
 
@@ -344,7 +344,19 @@ fn walk_for_strings(node: i32) -> i32 {
   if (node_kind(node) == 0) { return 0; }
   let head: i32 = node_child_head(node);
   if (atom_equals(head, l_string_ptr(), 6) == 1) { str_find_or_add(node_next(head)); return 0; }
-  if (atom_equals(head, l_string_typed_ptr(), 12) == 1) { str_find_or_add(node_next(head)); return 0; }
+  if (atom_equals(head, l_string_typed_ptr(), 12) == 1) { 
+    let str_node: i32 = node_next(head);
+    let str_off: i32 = node_atom_off(str_node); let str_len: i32 = node_atom_len(str_node);
+    if (str_len >= 2 && __mem_load8(ir_buf_base() + str_off) == 34 && __mem_load8(ir_buf_base() + str_off + str_len - 1) == 34) {
+      let new_atom: i32 = node_alloc();
+      set_node_kind(new_atom, 0);
+      set_node_atom(new_atom, str_off + 1, str_len - 2);
+      str_find_or_add(new_atom);
+    } else {
+      str_find_or_add(str_node);
+    }
+    return 0; 
+  }
   let c: i32 = head; while (c != 0) { walk_for_strings(c); c = node_next(c); } return 0;
 }
 
@@ -370,9 +382,7 @@ fn emit_program(root: i32) -> i32 {
   out_char(32); out_char(32); out_char(97); out_char(100); out_char(114); out_char(112); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(109); out_char(101); out_char(109); out_nl();
   out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(58); out_char(108); out_char(111); out_char(49); out_char(50); out_char(58); out_char(95); out_char(95); out_char(99); out_char(111); out_char(97); out_char(116); out_char(108); out_char(95); out_char(109); out_char(101); out_char(109); out_nl();
   let sc: i32 = __mem_load(str_count_addr()); let si: i32 = 0;
-  while (si < sc) {
-    let ma: i32 = str_map_base() + si * str_entry_size(); let sa: i32 = __mem_load(ma+4); let an: i32 = __mem_load(ma);
-    let sl: i32 = node_atom_len(an); let so: i32 = node_atom_off(an); let content_off: i32 = so + 1; let content_len: i32 = sl - 2; let sj: i32 = 0;
+    let sl: i32 = node_atom_len(an); let so: i32 = node_atom_off(an); let sj: i32 = 0;
     // emit: mov x2, #<sa_lo16>
     out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sa - (sa / 65536) * 65536); out_nl();
     if (sa >= 65536) {
@@ -381,8 +391,8 @@ fn emit_program(root: i32) -> i32 {
     }
     // emit: add x2, x0, x2
     out_char(32); out_char(32); out_char(97); out_char(100); out_char(100); out_char(32); out_char(120); out_char(50); out_char(44); out_char(32); out_char(120); out_char(48); out_char(44); out_char(32); out_char(120); out_char(50); out_nl();
-    while (sj < content_len) { out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_int(__mem_load8(ir_buf_base()+content_off+sj)); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sj); out_char(93); out_nl(); sj = sj + 1; }
-    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_char(48); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(content_len); out_char(93); out_nl();
+    while (sj < sl) { out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_int(__mem_load8(ir_buf_base()+so+sj)); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sj); out_char(93); out_nl(); sj = sj + 1; }
+    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(35); out_char(48); out_nl(); out_char(32); out_char(32); out_char(115); out_char(116); out_char(114); out_char(98); out_char(32); out_char(119); out_char(49); out_char(44); out_char(32); out_char(91); out_char(120); out_char(50); out_char(44); out_char(32); out_char(35); out_int(sl); out_char(93); out_nl();
     si = si + 1;
   }
   out_char(46); out_char(76); out_char(95); out_char(109); out_char(101); out_char(109); out_char(95); out_char(100); out_char(111); out_char(110); out_char(101); out_char(58); out_nl();

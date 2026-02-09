@@ -1,0 +1,9 @@
+fn main() -> i32 {
+  let msg: i32 = "A\n";
+  let len: i32 = 0;
+  while (__mem_load8(msg + len) != 0) {
+    len = len + 1;
+  }
+  __fd_write(1, msg, 1, len);
+  return 0;
+}
