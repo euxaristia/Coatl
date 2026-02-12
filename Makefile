@@ -1,4 +1,17 @@
-.PHONY: install uninstall local-install local-uninstall
+.PHONY: all install uninstall local-install local-uninstall test check clean
+
+all:
+
+test:
+	./tests/run_ir_smoke.sh
+
+check: test
+
+clean:
+	rm -f *.wat *.s *.ir *.bin *.log *.asm *.dump
+	rm -f examples/*.wat examples/*.s examples/*.ir examples/*.asm examples/*.bin examples/*.log examples/*.dump
+	rm -f examples/hello examples/hello_arm examples/test_fd examples/debug_hello
+	rm -f tools/ir_to_aarch64_asm
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin

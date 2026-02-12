@@ -1,0 +1,13 @@
+fn main() -> i32 {
+  let msg: i32 = "Hello, aarch64!
+";
+  let iov: i32 = 100;
+  let nwritten: i32 = 120;
+
+  __mem_store(iov, msg);
+  __mem_store(iov + 4, 16);
+  __mem_store(nwritten, 0);
+
+  __fd_write(1, iov, 1, nwritten);
+  return 0;
+}

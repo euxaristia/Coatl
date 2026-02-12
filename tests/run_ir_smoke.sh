@@ -14,15 +14,15 @@ emit_ir() {
 echo "[ir-smoke] hello"
 HELLO_IR="$TMP_DIR/hello.ir"
 emit_ir "$ROOT_DIR/examples/hello.coatl" "$HELLO_IR"
-grep -Fq "(coatl_ir v0" "$HELLO_IR"
+grep -Fq "(coatl_ir v1" "$HELLO_IR"
 grep -Fq "(fn main" "$HELLO_IR"
 grep -Fq "(call __fd_write" "$HELLO_IR"
 
 echo "[ir-smoke] struct chain"
 STRUCT_IR="$TMP_DIR/struct_chain.ir"
 emit_ir "$ROOT_DIR/tests/struct_chain_calls.coatl" "$STRUCT_IR"
-grep -Fq "(fn make_point__ret__x" "$STRUCT_IR"
-grep -Fq "(param p__x i32)" "$STRUCT_IR"
+grep -Fq "(fn make_point" "$STRUCT_IR"
+grep -Fq "(param p Point)" "$STRUCT_IR"
 grep -Fq "(call sum_point" "$STRUCT_IR"
 
 echo "ir smoke suite passed"
