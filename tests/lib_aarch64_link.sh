@@ -29,7 +29,7 @@ link_aarch64_asm_binary() {
   if have_cc_toolchain; then
     local cc
     cc="$(cc_bin)"
-    "$cc" -no-pie "$asm" -o "$bin"
+    "$cc" -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack "$asm" -o "$bin"
     return 0
   fi
   if have_as_toolchain; then

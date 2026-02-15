@@ -309,7 +309,7 @@ link_asm_to_bin() {
     # control-flow support in the aarch64 backend which is incomplete)
     if usable_cc_toolchain; then
       cc="$(cc_bin)"
-      "$cc" -no-pie "$asm_in" -o "$bin_out"
+      "$cc" -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack "$asm_in" -o "$bin_out"
       return 0
     fi
     # Fallback: assemble + internal linker
@@ -330,7 +330,7 @@ link_asm_to_bin() {
   # x86_64 path (original code)
   if usable_cc_toolchain; then
     cc="$(cc_bin)"
-    "$cc" -no-pie "$asm_in" -o "$bin_out"
+    "$cc" -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack "$asm_in" -o "$bin_out"
     return 0
   fi
   if [[ "$mode" == "any" ]]; then

@@ -58,7 +58,7 @@ if [[ ! -x "$bin" ]]; then
   obj="/tmp/coatl-link-x86_64_elf.o"
   "$ROOT_DIR/coatl" build "$ROOT_DIR/tools/link_x86_64_elf.coatl" --toolchain=ir -o "$asm" >/dev/null
   if command -v cc >/dev/null 2>&1; then
-    cc -no-pie "$asm" -o "$bin"
+    cc -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack "$asm" -o "$bin"
   elif command -v ld >/dev/null 2>&1 && command -v as >/dev/null 2>&1; then
     as --64 "$asm" -o "$obj"
     ld "$obj" -o "$bin" -e coatl_start
