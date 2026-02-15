@@ -1,4 +1,4 @@
-.PHONY: all install uninstall local-install local-uninstall test check clean
+.PHONY: all install uninstall test check clean
 
 all:
 
@@ -13,14 +13,13 @@ clean:
 	rm -f examples/hello examples/hello_arm examples/test_fd examples/debug_hello
 	rm -f tools/ir_to_aarch64_asm
 
-PREFIX ?= /usr/local
+PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 MANDIR ?= $(PREFIX)/share/man
 PROGRAM ?= coatl
 SHAREDIR ?= $(PREFIX)/share/$(PROGRAM)
 TARGET ?= $(BINDIR)/$(PROGRAM)
 MAN1_TARGET ?= $(MANDIR)/man1/$(PROGRAM).1
-LOCAL_PREFIX ?= $(HOME)/.local
 
 install:
 	install -d "$(BINDIR)"
@@ -43,9 +42,3 @@ uninstall:
 	@echo "Removed $(TARGET)"
 	@echo "Removed $(MAN1_TARGET)"
 	@echo "Removed $(SHAREDIR)"
-
-local-install:
-	$(MAKE) install PREFIX="$(LOCAL_PREFIX)"
-
-local-uninstall:
-	$(MAKE) uninstall PREFIX="$(LOCAL_PREFIX)"
