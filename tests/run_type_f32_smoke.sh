@@ -14,7 +14,7 @@ echo "[type-f32] compiling type_f32_smoke.coatl"
 IR="$TMP_DIR/type_f32_smoke.ir"
 WAT="$TMP_DIR/type_f32_smoke.wat"
 
-python3 "$ROOT_DIR/tools/coatl_subset_to_ir.py" "$ROOT_DIR/tests/type_f32_smoke.coatl" -o "$IR"
+"$ROOT_DIR/tools/coatl_subset_to_ir.sh" "$ROOT_DIR/tests/type_f32_smoke.coatl" -o "$IR"
 "$ROOT_DIR/coatl" lower-ir "$IR" -o "$WAT"
 
 out="$(wasmtime --invoke main "$WAT")"
