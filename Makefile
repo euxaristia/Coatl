@@ -4,6 +4,9 @@ all:
 
 test:
 	./tests/run_ir_smoke.sh
+	./tests/run_x86_runtime_suite.sh
+	./tests/run_aarch64_runtime_suite.sh
+	./tests/run_snake_smoke.sh
 
 check: test
 
@@ -31,6 +34,7 @@ install:
 	cp -a "selfhost" "$(SHAREDIR)/"
 	install -d "$(SHAREDIR)/tests"
 	install -m 0644 "tests/intrinsics.s" "$(SHAREDIR)/tests/intrinsics.s"
+	install -m 0644 "tests/intrinsics_aarch64.s" "$(SHAREDIR)/tests/intrinsics_aarch64.s"
 	@echo "Installed $(PROGRAM) to $(TARGET)"
 	@echo "Installed man page to $(MAN1_TARGET)"
 	@echo "Installed runtime assets to $(SHAREDIR)"
