@@ -23,10 +23,12 @@ PROGRAM ?= coatl
 SHAREDIR ?= $(PREFIX)/share/$(PROGRAM)
 TARGET ?= $(BINDIR)/$(PROGRAM)
 MAN1_TARGET ?= $(MANDIR)/man1/$(PROGRAM).1
+VERSION ?= $(shell git describe --always --dirty --tags 2>/dev/null || echo dev)
 
 install:
 	install -d "$(BINDIR)"
 	install -m 0755 "$(PROGRAM)" "$(TARGET)"
+	sed -i 's/COATL_VERSION:-dev/COATL_VERSION:-$(VERSION)/' "$(TARGET)"
 	install -d "$(MANDIR)/man1"
 	install -m 0644 "man/$(PROGRAM).1" "$(MAN1_TARGET)"
 	install -d "$(SHAREDIR)"
