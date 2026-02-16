@@ -1,0 +1,362 @@
+fn write_stdout(msg: i32, len: i32) -> i32 {
+  let iov: i32 = 64;
+  let nwritten: i32 = 72;
+  __mem_store(iov, msg);
+  __mem_store(iov + 4, len);
+  __mem_store(nwritten, 0);
+  return __fd_write(1, iov, 1, nwritten);
+}
+
+fn read_key() -> i32 {
+  let buf: i32 = 12000;
+  let iov: i32 = 12008;
+  let nread: i32 = 12016;
+
+  while (1 == 1) {
+    __mem_store(iov, buf);
+    __mem_store(iov + 4, 1);
+    __mem_store(nread, 0);
+
+    let rc: i32 = __fd_read(0, iov, 1, nread);
+    if (rc != 0) { return 0 - 1; }
+    if (__mem_load(nread) <= 0) { return 0; }
+
+    let raw: i32 = __mem_load(buf);
+    let key: i32 = raw - (raw / 256) * 256;
+
+    // Parse ANSI arrow key sequence: ESC [ A/B/C/D.
+    if (key == 27) {
+      __mem_store(iov, buf);
+      __mem_store(iov + 4, 1);
+      __mem_store(nread, 0);
+      let rc2: i32 = __fd_read(0, iov, 1, nread);
+      if (rc2 != 0) { return key; }
+      if (__mem_load(nread) <= 0) { return key; }
+      let raw2: i32 = __mem_load(buf);
+      let key2: i32 = raw2 - (raw2 / 256) * 256;
+
+      if (key2 == 91) {
+        __mem_store(iov, buf);
+        __mem_store(iov + 4, 1);
+        __mem_store(nread, 0);
+        let rc3: i32 = __fd_read(0, iov, 1, nread);
+        if (rc3 != 0) { return key; }
+        if (__mem_load(nread) <= 0) { return key; }
+        let raw3: i32 = __mem_load(buf);
+        let key3: i32 = raw3 - (raw3 / 256) * 256;
+        if (key3 == 65) { return 119; }
+        if (key3 == 66) { return 115; }
+        if (key3 == 67) { return 100; }
+        if (key3 == 68) { return 97; }
+      }
+      return key;
+    }
+
+    if (key != 10) {
+      if (key != 13) {
+        return key;
+      }
+    }
+  }
+
+  return 0 - 1;
+}
+
+fn snake_x_addr(base: i32, idx: i32) -> i32 { return base + idx * 4; }
+fn snake_y_addr(base: i32, idx: i32) -> i32 { return base + idx * 4; }
+
+fn snake_get_x(base: i32, idx: i32) -> i32 { return __mem_load(snake_x_addr(base, idx)); }
+fn snake_get_y(base: i32, idx: i32) -> i32 { return __mem_load(snake_y_addr(base, idx)); }
+
+fn snake_set_x(base: i32, idx: i32, val: i32) -> i32 {
+  __mem_store(snake_x_addr(base, idx), val);
+  return 0;
+}
+
+fn snake_set_y(base: i32, idx: i32, val: i32) -> i32 {
+  __mem_store(snake_y_addr(base, idx), val);
+  return 0;
+}
+
+fn is_snake_at(x: i32, y: i32, len: i32, xbase: i32, ybase: i32) -> i32 {
+  let i: i32 = 0;
+  while (i < len) {
+    if (snake_get_x(xbase, i) == x) {
+      if (snake_get_y(ybase, i) == y) {
+        return 1;
+      }
+    }
+    i = i + 1;
+  }
+  return 0;
+}
+
+fn place_food(seed: i32, len: i32, xbase: i32, ybase: i32, out_ptr: i32) -> i32 {
+  let width: i32 = 20;
+  let height: i32 = 20;
+  let tries: i32 = 0;
+  let s: i32 = seed;
+
+  while (tries < 512) {
+    s = s * 1103515245 + 12345;
+    let ax: i32 = s;
+    if (ax < 0) { ax = 0 - ax; }
+    let x: i32 = ax - (ax / width) * width;
+
+    s = s * 1103515245 + 12345;
+    let ay: i32 = s;
+    if (ay < 0) { ay = 0 - ay; }
+    let y: i32 = ay - (ay / height) * height;
+
+    if (is_snake_at(x, y, len, xbase, ybase) == 0) {
+      __mem_store(out_ptr, x);
+      __mem_store(out_ptr + 4, y);
+      return s;
+    }
+    tries = tries + 1;
+  }
+
+  let fy: i32 = 0;
+  while (fy < height) {
+    let fx: i32 = 0;
+    while (fx < width) {
+      if (is_snake_at(fx, fy, len, xbase, ybase) == 0) {
+        __mem_store(out_ptr, fx);
+        __mem_store(out_ptr + 4, fy);
+        return s;
+      }
+      fx = fx + 1;
+    }
+    fy = fy + 1;
+  }
+
+  __mem_store(out_ptr, 0);
+  __mem_store(out_ptr + 4, 0);
+  return s;
+}
+
+fn print_cell(x: i32, y: i32, food_x: i32, food_y: i32, len: i32, xbase: i32, ybase: i32) -> i32 {
+  if (x == food_x) {
+    if (y == food_y) {
+      write_stdout("* ", 2);
+      return 0;
+    }
+  }
+
+  if (snake_get_x(xbase, 0) == x) {
+    if (snake_get_y(ybase, 0) == y) {
+      write_stdout("@ ", 2);
+      return 0;
+    }
+  }
+
+  let i: i32 = 1;
+  while (i < len) {
+    if (snake_get_x(xbase, i) == x) {
+      if (snake_get_y(ybase, i) == y) {
+        write_stdout("o ", 2);
+        return 0;
+      }
+    }
+    i = i + 1;
+  }
+
+  write_stdout("  ", 2);
+  return 0;
+}
+
+fn render(food_x: i32, food_y: i32, len: i32, xbase: i32, ybase: i32) -> i32 {
+  let width: i32 = 20;
+  let height: i32 = 20;
+
+  write_stdout("\x1b[2J\x1b[H", 7);
+  write_stdout("Snake: WASD, q quits\r\n", 22);
+  write_stdout("+----------------------------------------+\r\n", 44);
+
+  let y: i32 = 0;
+  while (y < height) {
+    write_stdout("|", 1);
+    let x: i32 = 0;
+    while (x < width) {
+      print_cell(x, y, food_x, food_y, len, xbase, ybase);
+      x = x + 1;
+    }
+    write_stdout("|\r\n", 3);
+    y = y + 1;
+  }
+
+  write_stdout("+----------------------------------------+\r\n", 44);
+  return 0;
+}
+
+fn main() -> i32 {
+  let width: i32 = 20;
+  let height: i32 = 20;
+  let max_len: i32 = 400;
+
+  let snake_x_base: i32 = 20000;
+  let snake_y_base: i32 = 22000;
+  let food_ptr: i32 = 24000;
+
+  let len: i32 = 4;
+  snake_set_x(snake_x_base, 0, 10); snake_set_y(snake_y_base, 0, 10);
+  snake_set_x(snake_x_base, 1, 9);  snake_set_y(snake_y_base, 1, 10);
+  snake_set_x(snake_x_base, 2, 8);  snake_set_y(snake_y_base, 2, 10);
+  snake_set_x(snake_x_base, 3, 7);  snake_set_y(snake_y_base, 3, 10);
+
+  let dir_x: i32 = 1;
+  let dir_y: i32 = 0;
+  let seed: i32 = 1337;
+  let exit_code: i32 = 0;
+
+  let tty_mode_ptr: i32 = 24100;
+  let tty_raw_enabled: i32 = 0;
+  let tty_rc: i32 = __tty_get_mode(0, tty_mode_ptr);
+  if (tty_rc == 0) {
+    tty_rc = __tty_set_raw(0, tty_mode_ptr, 0, 2);
+    if (tty_rc == 0) {
+      tty_raw_enabled = 1;
+    }
+  }
+  if (tty_raw_enabled == 0) {
+    write_stdout("Raw mode unavailable: use WASD then Enter.\r\n", 44);
+  }
+
+  seed = place_food(seed, len, snake_x_base, snake_y_base, food_ptr);
+
+  let running: i32 = 1;
+  while (running == 1) {
+    let food_x: i32 = __mem_load(food_ptr);
+    let food_y: i32 = __mem_load(food_ptr + 4);
+    render(food_x, food_y, len, snake_x_base, snake_y_base);
+
+    let key: i32 = read_key();
+
+    if (key == 113) { running = 0; }
+    if (key == 81) { running = 0; }
+    if (key == 3) { running = 0; }
+    if (key == 0 - 1) { running = 0; }
+
+    if (running == 0) {
+      write_stdout("\r\nQuit.\r\n", 9);
+      exit_code = 0;
+    } else {
+      if (key == 119) {
+        if (dir_y != 1) { dir_x = 0; dir_y = 0 - 1; }
+      }
+      if (key == 87) {
+        if (dir_y != 1) { dir_x = 0; dir_y = 0 - 1; }
+      }
+
+      if (key == 115) {
+        if (dir_y != (0 - 1)) { dir_x = 0; dir_y = 1; }
+      }
+      if (key == 83) {
+        if (dir_y != (0 - 1)) { dir_x = 0; dir_y = 1; }
+      }
+
+      if (key == 97) {
+        if (dir_x != 1) { dir_x = 0 - 1; dir_y = 0; }
+      }
+      if (key == 65) {
+        if (dir_x != 1) { dir_x = 0 - 1; dir_y = 0; }
+      }
+
+      if (key == 100) {
+        if (dir_x != (0 - 1)) { dir_x = 1; dir_y = 0; }
+      }
+      if (key == 68) {
+        if (dir_x != (0 - 1)) { dir_x = 1; dir_y = 0; }
+      }
+
+      let nx: i32 = snake_get_x(snake_x_base, 0) + dir_x;
+      let ny: i32 = snake_get_y(snake_y_base, 0) + dir_y;
+
+      if (nx < 0) {
+        running = 0;
+      } else {
+        if (nx >= width) { running = 0; }
+      }
+
+      if (ny < 0) {
+        running = 0;
+      } else {
+        if (ny >= height) { running = 0; }
+      }
+
+      if (running == 0) {
+        render(__mem_load(food_ptr), __mem_load(food_ptr + 4), len, snake_x_base, snake_y_base);
+        write_stdout("Game over.\r\n", 12);
+        exit_code = 1;
+      }
+
+      let grew: i32 = 0;
+      if (running == 1) {
+        if (nx == __mem_load(food_ptr)) {
+          if (ny == __mem_load(food_ptr + 4)) {
+            if (len < max_len) {
+              len = len + 1;
+              grew = 1;
+            }
+          }
+        }
+      }
+
+      if (running == 1) {
+        let i: i32 = len - 1;
+        while (i > 0) {
+          snake_set_x(snake_x_base, i, snake_get_x(snake_x_base, i - 1));
+          snake_set_y(snake_y_base, i, snake_get_y(snake_y_base, i - 1));
+          i = i - 1;
+        }
+
+        snake_set_x(snake_x_base, 0, nx);
+        snake_set_y(snake_y_base, 0, ny);
+      }
+
+      if (running == 1) {
+        let k: i32 = 1;
+        while (k < len) {
+          if (snake_get_x(snake_x_base, k) == nx) {
+            if (snake_get_y(snake_y_base, k) == ny) {
+              running = 0;
+            }
+          }
+          k = k + 1;
+        }
+      }
+
+      if (running == 0) {
+        render(__mem_load(food_ptr), __mem_load(food_ptr + 4), len, snake_x_base, snake_y_base);
+        write_stdout("Game over.\r\n", 12);
+        exit_code = 1;
+      }
+
+      if (running == 1) {
+        if (len >= width * height) {
+          render(__mem_load(food_ptr), __mem_load(food_ptr + 4), len, snake_x_base, snake_y_base);
+          write_stdout("You win!\r\n", 10);
+          exit_code = 0;
+          running = 0;
+        }
+      }
+
+      if (running == 1) {
+        if (grew == 1) {
+          seed = place_food(seed, len, snake_x_base, snake_y_base, food_ptr);
+        }
+      }
+    }
+  }
+
+  if (tty_raw_enabled == 1) {
+    let rc_restore: i32 = __tty_restore(0, tty_mode_ptr);
+    if (rc_restore != 0) {
+      if (exit_code == 0) {
+        exit_code = rc_restore;
+      }
+    }
+  }
+
+  return exit_code;
+}

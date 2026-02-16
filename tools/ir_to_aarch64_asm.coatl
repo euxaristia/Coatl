@@ -255,13 +255,33 @@ fn out_int(val: i32) -> i32 {
   return out_char(48 + val - (val / 10) * 10);
 }
 
+fn atom_to_int(node: i32) -> i32 {
+  let off: i32 = node_atom_off(node); let len: i32 = node_atom_len(node);
+  let val: i32 = 0; let i: i32 = 0; let neg: i32 = 0;
+  if (len > 0) { if (__mem_load8(ir_buf_base() + off) == 45) { neg = 1; i = 1; } }
+  while (i < len) {
+    let c: i32 = __mem_load8(ir_buf_base() + off + i);
+    if (c >= 48 && c <= 57) { val = val * 10 + (c - 48); }
+    i = i + 1;
+  }
+  if (neg == 1) { return 0 - val; }
+  return val;
+}
+
 fn emit_expr(node: i32) -> i32 {
   if (node_kind(node) == 0) { return 0; }
   let head: i32 = node_child_head(node);
   if (atom_equals(head, l_int_ptr(), 3) == 1) {
-    let val_node: i32 = node_next(head);
-    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(48); out_char(44); out_char(32); out_char(35);
-    out_str_ptr(ir_buf_base() + node_atom_off(val_node), node_atom_len(val_node)); out_nl(); return 0;
+    let val_node: i32 = node_next(head); let val: i32 = atom_to_int(val_node);
+    out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(32); out_char(119); out_char(48); out_char(44); out_char(32); out_char(35); out_int(val - (val / 65536) * 65536); out_nl();
+    if (val >= 65536) {
+      out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(107); out_char(32); out_char(119); out_char(48); out_char(44); out_char(32); out_char(35); out_int(val / 65536); out_char(44); out_char(32); out_char(108); out_char(115); out_char(108); out_char(32); out_char(35); out_char(49); out_char(54); out_nl();
+    } else {
+      if (val < 0) {
+        out_char(32); out_char(32); out_char(109); out_char(111); out_char(118); out_char(107); out_char(32); out_char(119); out_char(48); out_char(44); out_char(32); out_char(35); out_int(val / 65536 - (val / 65536 / 65536) * 65536); out_char(44); out_char(32); out_char(108); out_char(115); out_char(108); out_char(32); out_char(35); out_char(49); out_char(54); out_nl();
+      }
+    }
+    return 0;
   }
   if (atom_equals(head, l_int_i64_ptr(), 7) == 1) {
     let val_node: i32 = node_next(head);
