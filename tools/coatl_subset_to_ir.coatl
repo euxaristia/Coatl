@@ -2,10 +2,10 @@
 fn src_base() -> i32 { return 1048576; }
 fn src_max() -> i32 { return 1048576; }
 fn out_base() -> i32 { return 2097152; }
-fn out_max() -> i32 { return 1048576; }
-fn tok_base() -> i32 { return 3145728; }
+fn out_max() -> i32 { return 4194304; }
+fn tok_base() -> i32 { return 16777216; } // 16MB
 fn tok_max() -> i32 { return 1048576; }
-fn state_base() -> i32 { return 4194304; }
+fn state_base() -> i32 { return 33554432; } // 32MB
 
 fn args_base() -> i32 { return state_base(); }
 fn fd_slot() -> i32 { return state_base() + 8192; }
@@ -24,16 +24,32 @@ fn sym_table_base() -> i32 { return state_base() + 10000; }
 fn sym_table_max() -> i32 { return 1024; }
 fn sym_count_addr() -> i32 { return state_base() + 8424; }
 
+// Struct table: struct_count, then entries: name_tok, field_count, field_toks[8]
+fn struct_count_addr() -> i32 { return state_base() + 8432; }
+fn struct_table_base() -> i32 { return state_base() + 30000; }
+fn struct_entry_size() -> i32 { return 40; } // 4+4+32
+
 // --- Tokenizer ---
-fn tok_kind(idx: i32) -> i32 { return __mem_load(tok_base() + idx * 12); }
-fn tok_off(idx: i32) -> i32 { return __mem_load(tok_base() + idx * 12 + 4); }
-fn tok_len(idx: i32) -> i32 { return __mem_load(tok_base() + idx * 12 + 8); }
+fn tok_kind(idx: i32) -> i32 {
+  if (idx < 0 || idx >= __mem_load(tok_count_addr())) { return k_eof(); }
+  return __mem_load(tok_base() + idx * 16);
+}
+fn tok_off(idx: i32) -> i32 {
+  if (idx < 0 || idx >= __mem_load(tok_count_addr())) { return 0; }
+  return __mem_load(tok_base() + idx * 16 + 4);
+}
+fn tok_len(idx: i32) -> i32 {
+  if (idx < 0 || idx >= __mem_load(tok_count_addr())) { return 0; }
+  return __mem_load(tok_base() + idx * 16 + 8);
+}
 
 fn add_tok(kind: i32, off: i32, len: i32) -> i32 {
   let count: i32 = __mem_load(tok_count_addr());
-  let addr: i32 = tok_base() + count * 12;
+  if (count >= 10000) { return 0 - 1; }
+  let addr: i32 = tok_base() + count * 16;
   __mem_store(addr, kind); __mem_store(addr + 4, off); __mem_store(addr + 8, len);
-  __mem_store(tok_count_addr(), count + 1); return 0;
+  __mem_store(tok_count_addr(), count + 1);
+  return 0;
 }
 
 fn k_ident() -> i32 { return 1; }
@@ -57,51 +73,52 @@ fn tokenize() -> i32 {
   while (p < end) {
     let c: i32 = __mem_load8(src_base() + p);
     if (c <= 32) { p = p + 1; continue; }
-    if (c == 47 && __mem_load8(src_base() + p + 1) == 47) { // // comment
+    if (c == 47 && p + 1 < end && __mem_load8(src_base() + p + 1) == 47) { // // comment
       p = p + 2; while (p < end && __mem_load8(src_base() + p) != 10) { p = p + 1; }
       continue;
     }
     if ((c == 41) || (c == 40) || (c == 123) || (c == 125) || (c == 91) || (c == 93) || (c == 58) || (c == 44) || (c == 59) || (c == 43) || (c == 42) || (c == 47) || (c == 46) || (c == 33)) {
-      add_tok(k_sym(), p, 1); p = p + 1; continue;
+      if (add_tok(k_sym(), p, 1) != 0) { return 0 - 1; } p = p + 1; continue;
     }
     if (c == 45) { // '-' or '->'
-      if (__mem_load8(src_base() + p + 1) == 62) { add_tok(k_sym(), p, 2); p = p + 2; }
-      else { add_tok(k_sym(), p, 1); p = p + 1; }
+      if (p + 1 < end && __mem_load8(src_base() + p + 1) == 62) { if (add_tok(k_sym(), p, 2) != 0) { return 0 - 1; } p = p + 2; }
+      else { if (add_tok(k_sym(), p, 1) != 0) { return 0 - 1; } p = p + 1; }
       continue;
     }
     if (c == 61) { // '=' or '=='
-      if (__mem_load8(src_base() + p + 1) == 61) { add_tok(k_sym(), p, 2); p = p + 2; }
-      else { add_tok(k_sym(), p, 1); p = p + 1; }
+      if (p + 1 < end && __mem_load8(src_base() + p + 1) == 61) { if (add_tok(k_sym(), p, 2) != 0) { return 0 - 1; } p = p + 2; }
+      else { if (add_tok(k_sym(), p, 1) != 0) { return 0 - 1; } p = p + 1; }
       continue;
     }
     if (c == 60) { // '<' or '<='
-      if (__mem_load8(src_base() + p + 1) == 61) { add_tok(k_sym(), p, 2); p = p + 2; }
-      else { add_tok(k_sym(), p, 1); p = p + 1; }
+      if (p + 1 < end && __mem_load8(src_base() + p + 1) == 61) { if (add_tok(k_sym(), p, 2) != 0) { return 0 - 1; } p = p + 2; }
+      else { if (add_tok(k_sym(), p, 1) != 0) { return 0 - 1; } p = p + 1; }
       continue;
     }
     if (c == 62) { // '>' or '>='
-      if (__mem_load8(src_base() + p + 1) == 61) { add_tok(k_sym(), p, 2); p = p + 2; }
-      else { add_tok(k_sym(), p, 1); p = p + 1; }
+      if (p + 1 < end && __mem_load8(src_base() + p + 1) == 61) { if (add_tok(k_sym(), p, 2) != 0) { return 0 - 1; } p = p + 2; }
+      else { if (add_tok(k_sym(), p, 1) != 0) { return 0 - 1; } p = p + 1; }
       continue;
     }
-    if (c == 38 && __mem_load8(src_base() + p + 1) == 38) { add_tok(k_sym(), p, 2); p = p + 2; continue; }
-    if (c == 124 && __mem_load8(src_base() + p + 1) == 124) { add_tok(k_sym(), p, 2); p = p + 2; continue; }
-    if (c == 33 && __mem_load8(src_base() + p + 1) == 61) { add_tok(k_sym(), p, 2); p = p + 2; continue; }
+    if (c == 38 && p + 1 < end && __mem_load8(src_base() + p + 1) == 38) { if (add_tok(k_sym(), p, 2) != 0) { return 0 - 1; } p = p + 2; continue; }
+    if (c == 124 && p + 1 < end && __mem_load8(src_base() + p + 1) == 124) { if (add_tok(k_sym(), p, 2) != 0) { return 0 - 1; } p = p + 2; continue; }
+    if (c == 33 && p + 1 < end && __mem_load8(src_base() + p + 1) == 61) { if (add_tok(k_sym(), p, 2) != 0) { return 0 - 1; } p = p + 2; continue; }
     if (c == 34) {
       let start: i32 = p; p = p + 1;
       while (p < end && __mem_load8(src_base() + p) != 34) {
         if (__mem_load8(src_base() + p) == 92) { p = p + 2; } else { p = p + 1; }
       }
-      p = p + 1; add_tok(k_str(), start, p - start); continue;
+      if (p < end) { p = p + 1; }
+      if (add_tok(k_str(), start, p - start) != 0) { return 0 - 1; } continue;
     }
     if (is_digit(c) == 1) {
       let start: i32 = p; while (p < end && (is_digit(__mem_load8(src_base() + p)) == 1 || __mem_load8(src_base() + p) == 46)) { p = p + 1; }
-      if (__mem_load8(src_base() + p) == 105 && __mem_load8(src_base() + p + 1) == 54 && __mem_load8(src_base() + p + 2) == 52) { p = p + 3; } 
-      add_tok(k_num(), start, p - start); continue;
+      if (p + 2 < end && __mem_load8(src_base() + p) == 105 && __mem_load8(src_base() + p + 1) == 54 && __mem_load8(src_base() + p + 2) == 52) { p = p + 3; } 
+      if (add_tok(k_num(), start, p - start) != 0) { return 0 - 1; } continue;
     }
     if (is_alpha(c) == 1) {
       let start: i32 = p; while (p < end && is_alnum(__mem_load8(src_base() + p)) == 1) { p = p + 1; }
-      add_tok(k_ident(), start, p - start); continue;
+      if (add_tok(k_ident(), start, p - start) != 0) { return 0 - 1; } continue;
     }
     p = p + 1;
   }
@@ -110,15 +127,25 @@ fn tokenize() -> i32 {
 
 // --- Output ---
 fn out_char(c: i32) -> i32 {
-  let p: i32 = __mem_load(out_pos_addr()); __mem_store8(out_base() + p, c); __mem_store(out_pos_addr(), p + 1); return 0;
+  let p: i32 = __mem_load(out_pos_addr());
+  if (p < 0 || p >= out_max()) { return 0; }
+  __mem_store8(out_base() + p, c); __mem_store(out_pos_addr(), p + 1); return 0;
 }
 fn out_str(ptr: i32, len: i32) -> i32 {
+  if (ptr == 0) { return 0; }
   let i: i32 = 0; while (i < len) { out_char(__mem_load8(ptr + i)); i = i + 1; } return 0;
 }
 fn out_int(val: i32) -> i32 {
+  if (val == 0) { return out_char(48); }
   if (val < 0) { out_char(45); return out_int(0 - val); }
-  if (val >= 10) { out_int(val / 10); }
-  return out_char(48 + val - (val / 10) * 10);
+  let divisor: i32 = 1000000000;
+  while (divisor > val) { divisor = divisor / 10; }
+  while (divisor > 0) {
+    out_char(48 + val / divisor);
+    val = val - (val / divisor) * divisor;
+    divisor = divisor / 10;
+  }
+  return 0;
 }
 fn out_sp() -> i32 { return out_char(32); }
 fn out_nl() -> i32 { return out_char(10); }
@@ -135,6 +162,8 @@ fn peek_tok_at(n: i32) -> i32 { return __mem_load(tok_idx_addr()) + n; }
 fn next_tok() -> i32 { let i: i32 = __mem_load(tok_idx_addr()); __mem_store(tok_idx_addr(), i + 1); return i; }
 
 fn tok_equals(idx: i32, s_ptr: i32, s_len: i32) -> i32 {
+  if (idx < 0 || idx >= __mem_load(tok_count_addr())) { return 0; }
+  if (s_ptr == 0) { return 0; }
   if (tok_len(idx) != s_len) { return 0; }
   let i: i32 = 0; while (i < s_len) { if (__mem_load8(src_base() + tok_off(idx) + i) != __mem_load8(s_ptr + i)) { return 0; } i = i + 1; }
   return 1;
@@ -155,6 +184,7 @@ fn l_true() -> i32 { return lit_base() + 44; } // "true"
 fn l_false() -> i32 { return lit_base() + 52; } // "false"
 fn l_str_len() -> i32 { return lit_base() + 60; } // "str_len"
 fn l_str_ptr() -> i32 { return lit_base() + 68; } // "str_ptr"
+fn l_struct() -> i32 { return lit_base() + 80; } // "struct"
 
 fn init_lits() -> i32 {
   let b: i32 = lit_base();
@@ -171,17 +201,20 @@ fn init_lits() -> i32 {
   __mem_store8(b+52, 102); __mem_store8(b+53, 97); __mem_store8(b+54, 108); __mem_store8(b+55, 115); __mem_store8(b+56, 101);
   __mem_store8(b+60, 115); __mem_store8(b+61, 116); __mem_store8(b+62, 114); __mem_store8(b+63, 95); __mem_store8(b+64, 108); __mem_store8(b+65, 101); __mem_store8(b+66, 110);
   __mem_store8(b+68, 115); __mem_store8(b+69, 116); __mem_store8(b+70, 114); __mem_store8(b+71, 95); __mem_store8(b+72, 112); __mem_store8(b+73, 116); __mem_store8(b+74, 114);
+  __mem_store8(b+80, 115); __mem_store8(b+81, 116); __mem_store8(b+82, 114); __mem_store8(b+83, 117); __mem_store8(b+84, 99); __mem_store8(b+85, 115); __mem_store8(b+86, 116);
   return 0;
 }
 
 // --- Symbol Table ---
 fn sym_add(tok_idx: i32, ty_tok_idx: i32) -> i32 {
   let count: i32 = __mem_load(sym_count_addr());
+  if (count >= sym_table_max()) { return 0 - 1; }
   let addr: i32 = sym_table_base() + count * 8;
   __mem_store(addr, tok_idx); __mem_store(addr + 4, ty_tok_idx);
   __mem_store(sym_count_addr(), count + 1); return 0;
 }
 fn sym_find_ty(tok_idx: i32) -> i32 {
+  if (tok_idx == 0) { return 0; }
   let count: i32 = __mem_load(sym_count_addr()); let i: i32 = count - 1;
   while (i >= 0) {
     let addr: i32 = sym_table_base() + i * 8;
@@ -194,6 +227,50 @@ fn sym_find_ty(tok_idx: i32) -> i32 {
   return 0;
 }
 
+fn sym_find_struct(tok_idx: i32) -> i32 {
+  if (tok_idx == 0) { return 0 - 1; }
+  let count: i32 = __mem_load(struct_count_addr()); let i: i32 = 0;
+  while (i < count) {
+    let addr: i32 = struct_table_base() + i * struct_entry_size();
+    let t: i32 = __mem_load(addr);
+    if (t != 0) {
+      if (tok_len(t) == tok_len(tok_idx)) {
+        if (tok_equals(t, src_base() + tok_off(tok_idx), tok_len(tok_idx)) == 1) { return i; }
+      }
+    }
+    i = i + 1;
+  }
+  return 0 - 1;
+}
+
+fn parse_struct_def() -> i32 {
+  next_tok(); // struct
+  let name: i32 = next_tok();
+  let count: i32 = __mem_load(struct_count_addr());
+  if (count >= 32) { return 0 - 1; }
+  let addr: i32 = struct_table_base() + count * struct_entry_size();
+  __mem_store(addr, name);
+  if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 123) { next_tok(); } // {
+  let f_count: i32 = 0;
+  while (peek_k() != k_eof() && (peek_k() != k_sym() || __mem_load8(src_base() + tok_off(peek_tok())) != 125)) {
+    let before: i32 = __mem_load(tok_idx_addr());
+    let fname: i32 = next_tok(); 
+    if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 58) { next_tok(); } // :
+    let ftype: i32 = next_tok(); // type
+    if (f_count < 8) {
+      __mem_store(addr + 8 + f_count * 4, fname);
+      f_count = f_count + 1;
+    }
+    if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 44) { next_tok(); }
+    let after: i32 = __mem_load(tok_idx_addr());
+    if (before == after) { next_tok(); }
+  }
+  __mem_store(addr + 4, f_count);
+  __mem_store(struct_count_addr(), count + 1);
+  if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 125) { next_tok(); } // }
+  return 0;
+}
+
 // --- Precedence Levels ---
 fn ty_i32() -> i32 { return 1; }
 fn ty_i64() -> i32 { return 2; }
@@ -203,11 +280,18 @@ fn get_ty_kind(ty_tok: i32) -> i32 {
   if (ty_tok == 0) { return ty_i32(); }
   if (tok_equals(ty_tok, l_i64(), 3) == 1) { return ty_i64(); }
   if (tok_equals(ty_tok, l_bool(), 4) == 1) { return ty_bool(); }
+  if (sym_find_struct(ty_tok) >= 0) { return 100 + sym_find_struct(ty_tok); }
   return ty_i32();
 }
 
 fn out_ty_suffix(ty: i32) -> i32 {
-  if (ty == ty_i64()) { out_str(" i64", 4); }
+  if (ty == ty_i64()) { out_char(32); out_str(l_i64(), 3); }
+  if (ty >= 100) {
+    let sidx: i32 = ty - 100;
+    let addr: i32 = struct_table_base() + sidx * struct_entry_size();
+    let name: i32 = __mem_load(addr);
+    out_char(32); out_str(src_base() + tok_off(name), tok_len(name));
+  }
   return 0;
 }
 
@@ -216,8 +300,11 @@ fn parse_expr() -> i32 { return parse_or(); }
 fn parse_or() -> i32 {
   let ty: i32 = parse_and();
   while (peek_k() == k_sym() && tok_len(peek_tok()) == 2 && __mem_load8(src_base() + tok_off(peek_tok())) == 124) {
+    let before: i32 = __mem_load(tok_idx_addr());
     next_tok(); out_str("          (binary or\n", 21);
     parse_and(); out_str("          )\n", 12); ty = ty_bool();
+    let after: i32 = __mem_load(tok_idx_addr());
+    if (before == after) { next_tok(); }
   }
   return ty;
 }
@@ -225,8 +312,11 @@ fn parse_or() -> i32 {
 fn parse_and() -> i32 {
   let ty: i32 = parse_cmp();
   while (peek_k() == k_sym() && tok_len(peek_tok()) == 2 && __mem_load8(src_base() + tok_off(peek_tok())) == 38) {
+    let before: i32 = __mem_load(tok_idx_addr());
     next_tok(); out_str("          (binary and\n", 22);
     parse_cmp(); out_str("          )\n", 12); ty = ty_bool();
+    let after: i32 = __mem_load(tok_idx_addr());
+    if (before == after) { next_tok(); }
   }
   return ty;
 }
@@ -253,12 +343,15 @@ fn parse_cmp() -> i32 {
 fn parse_add() -> i32 {
   let l_ty: i32 = parse_mul();
   while (peek_k() == k_sym() && tok_len(peek_tok()) == 1 && (__mem_load8(src_base() + tok_off(peek_tok())) == 43 || __mem_load8(src_base() + tok_off(peek_tok())) == 45)) {
+    let before: i32 = __mem_load(tok_idx_addr());
     let c: i32 = __mem_load8(src_base() + tok_off(next_tok()));
     out_str("          (binary ", 18); if (c == 43) { out_str("add", 3); } else { out_str("sub", 3); }
     let r_ty: i32 = parse_mul();
     let res_ty: i32 = l_ty; if (r_ty > l_ty) { res_ty = r_ty; }
     out_ty_suffix(res_ty); out_nl();
     out_str("          )\n", 12); l_ty = res_ty;
+    let after: i32 = __mem_load(tok_idx_addr());
+    if (before == after) { next_tok(); }
   }
   return l_ty;
 }
@@ -266,12 +359,15 @@ fn parse_add() -> i32 {
 fn parse_mul() -> i32 {
   let l_ty: i32 = parse_term();
   while (peek_k() == k_sym() && tok_len(peek_tok()) == 1 && (__mem_load8(src_base() + tok_off(peek_tok())) == 42 || __mem_load8(src_base() + tok_off(peek_tok())) == 47)) {
+    let before: i32 = __mem_load(tok_idx_addr());
     let c: i32 = __mem_load8(src_base() + tok_off(next_tok()));
     out_str("          (binary ", 18); if (c == 42) { out_str("mul", 3); } else { out_str("div", 3); }
     let r_ty: i32 = parse_term();
     let res_ty: i32 = l_ty; if (r_ty > l_ty) { res_ty = r_ty; }
     out_ty_suffix(res_ty); out_nl();
     out_str("          )\n", 12); l_ty = res_ty;
+    let after: i32 = __mem_load(tok_idx_addr());
+    if (before == after) { next_tok(); }
   }
   return l_ty;
 }
@@ -302,6 +398,20 @@ fn parse_term() -> i32 {
   if (tok_kind(t) == k_ident()) {
     if (tok_equals(t, l_true(), 4) == 1) { out_str("          (bool 1)\n", 19); return ty_bool(); }
     if (tok_equals(t, l_false(), 5) == 1) { out_str("          (bool 0)\n", 19); return ty_bool(); }
+
+    let sidx: i32 = sym_find_struct(t);
+    if (sidx >= 0 && peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 123) { // Struct literal
+      next_tok(); // {
+      out_str("          (struct_lit ", 22); out_str(src_base() + tok_off(t), tok_len(t)); out_nl();
+      while (peek_k() != k_sym() || __mem_load8(src_base() + tok_off(peek_tok())) != 125) {
+        next_tok(); next_tok(); // field:
+        parse_expr();
+        if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 44) { next_tok(); }
+      }
+      next_tok(); // }
+      out_str("          )\n", 12); return 100 + sidx;
+    }
+
     if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 40) { // call
       next_tok();
       if (tok_equals(t, l_str_len(), 7) == 1) {
@@ -316,6 +426,15 @@ fn parse_term() -> i32 {
       }
       next_tok(); out_str("          )\n", 12); return ty_i32();
     }
+    
+    // Field access: var.field
+    if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 46) {
+      next_tok(); // .
+      let f_name: i32 = next_tok();
+      out_str("          (field ", 17); out_str(src_base() + tok_off(t), tok_len(t)); out_sp(); out_str(src_base() + tok_off(f_name), tok_len(f_name)); out_str(")\n", 3);
+      return ty_i32();
+    }
+
     out_str("          (ident ", 17); out_str(src_base() + tok_off(t), tok_len(t)); out_str(")\n", 3);
     return get_ty_kind(sym_find_ty(t));
   }
@@ -324,7 +443,31 @@ fn parse_term() -> i32 {
 
 // --- Program Structure ---
 fn parse_program() -> i32 {
-  out_str("(coatl_ir v1\n  (structs)\n  (functions\n", 33);
+  __mem_store(struct_count_addr(), 0);
+  // First pass: collect structs
+  let start_tok: i32 = __mem_load(tok_idx_addr());
+  while (peek_k() != k_eof()) {
+    if (tok_equals(peek_tok(), l_struct(), 6) == 1) { parse_struct_def(); }
+    else { next_tok(); }
+  }
+  __mem_store(tok_idx_addr(), start_tok);
+
+  out_str("(coatl_ir v1\n  (structs", 21);
+  let s_count: i32 = __mem_load(struct_count_addr()); let i: i32 = 0;
+  while (i < s_count) {
+    let addr: i32 = struct_table_base() + i * struct_entry_size();
+    let name: i32 = __mem_load(addr);
+    out_nl(); out_str("    (struct ", 12); out_str(src_base() + tok_off(name), tok_len(name));
+    let f_count: i32 = __mem_load(addr + 4); let j: i32 = 0;
+    while (j < f_count) {
+      let fname: i32 = __mem_load(addr + 8 + j * 4);
+      out_nl(); out_str("      (field ", 13); out_str(src_base() + tok_off(fname), tok_len(fname)); out_str(" i32)", 5);
+      j = j + 1;
+    }
+    out_nl(); out_str("    )", 5);
+    i = i + 1;
+  }
+  out_nl(); out_str("  )\n  (functions\n", 15);
   while (peek_k() != k_eof()) {
     if (tok_equals(peek_tok(), l_fn(), 2) == 1) { parse_fn(); }
     else { next_tok(); }
@@ -336,23 +479,49 @@ fn parse_fn() -> i32 {
   next_tok(); let name: i32 = next_tok(); __mem_store(sym_count_addr(), 0);
   out_str("    (fn ", 8); out_str(src_base() + tok_off(name), tok_len(name)); out_nl();
   next_tok(); out_str("      (params", 13);
-  while (peek_k() != k_sym() || __mem_load8(src_base() + tok_off(peek_tok())) != 41) {
-    let pn: i32 = next_tok(); next_tok(); let pt: i32 = next_tok(); sym_add(pn, pt);
+  while (peek_k() != k_eof() && (peek_k() != k_sym() || __mem_load8(src_base() + tok_off(peek_tok())) != 41)) {
+    let before: i32 = __mem_load(tok_idx_addr());
+    let pn: i32 = next_tok(); 
+    if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 58) { next_tok(); } // :
+    let pt: i32 = next_tok(); sym_add(pn, pt);
     out_nl(); out_str("        (param ", 15); out_str(src_base() + tok_off(pn), tok_len(pn)); out_sp(); out_str(src_base() + tok_off(pt), tok_len(pt)); out_char(41);
     if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 44) { next_tok(); }
+    let after: i32 = __mem_load(tok_idx_addr());
+    if (before == after) { next_tok(); }
   }
-  next_tok(); out_nl(); out_str("      )\n", 8); next_tok(); let rt: i32 = next_tok();
-  out_str("      (ret ", 11); out_str(src_base() + tok_off(rt), tok_len(rt)); out_str(")\n", 3);
-  next_tok(); out_str("      (block\n", 13);
+  if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 41) { next_tok(); }
+  out_nl(); out_str("      )\n", 8); 
+  if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 45) { // ->
+    next_tok(); let rt: i32 = next_tok();
+    out_str("      (ret ", 11); out_str(src_base() + tok_off(rt), tok_len(rt)); out_str(")\n", 3);
+  } else {
+    out_str("      (ret i32)\n", 16);
+  }
+  if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 123) { next_tok(); } // {
+  out_str("      (block\n", 13);
   parse_block_stmts();
-  next_tok(); out_str("      )\n    )\n", 11); return 0;
+  if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 125) { next_tok(); } // }
+  out_str("      )\n    )\n", 11); return 0;
 }
 
 fn parse_block_stmts() -> i32 {
-  while (peek_k() != k_sym() || __mem_load8(src_base() + tok_off(peek_tok())) != 125) {
+  while (peek_k() != k_eof() && (peek_k() != k_sym() || __mem_load8(src_base() + tok_off(peek_tok())) != 125)) {
     parse_stmt();
   }
   return 0;
+}
+
+fn find_field_in_struct(sidx: i32, f_tok: i32) -> i32 {
+  let addr: i32 = struct_table_base() + sidx * struct_entry_size();
+  let f_count: i32 = __mem_load(addr + 4); let i: i32 = 0;
+  while (i < f_count) {
+    let ft: i32 = __mem_load(addr + 8 + i * 4);
+    if (tok_len(ft) == tok_len(f_tok)) {
+      if (tok_equals(ft, src_base() + tok_off(f_tok), tok_len(f_tok)) == 1) { return i; }
+    }
+    i = i + 1;
+  }
+  return 0 - 1;
 }
 
 fn parse_stmt() -> i32 {
@@ -381,13 +550,21 @@ fn parse_stmt() -> i32 {
     parse_block_stmts();
     next_tok(); out_str("          )\n        )\n", 12);
   } else {
-    if (tok_kind(t) == k_ident() && peek_tok_kind_at(1) == k_sym() && __mem_load8(src_base() + tok_off(peek_tok_at(1))) == 61) {
+    if (tok_kind(t) == k_ident() && peek_tok_kind_at(1) == k_sym() && __mem_load8(src_base() + tok_off(peek_tok_at(1))) == 46) { // var.field = ...
+      let var_name: i32 = next_tok(); next_tok(); // .
+      let f_name: i32 = next_tok(); next_tok(); // =
+      out_str("        (field_assign ", 22); out_str(src_base() + tok_off(var_name), tok_len(var_name)); out_sp(); out_str(src_base() + tok_off(f_name), tok_len(f_name)); out_nl();
+      parse_expr(); out_str("        )\n", 10); if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 59) { next_tok(); }
+    } else { if (tok_kind(t) == k_ident() && peek_tok_kind_at(1) == k_sym() && __mem_load8(src_base() + tok_off(peek_tok_at(1))) == 61) {
       next_tok(); next_tok(); out_str("        (assign ", 16); out_str(src_base() + tok_off(t), tok_len(t)); out_nl();
       parse_expr(); out_str("        )\n", 10); if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 59) { next_tok(); }
     } else {
+      let before: i32 = __mem_load(tok_idx_addr());
       out_str("        (expr\n", 14); parse_expr(); out_str("        )\n", 10);
       if (peek_k() == k_sym() && __mem_load8(src_base() + tok_off(peek_tok())) == 59) { next_tok(); }
-    }
+      let after: i32 = __mem_load(tok_idx_addr());
+      if (before == after) { next_tok(); }
+    } }
   } } } }
   return 0;
 }
@@ -449,10 +626,15 @@ fn write_output(path_ptr: i32, out_sz: i32) -> i32 {
 
 fn main() -> i32 {
   if (parse_args() != 0) { return 1; }
-  let i_len: i32 = read_file_into_buf(__mem_load(slot_input())); if (i_len < 0) { return 2; }
+  let i_len: i32 = read_file_into_buf(__mem_load(slot_input())); 
+  if (i_len < 0) { return 2; }
+  if (i_len == 0) { return 3; }
   __mem_store(parse_end_addr(), i_len); init_lits(); tokenize();
+  let tc: i32 = __mem_load(tok_count_addr());
+  if (tc == 0) { return 5; }
   __mem_store(tok_idx_addr(), 0); __mem_store(out_pos_addr(), 0);
   parse_program();
-  if (write_output(__mem_load(slot_output()), __mem_load(out_pos_addr())) != 0) { return 4; }
+  let final_pos: i32 = __mem_load(out_pos_addr());
+  if (write_output(__mem_load(slot_output()), final_pos) != 0) { return 4; }
   return 0;
 }
