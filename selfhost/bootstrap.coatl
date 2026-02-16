@@ -320,6 +320,7 @@ fn nk_not() -> i32 { return 31; }
 fn nk_break() -> i32 { return 32; }
 fn nk_continue() -> i32 { return 33; }
 fn nk_struct_lit() -> i32 { return 34; }
+fn nk_field_assign() -> i32 { return 35; }
 
 // Intrinsic call IDs (avoid collision with ident_id_dyn)
 fn intrin_mem_load_id() -> i32 { return 1000001; }
@@ -2228,6 +2229,9 @@ fn assign_string_offsets_stmt(node: i32) -> i32 {
   if (kind == nk_let() || kind == nk_assign()) {
     return assign_string_offsets_expr(ast_b(node));
   }
+  if (kind == nk_field_assign()) {
+    return assign_string_offsets_expr(ast_c(node));
+  }
   if (kind == nk_return()) {
     return assign_string_offsets_expr(ast_a(node));
   }
@@ -2297,6 +2301,12 @@ fn typecheck_stmt(node: i32) -> i32 {
     let ty: i32 = typecheck_expr(expr);
     if (ty < 0) { return ty; }
     if (ty != expected_ty2) { return set_semantic_error_node(0 - 7230 - kind, expr); }
+    return 1;
+  }
+  if (kind == nk_field_assign()) {
+    let fa_expr: i32 = ast_c(node);
+    let fa_ty: i32 = typecheck_expr(fa_expr);
+    if (fa_ty < 0) { return fa_ty; }
     return 1;
   }
   if (kind == nk_return()) {
@@ -2404,6 +2414,9 @@ fn emit_ir_stmt(node: i32) -> i32 {
   if (kind == nk_assign()) {
     return emit_ir_assign(node);
   }
+  if (kind == nk_field_assign()) {
+    return emit_ir_field_assign(node);
+  }
   if (kind == nk_call()) {
     return emit_ir_call_stmt(node);
   }
@@ -2478,6 +2491,29 @@ fn emit_ir_assign(node: i32) -> i32 {
   let idx: i32 = alloc_ir();
   ir_set(idx, op_store(), ident_id);
   return r + 1;
+}
+
+fn emit_ir_field_assign(node: i32) -> i32 {
+  let var_id: i32 = ast_a(node);
+  let field_off: i32 = ast_b(node);
+  let rhs_node: i32 = ast_c(node);
+
+  // Emit: load var (base addr), add field offset
+  let l0: i32 = alloc_ir();
+  ir_set(l0, op_load(), var_id);
+  let l1: i32 = alloc_ir();
+  ir_set(l1, op_const(), field_off);
+  let l2: i32 = alloc_ir();
+  ir_set(l2, op_add(), 0);
+
+  // Emit RHS expression
+  let r: i32 = emit_ir_expr(rhs_node);
+  if (r < 0) { return r; }
+
+  // Emit mem_store
+  let l3: i32 = alloc_ir();
+  ir_set(l3, op_mem_store(), 0);
+  return 4 + r;
 }
 
 fn emit_ir_let(node: i32) -> i32 {
@@ -3707,6 +3743,39 @@ fn parse_assign_or_expr_dyn() -> i32 {
     if (expect_dyn(tok_semi()) != 1) { return 0 - 711; }
     let node: i32 = alloc_ast();
     ast_set(node, nk_assign(), id, expr, 0);
+    return node;
+  }
+
+  // Check if followed by . (struct field assignment: x.field = expr)
+  if (lex_kind(next) == tok_dot()) {
+    next_tok_dyn();
+    let ftok: i32 = peek_tok_dyn();
+    if (lex_kind(ftok) != tok_ident()) { return 0 - 713; }
+    let fstart: i32 = skip_ws_dyn(get_pos());
+    next_tok_dyn();
+    let fend: i32 = scan_ident_dyn(fstart);
+    let fid: i32 = ident_id_dyn(fstart, fend);
+    let eq_tok: i32 = peek_tok_dyn();
+    if (lex_kind(eq_tok) != tok_eq()) {
+      // Not a field assignment — rewind and parse as expression
+      set_pos(start);
+      let expr2: i32 = parse_expr_dyn();
+      if (expr2 < 0) { return expr2; }
+      let _has_semi3: i32 = expect_dyn(tok_semi());
+      return expr2;
+    }
+    next_tok_dyn();
+    if (lookup_local(id) < 0) { return 0 - 715; }
+    let lty: i32 = lookup_local_type(id);
+    if (lty < 100) { return 0 - 716; }
+    let sidx: i32 = lty - 100;
+    let off: i32 = find_struct_field_offset(sidx, fid);
+    if (off < 0) { return 0 - 717; }
+    let rhs: i32 = parse_expr_dyn();
+    if (rhs < 0) { return rhs; }
+    if (expect_dyn(tok_semi()) != 1) { return 0 - 718; }
+    let node: i32 = alloc_ast();
+    ast_set(node, nk_field_assign(), id, off, rhs);
     return node;
   }
 
@@ -6141,6 +6210,9 @@ fn gen_wat_data_stmt(node: i32) -> i32 {
   let kind: i32 = ast_kind(node);
   if (kind == nk_let() || kind == nk_assign()) {
     return gen_wat_data_expr(ast_b(node));
+  }
+  if (kind == nk_field_assign()) {
+    return gen_wat_data_expr(ast_c(node));
   }
   if (kind == nk_return()) {
     return gen_wat_data_expr(ast_a(node));
