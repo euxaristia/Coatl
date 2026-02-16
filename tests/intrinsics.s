@@ -1,3 +1,4 @@
+.globl __tty_get_size
 .intel_syntax noprefix
 .globl __mem_store
 .globl __mem_store8
@@ -221,6 +222,29 @@ __tty_restore:
   pop rbp
   ret
 .L_tty_restore_fail:
+  neg rax
+  pop rbp
+  ret
+
+# __tty_get_size(fd, out_ptr) -> i32
+# Saves winsize {ws_row, ws_col, ws_xpixel, ws_ypixel} (4x i16) at out_ptr
+__tty_get_size:
+  push rbp
+  mov rbp, rsp
+  # rdi=fd, rsi=out_ptr
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8          # real pointer into linear memory
+  # ioctl(fd, TIOCGWINSZ=0x5413, winsize_ptr)
+  mov rdx, rsi
+  mov rsi, 0x5413
+  mov eax, 16          # SYS_ioctl
+  syscall
+  test rax, rax
+  js .L_tty_size_fail
+  mov eax, 0
+  pop rbp
+  ret
+.L_tty_size_fail:
   neg rax
   pop rbp
   ret
