@@ -1134,7 +1134,7 @@ fn str_data_addr(idx: i32) -> i32 {
 // Locals table: per-function, up to 128 locals
 // Each entry is (atom_off, atom_len, wasm_type) - 12 bytes
 fn locals_table_base() -> i32 { return 9441280; }  // str_table_base + 4096
-fn locals_entry_size() -> i32 { return 12; }
+fn locals_entry_size() -> i32 { return 16; }
 fn locals_count_addr() -> i32 { return state_base() + 8448; }
 fn locals_param_count_addr() -> i32 { return state_base() + 8452; }
 
@@ -1145,6 +1145,7 @@ fn wasm_type_i32() -> i32 { return 1; }
 fn wasm_type_i64() -> i32 { return 2; }
 fn wasm_type_f32() -> i32 { return 3; }
 fn wasm_type_f64() -> i32 { return 4; }
+fn wasm_type_struct() -> i32 { return 5; }
 
 fn reset_locals() -> i32 {
   __mem_store(locals_count_addr(), 0);
@@ -1157,6 +1158,10 @@ fn add_local(atom_off: i32, atom_len: i32) -> i32 {
 }
 
 fn add_local_with_type(atom_off: i32, atom_len: i32, wasm_type: i32) -> i32 {
+  return add_local_with_type_and_sidx(atom_off, atom_len, wasm_type, 0 - 1);
+}
+
+fn add_local_with_type_and_sidx(atom_off: i32, atom_len: i32, wasm_type: i32, sidx: i32) -> i32 {
   let count: i32 = __mem_load(locals_count_addr());
   // Check for duplicates
   let i: i32 = 0;
@@ -1182,12 +1187,25 @@ fn add_local_with_type(atom_off: i32, atom_len: i32, wasm_type: i32) -> i32 {
   __mem_store(entry, atom_off);
   __mem_store(entry + 4, atom_len);
   __mem_store(entry + 8, wasm_type);
+  __mem_store(entry + 12, sidx);
   __mem_store(locals_count_addr(), count + 1);
   return count;
 }
 
 fn local_wasm_type(idx: i32) -> i32 {
-  return __mem_load(locals_entry_addr(idx) + 8);
+  let wt: i32 = __mem_load(locals_entry_addr(idx) + 8);
+  if (wt == wasm_type_struct()) { return wasm_type_i32(); }
+  return wt;
+}
+
+fn local_sidx(idx: i32) -> i32 {
+  return __mem_load(locals_entry_addr(idx) + 12);
+}
+
+fn find_sidx_for_var(var_name_node: i32) -> i32 {
+  let idx: i32 = local_index(var_name_node);
+  if (idx < 0) { return 0 - 1; }
+  return local_sidx(idx);
 }
 
 fn ir_type_to_wasm(type_node: i32) -> i32 {
@@ -1198,6 +1216,8 @@ fn ir_type_to_wasm(type_node: i32) -> i32 {
   if (atom_equals(type_node, literal_f32_ptr(), literal_f32_len()) == 1) { return wasm_type_f32(); }
   if (atom_equals(type_node, literal_f64_ptr(), literal_f64_len()) == 1) { return wasm_type_f64(); }
   if (atom_equals(type_node, literal_str_type_ptr(), literal_str_type_len()) == 1) { return wasm_type_i32(); }
+  
+  if (find_struct_by_name(type_node) >= 0) { return wasm_type_struct(); }
   return wasm_type_i32(); // default
 }
 
@@ -1507,13 +1527,15 @@ fn collect_locals_block(node: i32) -> i32 {
       if (atom_equals(s_tag, literal_let_ptr(), literal_let_len()) == 1) {
         let name: i32 = list_child_at(stmt, 1);
         let wt: i32 = wasm_type_i32();
+        let sidx: i32 = 0 - 1;
         if (__mem_load(is_v1_addr()) == 1) {
           let type_node: i32 = list_child_at(stmt, 2);
           if (type_node != 0) {
             wt = ir_type_to_wasm(type_node);
+            if (wt == wasm_type_struct()) { sidx = find_struct_by_name(type_node); }
           }
         }
-        add_local_with_type(node_atom_off(name), node_atom_len(name), wt);
+        add_local_with_type_and_sidx(node_atom_off(name), node_atom_len(name), wt, sidx);
       }
       if (atom_equals(s_tag, literal_if_ptr(), literal_if_len()) == 1) {
         collect_locals_block(list_child_at(stmt, 2));
@@ -2150,6 +2172,79 @@ fn emit_stmt(node: i32) -> i32 {
     return 0;
   }
 
+  // (struct_lit Name args...)
+  if (atom_equals(tag, literal_struct_lit_ptr(), literal_struct_lit_len()) == 1) {
+    let sname: i32 = list_child_at(node, 1);
+    let sidx: i32 = find_struct_by_name(sname);
+    if (sidx < 0) { return 0 - 140; }
+    let addr: i32 = __mem_load(heap_ptr_addr());
+    let arg: i32 = node_next(list_child_at(node, 1));
+    let offset: i32 = 0;
+    while (arg != 0) {
+      out_spaces(4);
+      out_str(wl_i32_const_ptr(), wl_i32_const_len());
+      out_int(addr + offset);
+      out_nl();
+      emit_expr(arg);
+      emit_wat_opcode(wl_i32_store_ptr(), wl_i32_store_len());
+      offset = offset + 4;
+      arg = node_next(arg);
+    }
+    __mem_store(heap_ptr_addr(), addr + offset);
+    out_spaces(4);
+    out_str(wl_i32_const_ptr(), wl_i32_const_len());
+    out_int(addr);
+    out_nl();
+    return 0;
+  }
+
+  // (field var name)
+  if (atom_equals(tag, literal_field_ptr(), literal_field_len()) == 1) {
+    let var_name: i32 = list_child_at(node, 1);
+    let field_name: i32 = list_child_at(node, 2);
+    let vidx: i32 = local_index(var_name);
+    if (vidx < 0) { return 0 - 141; }
+    let sidx: i32 = local_sidx(vidx);
+    if (sidx < 0) { return 0 - 142; }
+    let fidx: i32 = find_field_idx(sidx, field_name);
+    if (fidx < 0) { return 0 - 143; }
+    out_spaces(4);
+    out_str(wl_local_get_ptr(), wl_local_get_len());
+    out_int(vidx);
+    out_nl();
+    out_spaces(4);
+    out_str(wl_i32_load_ptr(), wl_i32_load_len());
+    out_char(32); out_char(111); out_char(102); out_char(102); out_char(115);
+    out_char(101); out_char(116); out_char(61); out_int(fidx * 4);
+    out_nl();
+    return 0;
+  }
+
+  // (field_assign var field expr)
+  if (atom_equals(tag, literal_field_assign_ptr(), literal_field_assign_len()) == 1) {
+    let var_name: i32 = list_child_at(node, 1);
+    let field_name: i32 = list_child_at(node, 2);
+    let expr: i32 = list_child_at(node, 3);
+    let vidx: i32 = local_index(var_name);
+    if (vidx < 0) { return 0 - 240; }
+    let sidx: i32 = local_sidx(vidx);
+    if (sidx < 0) { return 0 - 241; }
+    let fidx: i32 = find_field_idx(sidx, field_name);
+    if (fidx < 0) { return 0 - 242; }
+    out_spaces(4);
+    out_str(wl_local_get_ptr(), wl_local_get_len());
+    out_int(vidx);
+    out_nl();
+    let rc: i32 = emit_expr(expr);
+    if (rc != 0) { return rc; }
+    out_spaces(4);
+    out_str(wl_i32_store_ptr(), wl_i32_store_len());
+    out_char(32); out_char(111); out_char(102); out_char(102); out_char(115);
+    out_char(101); out_char(116); out_char(61); out_int(fidx * 4);
+    out_nl();
+    return 0;
+  }
+
   return 0 - 250;
 }
 
@@ -2420,13 +2515,15 @@ fn emit_function(fn_node: i32) -> i32 {
   while (param != 0) {
     let pname: i32 = list_child_at(param, 1);
     let pwt: i32 = wasm_type_i32();
+    let psidx: i32 = 0 - 1;
     if (__mem_load(is_v1_addr()) == 1) {
       let ptype_node: i32 = list_child_at(param, 2);
       if (ptype_node != 0) {
         pwt = ir_type_to_wasm(ptype_node);
+        if (pwt == wasm_type_struct()) { psidx = find_struct_by_name(ptype_node); }
       }
     }
-    add_local_with_type(node_atom_off(pname), node_atom_len(pname), pwt);
+    add_local_with_type_and_sidx(node_atom_off(pname), node_atom_len(pname), pwt, psidx);
     param_count = param_count + 1;
     param = node_next(param);
   }
@@ -2486,6 +2583,7 @@ fn lower_ir_to_wat(ir_len: i32) -> i32 {
   reset_features();
   reset_str_table();
   reset_fn_names();
+  reset_struct_table();
   __mem_store(heap_ptr_addr(), heap_base());
 
   // Parse the IR
@@ -2513,6 +2611,7 @@ fn lower_ir_to_wat(ir_len: i32) -> i32 {
 
   let structs: i32 = list_child_at(root, 2);
   if (child_tag_equals(structs, literal_structs_ptr(), literal_structs_len()) != 1) { return 0 - 504; }
+  parse_structs(structs);
   let functions: i32 = list_child_at(root, 3);
   if (child_tag_equals(functions, literal_functions_ptr(), literal_functions_len()) != 1) { return 0 - 505; }
 
@@ -2983,6 +3082,87 @@ fn literal_str_len_fn_ptr() -> i32 { return literal_string_typed_ptr() + literal
 fn literal_str_len_fn_len() -> i32 { return 7; }
 fn literal_str_ptr_fn_ptr() -> i32 { return literal_str_len_fn_ptr() + literal_str_len_fn_len(); }
 fn literal_str_ptr_fn_len() -> i32 { return 7; }
+fn literal_struct_lit_ptr() -> i32 { return literal_str_ptr_fn_ptr() + literal_str_ptr_fn_len(); }
+fn literal_struct_lit_len() -> i32 { return 10; }
+fn literal_field_ptr() -> i32 { return literal_struct_lit_ptr() + literal_struct_lit_len(); }
+fn literal_field_len() -> i32 { return 5; }
+fn literal_field_assign_ptr() -> i32 { return literal_field_ptr() + literal_field_len(); }
+fn literal_field_assign_len() -> i32 { return 12; }
+
+fn struct_count_addr() -> i32 { return state_base() + 8468; }
+// struct table: each entry = 24 bytes (name_off:4, name_len:4, field0_off:4, field0_len:4, field1_off:4, field1_len:4)
+fn struct_table_base() -> i32 { return state_base() + 12000; }
+fn struct_entry_size() -> i32 { return 24; }
+
+fn reset_struct_table() -> i32 { __mem_store(struct_count_addr(), 0); return 0; }
+
+fn add_struct(name_node: i32, f0_node: i32, f1_node: i32) -> i32 {
+  let count: i32 = __mem_load(struct_count_addr());
+  let addr: i32 = struct_table_base() + count * struct_entry_size();
+  __mem_store(addr, node_atom_off(name_node));
+  __mem_store(addr + 4, node_atom_len(name_node));
+  __mem_store(addr + 8, node_atom_off(f0_node));
+  __mem_store(addr + 12, node_atom_len(f0_node));
+  let f1_off: i32 = 0;
+  let f1_len: i32 = 0;
+  if (f1_node != 0) { f1_off = node_atom_off(f1_node); f1_len = node_atom_len(f1_node); }
+  __mem_store(addr + 16, f1_off);
+  __mem_store(addr + 20, f1_len);
+  __mem_store(struct_count_addr(), count + 1);
+  return 0;
+}
+
+fn find_struct_by_name(name_node: i32) -> i32 {
+  return 0;
+}
+
+fn find_field_idx(sidx: i32, field_node: i32) -> i32 {
+  let addr: i32 = struct_table_base() + sidx * struct_entry_size();
+  let f0_off: i32 = __mem_load(addr + 8);
+  let f0_len: i32 = __mem_load(addr + 12);
+  let fo: i32 = node_atom_off(field_node);
+  let fl: i32 = node_atom_len(field_node);
+  if (f0_len == fl) {
+    let match: i32 = 1;
+    let j: i32 = 0;
+    while (j < fl && match == 1) {
+      if (__mem_load8(ir_buf_base() + f0_off + j) != __mem_load8(ir_buf_base() + fo + j)) {
+        match = 0;
+      }
+      j = j + 1;
+    }
+    if (match == 1) { return 0; }
+  }
+  let f1_off: i32 = __mem_load(addr + 16);
+  let f1_len: i32 = __mem_load(addr + 20);
+  if (f1_len == fl) {
+    let match: i32 = 1;
+    let j: i32 = 0;
+    while (j < fl && match == 1) {
+      if (__mem_load8(ir_buf_base() + f1_off + j) != __mem_load8(ir_buf_base() + fo + j)) {
+        match = 0;
+      }
+      j = j + 1;
+    }
+    if (match == 1) { return 1; }
+  }
+  return 0 - 1;
+}
+
+fn parse_structs(structs_node: i32) -> i32 {
+  let s: i32 = node_next(list_child_at(structs_node, 0));
+  while (s != 0) {
+    let sname: i32 = list_child_at(s, 1);
+    let f0: i32 = list_child_at(s, 2);
+    let f0name: i32 = list_child_at(f0, 1);
+    let f1: i32 = list_child_at(s, 3);
+    let f1name: i32 = 0;
+    if (f1 != 0) { f1name = list_child_at(f1, 1); }
+    add_struct(sname, f0name, f1name);
+    s = node_next(s);
+  }
+  return 0;
+}
 
 fn init_literals() -> i32 {
   if (__mem_load(literals_inited_addr()) != 0) { return 0; }
@@ -3362,6 +3542,36 @@ fn init_literals() -> i32 {
   __mem_store8(literals_base() + 359, 112);  // 'p'
   __mem_store8(literals_base() + 360, 116);  // 't'
   __mem_store8(literals_base() + 361, 114);  // 'r'
+  // "struct_lit" at offset 362
+  __mem_store8(literals_base() + 362, 115);  // 's'
+  __mem_store8(literals_base() + 363, 116);  // 't'
+  __mem_store8(literals_base() + 364, 114);  // 'r'
+  __mem_store8(literals_base() + 365, 117);  // 'u'
+  __mem_store8(literals_base() + 366, 99);   // 'c'
+  __mem_store8(literals_base() + 367, 116);  // 't'
+  __mem_store8(literals_base() + 368, 95);   // '_'
+  __mem_store8(literals_base() + 369, 108);  // 'l'
+  __mem_store8(literals_base() + 370, 105);  // 'i'
+  __mem_store8(literals_base() + 371, 116);  // 't'
+  // "field" at offset 372
+  __mem_store8(literals_base() + 372, 102);  // 'f'
+  __mem_store8(literals_base() + 373, 105);  // 'i'
+  __mem_store8(literals_base() + 374, 101);  // 'e'
+  __mem_store8(literals_base() + 375, 108);  // 'l'
+  __mem_store8(literals_base() + 376, 100);  // 'd'
+  // "field_assign" at offset 377
+  __mem_store8(literals_base() + 377, 102);  // 'f'
+  __mem_store8(literals_base() + 378, 105);  // 'i'
+  __mem_store8(literals_base() + 379, 101);  // 'e'
+  __mem_store8(literals_base() + 380, 108);  // 'l'
+  __mem_store8(literals_base() + 381, 100);  // 'd'
+  __mem_store8(literals_base() + 382, 95);   // '_'
+  __mem_store8(literals_base() + 383, 97);   // 'a'
+  __mem_store8(literals_base() + 384, 115);  // 's'
+  __mem_store8(literals_base() + 385, 115);  // 's'
+  __mem_store8(literals_base() + 386, 105);  // 'i'
+  __mem_store8(literals_base() + 387, 103);  // 'g'
+  __mem_store8(literals_base() + 388, 110);  // 'n'
   __mem_store(literals_inited_addr(), 1);
   return 0;
 }
