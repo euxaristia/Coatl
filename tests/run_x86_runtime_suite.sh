@@ -7,9 +7,25 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 TOOLCHAIN="${COATL_X86_TOOLCHAIN:-ir}"
 source "$ROOT_DIR/tests/lib_x86_link.sh"
 
+RUNNER=""
 if [[ "$(uname -s)" != "Linux" ]]; then
   echo "x86 runtime suite currently supports Linux only"
   exit 1
+fi
+
+if [[ "$(uname -m)" != "x86_64" ]]; then
+  if command -v qemu-x86_64 >/dev/null 2>&1; then
+    RUNNER="qemu-x86_64"
+    echo "[x86-suite] Using qemu-x86_64 for execution"
+  else
+    echo "x86 runtime suite requires x86_64 host or qemu-x86_64"
+    exit 1
+  fi
+  # If CC is not set and we are cross-compiling, try to find a cross-compiler
+  if [[ -z "${CC:-}" ]] && command -v x86_64-linux-gnu-gcc >/dev/null 2>&1; then
+    export CC=x86_64-linux-gnu-gcc
+    echo "[x86-suite] Using $CC for linking"
+  fi
 fi
 
 if ! have_x86_link_toolchain; then
@@ -21,8 +37,7 @@ build_bin() {
   local src="$1"
   local out="$2"
   local asm="$TMP_DIR/$(basename "$out").s"
-  "$ROOT_DIR/coatl" build "$src" --toolchain="$TOOLCHAIN" -o "$asm"
-  cat "$ROOT_DIR/tests/intrinsics.s" >> "$asm"
+  "$ROOT_DIR/coatl" build "$src" --arch=x86_64 --toolchain="$TOOLCHAIN" -o "$asm"
   link_x86_asm_binary "$asm" "$out"
 }
 
@@ -39,7 +54,7 @@ assert_rc() {
 echo "[x86-suite] hello output + rc"
 HELLO_BIN="$TMP_DIR/hello.bin"
 build_bin "$ROOT_DIR/examples/hello.coatl" "$HELLO_BIN"
-hello_out="$("$HELLO_BIN")"
+hello_out="$($RUNNER "$HELLO_BIN")"
 hello_rc=$?
 if [[ "$hello_out" != "Hello, world!" ]]; then
   echo "[FAIL] hello output mismatch"
@@ -53,7 +68,7 @@ echo "[x86-suite] mem intrinsics"
 MEM_BIN="$TMP_DIR/mem.bin"
 build_bin "$ROOT_DIR/tests/mem_test.coatl" "$MEM_BIN"
 set +e
-"$MEM_BIN" >/dev/null 2>&1
+$RUNNER "$MEM_BIN" >/dev/null 2>&1
 mem_rc=$?
 set -e
 assert_rc 142 "$mem_rc" "mem_test"
@@ -63,7 +78,7 @@ IOW_BIN="$TMP_DIR/io_write.bin"
 build_bin "$ROOT_DIR/tests/x86_path_open_write_test.coatl" "$IOW_BIN"
 rm -f /tmp/coatl_x86_io_test.txt
 set +e
-"$IOW_BIN" >/dev/null 2>&1
+$RUNNER "$IOW_BIN" >/dev/null 2>&1
 iow_rc=$?
 set -e
 assert_rc 3 "$iow_rc" "x86_path_open_write_test"
@@ -81,7 +96,7 @@ echo "[x86-suite] fd_read"
 IOR_BIN="$TMP_DIR/io_read.bin"
 build_bin "$ROOT_DIR/tests/x86_fd_read_test.coatl" "$IOR_BIN"
 set +e
-printf "abcd" | "$IOR_BIN" >/dev/null 2>&1
+printf "abcd" | $RUNNER "$IOR_BIN" >/dev/null 2>&1
 ior_rc=$?
 set -e
 assert_rc 4 "$ior_rc" "x86_fd_read_test"
@@ -90,7 +105,7 @@ echo "[x86-suite] struct ABI"
 SP_BIN="$TMP_DIR/struct_param_pass.bin"
 build_bin "$ROOT_DIR/tests/struct_param_pass.coatl" "$SP_BIN"
 set +e
-"$SP_BIN" >/dev/null 2>&1
+$RUNNER "$SP_BIN" >/dev/null 2>&1
 sp_rc=$?
 set -e
 assert_rc 9 "$sp_rc" "struct_param_pass"
@@ -98,7 +113,7 @@ assert_rc 9 "$sp_rc" "struct_param_pass"
 SR_BIN="$TMP_DIR/struct_return_basic.bin"
 build_bin "$ROOT_DIR/tests/struct_return_basic.coatl" "$SR_BIN"
 set +e
-"$SR_BIN" >/dev/null 2>&1
+$RUNNER "$SR_BIN" >/dev/null 2>&1
 sr_rc=$?
 set -e
 assert_rc 15 "$sr_rc" "struct_return_basic"
@@ -106,7 +121,7 @@ assert_rc 15 "$sr_rc" "struct_return_basic"
 SC_BIN="$TMP_DIR/struct_chain_calls.bin"
 build_bin "$ROOT_DIR/tests/struct_chain_calls.coatl" "$SC_BIN"
 set +e
-"$SC_BIN" >/dev/null 2>&1
+$RUNNER "$SC_BIN" >/dev/null 2>&1
 sc_rc=$?
 set -e
 assert_rc 6 "$sc_rc" "struct_chain_calls"
