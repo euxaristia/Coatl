@@ -26,6 +26,8 @@ SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.sh"
 IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.sh"
 IR_TO_AARCH64_ASM="$ROOT_DIR/tools/ir_to_aarch64_asm.sh"
 IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat.sh"
+IR_TO_CBYTE="$ROOT_DIR/tools/ir_to_cbyte.sh"
+CBYTE_VM="$ROOT_DIR/tools/cbyte_vm.sh"
 X86_INTRINSICS="$ROOT_DIR/tests/intrinsics.s"
 AARCH64_INTRINSICS="$ROOT_DIR/tests/intrinsics_aarch64.s"
 
@@ -34,12 +36,14 @@ usage() {
 usage:
   ./coatl [build] <input.coatl> [-o <output>] [--toolchain=auto|selfhost|ir] [--arch=x86_64|aarch64] [--compiler <seed.wat>]
   ./coatl lower-ir <input.ir> -o <output.wat>
+  ./coatl run-cbyte <input.cbyte>
   ./coatl --version
 
   "build" is optional — passing a .coatl file directly implies build.
 
   output type is inferred from -o extension:
-    .wat → WAT    .s → asm    .ir → IR    .o → obj    (no ext) → bin
+    .wat → WAT    .s → asm    .ir → IR    .o → obj    .cbyte → Bytecode (VM)
+    (no ext) → bin
   omitting -o prints WAT to stdout.
 
   notes:
@@ -128,6 +132,20 @@ if [[ "$cmd" == "lower-ir" ]]; then
   exit 0
 fi
 
+if [[ "$cmd" == "run-cbyte" ]]; then
+  if [[ $# -lt 1 ]]; then
+    usage
+    exit 1
+  fi
+  input_cbyte="$1"
+  if [[ ! -f "$input_cbyte" ]]; then
+    echo "bytecode file not found: $input_cbyte"
+    exit 1
+  fi
+  "$CBYTE_VM" "$input_cbyte"
+  exit 0
+fi
+
 if [[ "$cmd" != "build" ]]; then
   usage
   exit 1
@@ -201,11 +219,12 @@ if [[ -z "$out" ]]; then
   emit="wat"
 else
   case "$out" in
-    *.wat) emit="wat" ;;
-    *.s)   emit="asm" ;;
-    *.ir)  emit="ir"  ;;
-    *.o)   emit="obj" ;;
-    *)     emit="bin" ;;
+    *.wat)   emit="wat"   ;;
+    *.s)     emit="asm"   ;;
+    *.ir)    emit="ir"    ;;
+    *.o)     emit="obj"   ;;
+    *.cbyte) emit="cbyte" ;;
+    *)       emit="bin"   ;;
   esac
 fi
 if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "ir" ]]; then
@@ -438,6 +457,34 @@ ir_pipeline_build_wat() {
   return 1
 }
 
+ir_pipeline_build_cbyte() {
+  local tmp_ir
+  local tmp_cbyte
+  local subset_err
+  local lower_err
+  tmp_ir="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.ir)"
+  tmp_cbyte="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.cbyte)"
+  subset_err="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.subset.err)"
+  lower_err="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.lower.err)"
+  if [[ -x "$SUBSET_FRONTEND" ]]; then
+    if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
+      if "$IR_TO_CBYTE" "$tmp_ir" -o "$tmp_cbyte" 2>"$lower_err"; then
+        if [[ -n "$out_abs" ]]; then
+          cp "$tmp_cbyte" "$out_abs"
+        fi
+        rm -f "$tmp_ir" "$tmp_cbyte" "$subset_err" "$lower_err"
+        return 0
+      fi
+      echo "cbyte lowering failed" >&2
+      cat "$lower_err" >&2
+      rm -f "$tmp_ir" "$tmp_cbyte" "$subset_err" "$lower_err"
+      return 1
+    fi
+  fi
+  rm -f "$tmp_ir" "$tmp_cbyte" "$subset_err" "$lower_err"
+  return 1
+}
+
 subset_emit_ir() {
   if [[ ! -x "$SUBSET_FRONTEND" ]]; then
     return 1
@@ -637,6 +684,34 @@ if [[ "$emit" != "wat" ]]; then
 
     echo "output type "$emit" is not supported by toolchain=$toolchain"
     rm -f "$tmp_asm"
+    exit 1
+  fi
+
+  if [[ "$emit" == "cbyte" ]]; then
+    if [[ -z "$out_abs" ]]; then
+      echo "missing -o <output.cbyte> for bytecode output"
+      exit 1
+    fi
+    if [[ "$toolchain" == "selfhost" ]]; then
+      echo "output type "$emit" is not supported by toolchain=$toolchain"
+      exit 1
+    fi
+    if [[ "$toolchain" == "ir" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
+      if ir_pipeline_build_cbyte; then
+        exit 0
+      fi
+      exit 1
+    fi
+    if [[ "$toolchain" == "auto" ]]; then
+      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
+      if ir_pipeline_build_cbyte; then
+        exit 0
+      fi
+      echo "ir cbyte pipeline failed in auto mode"
+      exit 1
+    fi
+    echo "output type "$emit" is not supported by toolchain=$toolchain"
     exit 1
   fi
 
