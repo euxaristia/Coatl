@@ -147,41 +147,41 @@ __tty_get_mode:
   ret
 
 __tty_set_raw:
-  stp x29, x30, [sp, #-80]!
+  stp x29, x30, [sp, #-96]!
   mov x29, sp
-  str x0, [sp, #64]          // save fd
-  str x2, [sp, #72]          // save vmin
-  str x3, [sp, #76]         // save vtime
+  str x0, [sp, #80]          // save fd
+  str w2, [sp, #88]          // save vmin (i32)
+  str w3, [sp, #92]          // save vtime (i32)
   GET_COATL_MEM x8
   add x1, x1, x8            // mode_ptr = out_ptr + base
-  add x0, sp, #0            // x0 = stack buffer
+  add x0, sp, #16           // x0 = stack buffer (leave x29/x30 intact)
   mov x2, #60               // termios size
 .L_tty_copy:
   ldrb w3, [x1], #1
   strb w3, [x0], #1
   subs x2, x2, #1
   b.ne .L_tty_copy
-  ldr w0, [sp, #12]
+  ldr w0, [sp, #28]
   mov w1, #0xFFFFFFF5        // ~(ICANON|ECHO)
   and w0, w0, w1
-  str w0, [sp, #12]
-  ldr x3, [sp, #76]         // vtime
-  ldr x2, [sp, #72]         // vmin
-  strb w2, [sp, #23]        // VMIN at offset 17+6
-  strb w3, [sp, #22]        // VTIME at offset 17+5
-  ldr x0, [sp, #64]         // fd
+  str w0, [sp, #28]
+  ldr w3, [sp, #92]          // vtime
+  ldr w2, [sp, #88]          // vmin
+  strb w2, [sp, #39]         // VMIN at offset 16+(17+6)
+  strb w3, [sp, #38]         // VTIME at offset 16+(17+5)
+  ldr x0, [sp, #80]          // fd
   mov x1, #0x5402           // TCSETS
-  mov x2, sp                // &stack_termios
+  add x2, sp, #16           // &stack_termios
   mov x8, #29               // ioctl
   svc #0
   cmp x0, #0
   b.lt .L_tty_raw_fail
   mov x0, #0
-  ldp x29, x30, [sp], #80
+  ldp x29, x30, [sp], #96
   ret
 .L_tty_raw_fail:
   neg x0, x0
-  ldp x29, x30, [sp], #80
+  ldp x29, x30, [sp], #96
   ret
 
 __tty_restore:
