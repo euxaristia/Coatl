@@ -29,12 +29,12 @@ Coatl supports the following scalar types, with type-directed WebAssembly code g
 ### Composite Types
 
 - **Structs:** User-defined structs with named fields (flattened to scalars).
-- **Fixed-size arrays:** `[T; N]` where `T` is an element type and `N` is the size.
+- **Fixed-size arrays:** `[T N]` where `T` is an element type and `N` is the size.
 
 ```coatl
-let arr: [i32; 4] = [0; 4];
-arr[0] = 10;
-let x: i32 = arr[0];
+let arr: [i32 4] = [0 4]
+arr[0] = 10
+let x: i32 = arr[0]
 ```
 
 ## Variables
@@ -42,17 +42,17 @@ let x: i32 = arr[0];
 Variables must be declared with `let` and explicit types.
 
 ```coatl
-let x: i32 = 42;
-let y: i32 = x + 10;
-let big: i64 = 100i64;
-let pi: f32 = 3.14159;
+let x: i32 = 42
+let y: i32 = x + 10
+let big: i64 = 100i64
+let pi: f32 = 3.14159
 ```
 
 **Reassignment:**
 Variables are mutable and can be reassigned without `let`.
 
 ```coatl
-x = 100;
+x = 100
 ```
 
 ## Functions
@@ -96,7 +96,7 @@ while (running == 1) {
 - **Floats:** `3.14` (defaults to `f32`), `3.14f64` (explicit `f64`).
 - **Booleans:** `true`, `false`.
 - **Strings:** `"Hello\n"`. String literals are stored in the data segment. As `i32`, the value is a pointer to the raw bytes. As `str`, the value is a pointer to a `{ptr, len}` header.
-- **Array initializers:** `[0; 4]` (creates a 4-element array filled with 0).
+- **Array initializers:** `[0 4]` (creates a 4-element array filled with 0).
 
 ## String Intrinsics
 
