@@ -10,7 +10,6 @@ ASM="$TMP_DIR/type_i64_smoke.s"
 BIN="$TMP_DIR/type_i64_smoke.bin"
 
 # We use the full build pipeline: coatl -> ir -> asm -> bin
-# Using --toolchain=ir to skip selfhost/auto logic and use python scripts
 "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/type_i64_smoke.coatl" --toolchain=ir -o "$BIN"
 
 echo "Running binary..."

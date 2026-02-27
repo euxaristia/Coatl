@@ -4,7 +4,7 @@
 - Be a systems language that is **safer than C**, while preserving **predictable performance**.
 - Provide **explicit control** over memory and layout with **compiler-verified ownership**.
 - Stay **portable** with a **standalone compiler** (no LLVM dependency).
-- Support **x86_64**, **AArch64**, and **WASM** as first-class targets.
+- Support **x86_64** and **AArch64** as first-class targets.
 
 ## Core Design Decisions
 - **Syntax:** C-like, expression-oriented with blocks.
@@ -54,18 +54,14 @@ fn add(a: i32, b: i32) -> i32 {
 - Raw pointers `*T` are allowed in `unsafe` blocks (future).
 
 ## Codegen Targets
-- **WASM** (baseline target for v0.1).
-- **x86_64 SysV** and **AArch64** are planned for v0.2+.
+- **x86_64 SysV** and **AArch64** are the primary targets.
 
 ## CLI (compiler)
 - `coatl build <file>`
-- `coatl build <file> --emit=wat` (default)
 - `coatl build <file> --emit=asm` (x86_64 SysV)
-- `coatl build <file> --emit=wasm` (planned)
 
 ## Runtime Intrinsics (Current)
 - Memory: `__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`
-- WASI/file I/O: `__fd_read`, `__fd_write`, `__fd_close`, `__path_open`
 - Terminal mode (POSIX/Linux x86_64 native bin lane):
   - `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
   - `__tty_set_raw(fd: i32, mode_ptr: i32) -> i32`
@@ -73,7 +69,6 @@ fn add(a: i32, b: i32) -> i32 {
 
 Notes:
 - TTY intrinsics return `0` on success, nonzero errno on failure.
-- On unsupported lanes (for example WASI WAT output), TTY intrinsics fail gracefully with nonzero error code.
 
 ## Status
 - This is a draft; features will be staged via ROADMAP.md.
