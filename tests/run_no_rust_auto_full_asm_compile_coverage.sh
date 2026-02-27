@@ -17,7 +17,6 @@ while IFS= read -r src; do
     echo "[FAIL] $src"
     sed -n '1,4p' "$TMP_DIR/err.log"
   fi
-done < <(cd "$ROOT_DIR" && rg --files tests examples selfhost | rg '\.coatl$')
 
 if [[ "$failed" -ne 0 ]]; then
   exit 1

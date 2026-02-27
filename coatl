@@ -7,25 +7,9 @@ if command -v realpath >/dev/null 2>&1; then
 fi
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
-if [[ ! -x "$ROOT_DIR/tools/coatl_subset_to_ir.sh" || ! -f "$ROOT_DIR/selfhost/bootstrap.seed.wat" ]]; then
-  for candidate in \
-    "${COATL_HOME:-}" \
-    "$ROOT_DIR/../share/coatl" \
-    "/usr/local/share/coatl" \
-    "$HOME/.local/share/coatl"; do
-    if [[ -n "$candidate" && -x "$candidate/tools/coatl_subset_to_ir.sh" && -f "$candidate/selfhost/bootstrap.seed.wat" ]]; then
-      ROOT_DIR="$(cd "$candidate" && pwd)"
-      break
-    fi
-  done
-fi
-
-SELFHOST_BUILD="$ROOT_DIR/selfhost/build_with_selfhost.sh"
-SEED_DEFAULT="$ROOT_DIR/selfhost/bootstrap.seed.wat"
 SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.sh"
 IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.sh"
 IR_TO_AARCH64_ASM="$ROOT_DIR/tools/ir_to_aarch64_asm.sh"
-IR_TO_WAT="$ROOT_DIR/tools/ir_to_wat.sh"
 IR_TO_CBYTE="$ROOT_DIR/tools/ir_to_cbyte.sh"
 CBYTE_VM="$ROOT_DIR/tools/cbyte_vm.sh"
 X86_INTRINSICS="$ROOT_DIR/tests/intrinsics.s"
@@ -34,45 +18,23 @@ AARCH64_INTRINSICS="$ROOT_DIR/tests/intrinsics_aarch64.s"
 usage() {
   cat <<'EOF'
 usage:
-  ./coatl [build] <input.coatl> [-o <output>] [--toolchain=auto|selfhost|ir] [--arch=x86_64|aarch64] [--compiler <seed.wat>]
-  ./coatl lower-ir <input.ir> -o <output.wat>
+  ./coatl [build] <input.coatl> [-o <output>] [--arch=x86_64|aarch64]
   ./coatl run-cbyte <input.cbyte>
   ./coatl --version
 
   "build" is optional — passing a .coatl file directly implies build.
 
   output type is inferred from -o extension:
-    .wat → WAT    .s → asm    .ir → IR    .o → obj    .cbyte → Bytecode (VM)
+    .s → asm    .ir → IR    .o → obj    .cbyte → Bytecode (VM)
     (no ext) → bin
-  omitting -o prints WAT to stdout.
 
   notes:
-  - default toolchain is "auto" (or $COATL_TOOLCHAIN), preferring selfhost for wat output
   - default arch is "auto" (auto-detects from uname -m)
-  - toolchain=ir uses subset frontend + external lowerers (IR/WAT/ASM/OBJ/BIN)
-  - .o output emits ELF relocatable object from asm output
-  - bin output links Linux executable from asm output (x86_64 and aarch64)
-  - set COATL_IR_FIRST_BUILD=1 to force auto mode to skip selfhost-first attempt
-  - set COATL_HOME to a Coatl repo root if tools are not found
 EOF
 }
 
 print_version() {
-  local version
-  if version="$(git -C "$ROOT_DIR" describe --always --dirty --tags 2>/dev/null)"; then
-    :
-  else
-    version="${COATL_VERSION:-dev}"
-  fi
-  cat <<'EOF'
-   ____   ___    _  _____  _     
-  / ___| / _ \  / \|_   _|| |    
- | |    | | | |/ _ \ | |  | |    
- | |___ | |_| / ___ \| |  | |___ 
-  \____| \___/_/   \_\_|  |_____|
-       ~~~~~~<:==:>~~~~~~
-EOF
-  echo "coatl $version"
+  echo "coatl purified-native"
 }
 
 if [[ $# -lt 1 ]]; then
@@ -91,7 +53,6 @@ case "${1:-}" in
     ;;
 esac
 
-# If $1 looks like a .coatl file, treat as implicit "build"
 if [[ "$1" == *.coatl ]]; then
   cmd="build"
 else
@@ -99,50 +60,8 @@ else
   shift
 fi
 
-if [[ "$cmd" == "lower-ir" ]]; then
-  if [[ $# -lt 1 ]]; then
-    usage
-    exit 1
-  fi
-  input_ir="$1"
-  shift
-  out_wat=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      -o)
-        out_wat="${2:-}"
-        shift 2
-        ;;
-      *)
-        echo "unknown arg: $1"
-        usage
-        exit 1
-        ;;
-    esac
-  done
-  if [[ -z "$out_wat" ]]; then
-    echo "missing -o <output.wat>"
-    exit 1
-  fi
-  if [[ ! -f "$input_ir" ]]; then
-    echo "input IR file not found: $input_ir"
-    exit 1
-  fi
-  "$IR_TO_WAT" "$input_ir" -o "$out_wat"
-  exit 0
-fi
-
 if [[ "$cmd" == "run-cbyte" ]]; then
-  if [[ $# -lt 1 ]]; then
-    usage
-    exit 1
-  fi
-  input_cbyte="$1"
-  if [[ ! -f "$input_cbyte" ]]; then
-    echo "bytecode file not found: $input_cbyte"
-    exit 1
-  fi
-  "$CBYTE_VM" "$input_cbyte"
+  "$CBYTE_VM" "$1"
   exit 0
 fi
 
@@ -151,619 +70,90 @@ if [[ "$cmd" != "build" ]]; then
   exit 1
 fi
 
-if [[ $# -lt 1 ]]; then
-  usage
-  exit 1
-fi
-
 input="$1"
-if [[ ! -f "$input" ]]; then
-  echo "input file not found: $input"
-  exit 1
-fi
-if [[ "$input" != *.coatl ]]; then
-  echo "input file must use .coatl extension: $input"
-  exit 1
-fi
 input_abs="$(realpath "$input")"
-
-out=""
-toolchain="${COATL_TOOLCHAIN:-auto}"
-# Auto-detect architecture if not explicitly set
-if [[ -z "${COATL_ARCH:-}" ]]; then
-  host_arch="$(uname -m)"
-  case "$host_arch" in
-    aarch64|arm64)
-      arch="aarch64"
-      ;;
-    x86_64|amd64)
-      arch="x86_64"
-      ;;
-    *)
-      arch="x86_64"  # default fallback
-      ;;
-  esac
-else
-  arch="${COATL_ARCH:-x86_64}"
-fi
-seed="$SEED_DEFAULT"
+out="a.out"
+arch="x86_64"
+if [[ "$(uname -m)" == "aarch64" ]]; then arch="aarch64"; fi
 
 shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -o)
-      out="${2:-}"
-      shift 2
-      ;;
-    --toolchain=*)
-      toolchain="${1#--toolchain=}"
-      shift
-      ;;
-    --arch=*)
-      arch="${1#--arch=}"
-      shift
-      ;;
-    --compiler)
-      seed="${2:-}"
-      shift 2
-      ;;
-    *)
-      echo "unknown arg: $1"
-      usage
-      exit 1
-      ;;
+    -o) out="$2"; shift 2 ;;
+    --arch=*) arch="${1#--arch=}"; shift ;;
+    *) shift ;;
   esac
 done
 
-if [[ -z "$out" ]]; then
-  emit="wat"
-else
-  case "$out" in
-    *.wat)   emit="wat"   ;;
-    *.s)     emit="asm"   ;;
-    *.ir)    emit="ir"    ;;
-    *.o)     emit="obj"   ;;
-    *.cbyte) emit="cbyte" ;;
-    *)       emit="bin"   ;;
-  esac
-fi
-if [[ "$toolchain" != "auto" && "$toolchain" != "selfhost" && "$toolchain" != "ir" ]]; then
-  echo "unsupported toolchain: $toolchain"
-  exit 1
-fi
-if [[ "$arch" != "x86_64" && "$arch" != "aarch64" ]]; then
-  echo "unsupported architecture: $arch"
-  exit 1
-fi
-out_abs=""
-if [[ -n "$out" ]]; then
-  out_abs="$(realpath -m "$out")"
-fi
+emit="bin"
+case "$out" in
+  *.s) emit="asm" ;;
+  *.ir) emit="ir" ;;
+  *.o) emit="obj" ;;
+  *.cbyte) emit="cbyte" ;;
+  *) emit="bin" ;;
+esac
 
-ir_first_build_mode() {
-  [[ "${COATL_IR_FIRST_BUILD:-0}" == "1" ]]
-}
-
-print_debug() {
-  local emit="$1"
-  local toolchain="$2"
-  local arch="$3"
-  local pipeline="$4"
-  local out="$5"
-  echo "DEBUG: emit=$emit, toolchain=$toolchain, arch=$arch, pipeline=$pipeline, out=$out"
-}
-
-cc_bin() {
-  if [[ -n "${CC:-}" ]]; then
-    echo "${CC%%[[:space:]]*}"
-  else
-    echo "cc"
-  fi
-}
-
-usable_cc_toolchain() {
-  local cc
-  cc="$(cc_bin)"
-  command -v "$cc" >/dev/null 2>&1 || return 1
-  "$cc" --version >/dev/null 2>&1 || return 1
-  return 0
-}
+out_abs="$(realpath -m "$out")"
 
 assemble_asm_to_obj() {
-  local asm_in="$1"
-  local obj_out="$2"
   if [[ "$arch" == "aarch64" ]]; then
-    if command -v as >/dev/null 2>&1; then
-      as "$asm_in" -o "$obj_out"
-      return 0
-    fi
-    if usable_cc_toolchain; then
-      local cc
-      cc="$(cc_bin)"
-      "$cc" -c -x assembler "$asm_in" -o "$obj_out"
-      return 0
-    fi
-    echo "assembling requires GNU as or a usable C compiler (set CC)" >&2
-    return 1
+    as "$1" -o "$2"
+  else
+    as --64 "$1" -o "$2"
   fi
-  if command -v as >/dev/null 2>&1; then
-    as --64 "$asm_in" -o "$obj_out"
-    return 0
-  fi
-  if usable_cc_toolchain; then
-    local cc
-    cc="$(cc_bin)"
-    "$cc" -c -x assembler "$asm_in" -o "$obj_out"
-    return 0
-  fi
-  echo "assembling requires GNU as or a usable C compiler (set CC)" >&2
-  return 1
-}
-
-internal_link_obj_to_bin() {
-  local obj_in="$1"
-  local bin_out="$2"
-  if [[ ! -f "$ROOT_DIR/tools/link_x86_64_elf.sh" ]]; then
-    return 1
-  fi
-  bash "$ROOT_DIR/tools/link_x86_64_elf.sh" "$obj_in" -o "$bin_out" --entry coatl_start
-}
-
-internal_link_aarch64_obj_to_bin() {
-  local obj_in="$1"
-  local bin_out="$2"
-  if [[ ! -f "$ROOT_DIR/tools/link_aarch64_elf.sh" ]]; then
-    return 1
-  fi
-  bash "$ROOT_DIR/tools/link_aarch64_elf.sh" "$obj_in" -o "$bin_out" --entry coatl_start
 }
 
 link_asm_to_bin() {
-  local asm_in="$1"
-  local bin_out="$2"
-  local mode="${3:-any}" # any|cc-only
-  local cc
   if [[ "$arch" == "aarch64" ]]; then
-    # For aarch64, prefer cc if available (internal linker requires
-    # control-flow support in the aarch64 backend which is incomplete)
-    if usable_cc_toolchain; then
-      cc="$(cc_bin)"
-      "$cc" -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack "$asm_in" -o "$bin_out"
-      return 0
-    fi
-    # Fallback: assemble + internal linker
-    local obj
-    obj="$(mktemp /tmp/coatl-link-bin.XXXXXX.o)"
-    if ! assemble_asm_to_obj "$asm_in" "$obj"; then
-      rm -f "$obj"
-      return 1
-    fi
-    if ! internal_link_aarch64_obj_to_bin "$obj" "$bin_out"; then
-      rm -f "$obj"
-      echo "aarch64 linking failed" >&2
-      return 1
-    fi
-    rm -f "$obj"
-    return 0
-  fi
-  # x86_64 path (original code)
-  if usable_cc_toolchain; then
-    cc="$(cc_bin)"
-    "$cc" -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack "$asm_in" -o "$bin_out"
-    return 0
-  fi
-  if [[ "$mode" == "any" ]]; then
-    local obj
-    obj="$(mktemp /tmp/coatl-link-bin.XXXXXX.o)"
-    if ! assemble_asm_to_obj "$asm_in" "$obj"; then
-      rm -f "$obj"
-      return 1
-    fi
-    if ! internal_link_obj_to_bin "$obj" "$bin_out"; then
-      if ! command -v ld >/dev/null 2>&1 || ! ld --version >/dev/null 2>&1; then
-        rm -f "$obj"
-        echo "linking requires internal linker (coatl) or usable ld" >&2
-        return 1
-      fi
-      ld "$obj" -o "$bin_out" -e coatl_start
-    fi
-    rm -f "$obj"
-    return 0
-  fi
-  if [[ "$mode" == "cc-only" ]]; then
-    echo "linking requires a usable C compiler (set CC or install cc/clang)" >&2
+    cc -fPIE -pie "$1" -o "$2"
   else
-    echo "linking requires a usable C compiler or as+ld toolchain" >&2
+    cc -fPIE -pie "$1" -o "$2"
   fi
-  return 1
-}
-
-selfhost_build_wat() {
-  local tmp_out=""
-  local validate_tmp=""
-  local selfhost_err=""
-  validate_tmp="$(mktemp /tmp/coatl-selfhost-validate.XXXXXX.cwasm)"
-  selfhost_err="$(mktemp /tmp/coatl-selfhost-err.XXXXXX.log)"
-  rm -f "$validate_tmp"
-  if [[ -n "$out_abs" ]]; then
-    if ! "$SELFHOST_BUILD" build "$input_abs" -o "$out_abs" --compiler "$seed" >"$selfhost_err" 2>&1; then
-      cat "$selfhost_err" >&2
-      rm -f "$selfhost_err" "$validate_tmp"
-      return 1
-    fi
-    if command -v wasmtime >/dev/null 2>&1; then
-      if ! wasmtime compile "$out_abs" -o "$validate_tmp" >/dev/null 2>&1; then
-        rm -f "$validate_tmp" "$selfhost_err"
-        echo "self-host compile produced invalid WAT module" >&2
-        return 1
-      fi
-      rm -f "$validate_tmp"
-    fi
-  else
-    tmp_out="$(mktemp /tmp/coatl-selfhost-out.XXXXXX.wat)"
-    if ! "$SELFHOST_BUILD" build "$input_abs" -o "$tmp_out" --compiler "$seed" >"$selfhost_err" 2>&1; then
-      cat "$selfhost_err" >&2
-      rm -f "$selfhost_err" "$tmp_out" "$validate_tmp"
-      return 1
-    fi
-    if command -v wasmtime >/dev/null 2>&1; then
-      if ! wasmtime compile "$tmp_out" -o "$validate_tmp" >/dev/null 2>&1; then
-        rm -f "$tmp_out" "$validate_tmp" "$selfhost_err"
-        echo "self-host compile produced invalid WAT module" >&2
-        return 1
-      fi
-      rm -f "$validate_tmp"
-    fi
-    cat "$tmp_out"
-    rm -f "$tmp_out"
-  fi
-  rm -f "$selfhost_err"
-}
-
-ir_pipeline_build_wat() {
-  local tmp_ir
-  local tmp_wat
-  local subset_err
-  local lower_err
-  tmp_ir="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.ir)"
-  tmp_wat="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.wat)"
-  subset_err="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.subset.err)"
-  lower_err="$(mktemp /tmp/coatl-ir-pipeline.XXXXXX.lower.err)"
-  if [[ -x "$SUBSET_FRONTEND" ]]; then
-    if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
-      if "$IR_TO_WAT" "$tmp_ir" -o "$tmp_wat" 2>"$lower_err"; then
-        if [[ -n "$out_abs" ]]; then
-          cp "$tmp_wat" "$out_abs"
-        else
-          cat "$tmp_wat"
-        fi
-        rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-        return 0
-      fi
-      echo "subset frontend produced unsupported IR for lowerer" >&2
-      cat "$lower_err" >&2
-      rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-      return 1
-    fi
-  fi
-
-  if [[ ! -x "$SUBSET_FRONTEND" ]]; then
-    echo "subset frontend not found: $SUBSET_FRONTEND" >&2
-    echo "set COATL_HOME to a Coatl root containing tools/ and selfhost/" >&2
-  else
-    echo "subset frontend failed for toolchain=ir" >&2
-  fi
-  rm -f "$tmp_ir" "$tmp_wat" "$subset_err" "$lower_err"
-  return 1
-}
-
-ir_pipeline_build_cbyte() {
-  local tmp_ir
-  local tmp_cbyte
-  local subset_err
-  local lower_err
-  tmp_ir="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.ir)"
-  tmp_cbyte="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.cbyte)"
-  subset_err="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.subset.err)"
-  lower_err="$(mktemp /tmp/coatl-ir-cbyte.XXXXXX.lower.err)"
-  if [[ -x "$SUBSET_FRONTEND" ]]; then
-    if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
-      if "$IR_TO_CBYTE" "$tmp_ir" -o "$tmp_cbyte" 2>"$lower_err"; then
-        if [[ -n "$out_abs" ]]; then
-          cp "$tmp_cbyte" "$out_abs"
-        fi
-        rm -f "$tmp_ir" "$tmp_cbyte" "$subset_err" "$lower_err"
-        return 0
-      fi
-      echo "cbyte lowering failed" >&2
-      cat "$lower_err" >&2
-      rm -f "$tmp_ir" "$tmp_cbyte" "$subset_err" "$lower_err"
-      return 1
-    fi
-  fi
-  rm -f "$tmp_ir" "$tmp_cbyte" "$subset_err" "$lower_err"
-  return 1
-}
-
-subset_emit_ir() {
-  if [[ ! -x "$SUBSET_FRONTEND" ]]; then
-    return 1
-  fi
-  if [[ -n "$out_abs" ]]; then
-    "$SUBSET_FRONTEND" "$input_abs" -o "$out_abs"
-  else
-    local tmp_ir
-    tmp_ir="$(mktemp /tmp/coatl-subset-ir.XXXXXX.ir)"
-    "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"
-    cat "$tmp_ir"
-    rm -f "$tmp_ir"
-  fi
-  return 0
 }
 
 ir_pipeline_build_asm() {
-  local tmp_ir
-  local tmp_asm
-  local subset_err
-  local lower_err
-  local backend_tool
-  if [[ "$arch" == "aarch64" ]]; then
-    backend_tool="$IR_TO_AARCH64_ASM"
-  else
-    backend_tool="$IR_TO_X86_ASM"
-  fi
+  local tmp_ir="$(mktemp /tmp/coatl-ir.XXXXXX.ir)"
+  local tmp_asm="$(mktemp /tmp/coatl-asm.XXXXXX.s)"
+  local backend="$IR_TO_X86_ASM"
+  if [[ "$arch" == "aarch64" ]]; then backend="$IR_TO_AARCH64_ASM"; fi
 
-  tmp_ir="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.ir)"
-  tmp_asm="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.s)"
-  subset_err="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.subset.err)"
-  lower_err="$(mktemp /tmp/coatl-ir-asm-pipeline.XXXXXX.lower.err)"
-  if [[ -x "$SUBSET_FRONTEND" ]]; then
-    if "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir" 2>"$subset_err"; then
-      if "$backend_tool" "$tmp_ir" -o "$tmp_asm" 2>"$lower_err"; then
-        # Append architecture-specific intrinsics
-        if [[ "$arch" == "x86_64" && -f "$X86_INTRINSICS" ]]; then
-          cat "$X86_INTRINSICS" >> "$tmp_asm"
-        elif [[ "$arch" == "aarch64" && -f "$AARCH64_INTRINSICS" ]]; then
-          cat "$AARCH64_INTRINSICS" >> "$tmp_asm"
-        fi
-        if [[ -n "$out_abs" ]]; then
-          cp "$tmp_asm" "$out_abs"
-        else
-          cat "$tmp_asm"
-        fi
-        rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-        return 0
-      fi
-      echo "subset frontend produced unsupported IR for asm lowerer" >&2
-      cat "$lower_err" >&2
-      rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-      return 1
-    fi
-  fi
-
-  if [[ ! -x "$SUBSET_FRONTEND" ]]; then
-    echo "subset frontend not found: $SUBSET_FRONTEND" >&2
-    echo "set COATL_HOME to a Coatl root containing tools/ and selfhost/" >&2
+  "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"
+  "$backend" "$tmp_ir" -o "$tmp_asm"
+  
+  if [[ "$arch" == "x86_64" ]]; then
+    cat "$X86_INTRINSICS" >> "$tmp_asm"
   else
-    echo "subset frontend failed for asm output --toolchain=ir" >&2
-    cat "$subset_err" >&2
+    cat "$AARCH64_INTRINSICS" >> "$tmp_asm"
   fi
-  rm -f "$tmp_ir" "$tmp_asm" "$subset_err" "$lower_err"
-  return 1
+  
+  cp "$tmp_asm" "$out_abs"
+  rm -f "$tmp_ir" "$tmp_asm"
 }
 
-ir_pipeline_build_asm_to_file() {
-  local asm_out="$1"
-  local prev_out_abs="$out_abs"
-  out_abs="$asm_out"
-  if ir_pipeline_build_asm; then
-    out_abs="$prev_out_abs"
-    return 0
-  fi
-  out_abs="$prev_out_abs"
-  return 1
-}
-
-if [[ "$emit" != "wat" ]]; then
-  if [[ "$emit" == "asm" ]]; then
-    if [[ "$toolchain" == "selfhost" ]]; then
-      echo "output type "$emit" is not supported by toolchain=$toolchain"
-      exit 1
-    fi
-    if [[ "$toolchain" == "ir" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
-      ir_pipeline_build_asm
-      exit 0
-    fi
-    if [[ "$toolchain" == "auto" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
-      if ir_pipeline_build_asm; then
-        exit 0
-      fi
-      echo "ir asm pipeline failed in auto mode" >&2
-      exit 1
-    fi
-    echo "output type "$emit" is not supported by toolchain=$toolchain"
-    exit 1
-  fi
-
-  if [[ "$emit" == "bin" ]]; then
-    if [[ -z "$out_abs" ]]; then
-      echo "missing -o <output.bin> for bin output"
-      exit 1
-    fi
-    if [[ "$(uname -s)" != "Linux" ]]; then
-      echo "bin output currently supports Linux only"
-      exit 1
-    fi
-    if [[ "$toolchain" == "selfhost" ]]; then
-      echo "output type "$emit" is not supported by toolchain=$toolchain"
-      exit 1
-    fi
-
-    tmp_asm="$(mktemp /tmp/coatl-bin-link.XXXXXX.s)"
-
-    if [[ "$toolchain" == "ir" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
-      if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
-        rm -f "$tmp_asm"
-        exit 1
-      fi
-      if ! link_asm_to_bin "$tmp_asm" "$out_abs" "any"; then
-        rm -f "$tmp_asm"
-        exit 1
-      fi
-      rm -f "$tmp_asm"
-      exit 0
-    fi
-
-    if [[ "$toolchain" == "auto" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
-      if ir_pipeline_build_asm_to_file "$tmp_asm"; then
-        if ! link_asm_to_bin "$tmp_asm" "$out_abs" "any"; then
-          rm -f "$tmp_asm"
-          exit 1
-        fi
-        rm -f "$tmp_asm"
-        exit 0
-      fi
-      rm -f "$tmp_asm"
-      echo "ir asm pipeline failed in auto mode"
-      exit 1
-    fi
-
-    echo "output type "$emit" is not supported by toolchain=$toolchain"
-    rm -f "$tmp_asm"
-    exit 1
-  fi
-
-  if [[ "$emit" == "obj" ]]; then
-    if [[ -z "$out_abs" ]]; then
-      echo "missing -o <output.o> for obj output"
-      exit 1
-    fi
-    if [[ "$(uname -s)" != "Linux" ]]; then
-      echo "obj output currently supports Linux only"
-      exit 1
-    fi
-    if [[ "$toolchain" == "selfhost" ]]; then
-      echo "output type "$emit" is not supported by toolchain=$toolchain"
-      exit 1
-    fi
-
-    tmp_asm="$(mktemp /tmp/coatl-obj-asm.XXXXXX.s)"
-
-    if [[ "$toolchain" == "ir" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
-      if ! ir_pipeline_build_asm_to_file "$tmp_asm"; then
-        rm -f "$tmp_asm"
-        exit 1
-      fi
-      if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
-        rm -f "$tmp_asm"
-        exit 1
-      fi
-      rm -f "$tmp_asm"
-      exit 0
-    fi
-
-    if [[ "$toolchain" == "auto" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
-      if ir_pipeline_build_asm_to_file "$tmp_asm"; then
-        if ! assemble_asm_to_obj "$tmp_asm" "$out_abs"; then
-          rm -f "$tmp_asm"
-          exit 1
-        fi
-        rm -f "$tmp_asm"
-        exit 0
-      fi
-      rm -f "$tmp_asm"
-      echo "ir asm pipeline failed in auto mode"
-      exit 1
-    fi
-
-    echo "output type "$emit" is not supported by toolchain=$toolchain"
-    rm -f "$tmp_asm"
-    exit 1
-  fi
-
-  if [[ "$emit" == "cbyte" ]]; then
-    if [[ -z "$out_abs" ]]; then
-      echo "missing -o <output.cbyte> for bytecode output"
-      exit 1
-    fi
-    if [[ "$toolchain" == "selfhost" ]]; then
-      echo "output type "$emit" is not supported by toolchain=$toolchain"
-      exit 1
-    fi
-    if [[ "$toolchain" == "ir" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
-      if ir_pipeline_build_cbyte; then
-        exit 0
-      fi
-      exit 1
-    fi
-    if [[ "$toolchain" == "auto" ]]; then
-      print_debug "$emit" "$toolchain" "$arch" "ir" "$out_abs"
-      if ir_pipeline_build_cbyte; then
-        exit 0
-      fi
-      echo "ir cbyte pipeline failed in auto mode"
-      exit 1
-    fi
-    echo "output type "$emit" is not supported by toolchain=$toolchain"
-    exit 1
-  fi
-
-  # emit=ir
-  if [[ "$toolchain" == "ir" ]]; then
-    print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
-    if subset_emit_ir; then
-      exit 0
-    fi
-    echo "subset frontend failed for ir output --toolchain=ir" >&2
-    exit 1
-  fi
-  if [[ "$toolchain" == "auto" ]]; then
-    print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
-    if subset_emit_ir; then
-      exit 0
-    fi
-    echo "subset frontend failed in auto mode"
-    exit 1
-  fi
-  if [[ "$toolchain" == "selfhost" ]]; then
-    echo "output type "$emit" is not supported by toolchain=$toolchain"
-    exit 1
-  fi
-  echo "output type "$emit" is not supported by toolchain=$toolchain"
-  exit 1
+if [[ "$emit" == "asm" ]]; then
+  ir_pipeline_build_asm
+elif [[ "$emit" == "bin" ]]; then
+  tmp_asm="$(mktemp /tmp/coatl-bin.XXXXXX.s)"
+  prev_out="$out_abs"
+  out_abs="$tmp_asm"
+  ir_pipeline_build_asm
+  out_abs="$prev_out"
+  link_asm_to_bin "$tmp_asm" "$out_abs"
+  rm -f "$tmp_asm"
+elif [[ "$emit" == "obj" ]]; then
+  tmp_asm="$(mktemp /tmp/coatl-obj.XXXXXX.s)"
+  prev_out="$out_abs"
+  out_abs="$tmp_asm"
+  ir_pipeline_build_asm
+  out_abs="$prev_out"
+  assemble_asm_to_obj "$tmp_asm" "$out_abs"
+  rm -f "$tmp_asm"
+elif [[ "$emit" == "ir" ]]; then
+  "$SUBSET_FRONTEND" "$input_abs" -o "$out_abs"
+elif [[ "$emit" == "cbyte" ]]; then
+  local tmp_ir="$(mktemp /tmp/coatl-ir.XXXXXX.ir)"
+  "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"
+  "$IR_TO_CBYTE" "$tmp_ir" -o "$out_abs"
+  rm -f "$tmp_ir"
 fi
-
-if [[ "$toolchain" == "selfhost" ]]; then
-  print_debug "$emit" "$toolchain" "$arch" "selfhost" "${out_abs:-stdout}"
-  selfhost_build_wat
-  exit 0
-fi
-
-if [[ "$toolchain" == "ir" ]]; then
-  print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
-  ir_pipeline_build_wat
-  exit 0
-fi
-
-# auto: prefer IR pipeline, fall back to selfhost
-if ir_pipeline_build_wat; then
-  print_debug "$emit" "$toolchain" "$arch" "ir" "${out_abs:-stdout}"
-  exit 0
-fi
-
-if [[ -x "$SELFHOST_BUILD" ]] && command -v wasmtime >/dev/null 2>&1; then
-  print_debug "$emit" "$toolchain" "$arch" "selfhost" "${out_abs:-stdout}"
-  if selfhost_build_wat; then
-    exit 0
-  fi
-fi
-
-echo "ir/selfhost pipelines failed"
-exit 1

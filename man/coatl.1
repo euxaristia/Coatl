@@ -1,17 +1,15 @@
 .TH COATL 1 "February 2026" "Coatl" "User Commands"
 .SH NAME
-coatl \- build Coatl sources via selfhost and IR lanes
+coatl \- build Coatl sources to native Linux binaries
 .SH SYNOPSIS
 .B coatl
 .I build input.coatl
-[\fB--emit=\fRwat|asm|ir]
+[\fB--emit=\fRasm|ir|obj|bin|cbyte]
 [\fB-o\fR \fIoutput\fR]
-[\fB--toolchain=\fRauto|selfhost|ir]
-[\fB--compiler\fR \fIseed.wat\fR]
+[\fB--arch=\fRx86_64|aarch64]
 .br
 .B coatl
-.I lower-ir input.ir
-\fB-o\fR \fIoutput.wat\fR
+.I run-cbyte input.cbyte
 .br
 .B coatl
 [\fB--help\fR|\fB-h\fR]
@@ -20,27 +18,24 @@ coatl \- build Coatl sources via selfhost and IR lanes
 [\fB--version\fR|\fB-V\fR]
 .SH DESCRIPTION
 \fBcoatl\fR is the command-line launcher for the Coatl compiler pipeline.
-It dispatches to selfhost and IR-based toolchains.
+It compiles Coatl sources to various native and intermediate formats.
 .SH COMMANDS
 .TP
 .B build
-Compile a \fI.coatl\fR source file. The default emission is WAT.
+Compile a \fI.coatl\fR source file. The default emission is a native binary.
 .TP
-.B lower-ir
-Lower textual Coatl IR into WAT using the external lowerer.
+.B run-cbyte
+Execute a Coatl bytecode file using the built-in VM.
 .SH OPTIONS
 .TP
-\fB--emit=\fRwat|asm|ir
-Choose emitted output kind (default: \fBwat\fR).
+\fB--emit=\fRasm|ir|obj|bin|cbyte
+Choose emitted output kind (default: \fBbin\fR).
 .TP
 \fB-o\fR \fIoutput\fR
-Write output to the given path. If omitted, output is written to stdout.
+Write output to the given path.
 .TP
-\fB--toolchain=\fRauto|selfhost|ir
-Select compilation lane. Default is \fBauto\fR.
-.TP
-\fB--compiler\fR \fIseed.wat\fR
-Path to seed compiler module for selfhost lane.
+\fB--arch=\fRx86_64|aarch64
+Select target architecture. Default is auto-detected.
 .TP
 \fB--help\fR, \fB-h\fR
 Show usage help.
@@ -49,29 +44,23 @@ Show usage help.
 Show version string.
 .SH ENVIRONMENT
 .TP
-\fBCOATL_TOOLCHAIN\fR
-Default toolchain when \fB--toolchain\fR is omitted.
-.TP
-\fBCOATL_IR_FIRST_BUILD=1\fR
-Force auto mode to skip selfhost-first attempt.
+\fBCOATL_ARCH\fR
+Default architecture when \fB--arch\fR is omitted.
 .TP
 \fBCOATL_VERSION\fR
 Fallback version string if Git metadata is unavailable.
 .TP
 \fBCOATL_HOME\fR
-Path to Coatl runtime assets (contains \fItools/\fR and \fIselfhost/\fR).
+Path to Coatl runtime assets (contains \fItools/\fR).
 .SH EXIT STATUS
 Returns 0 on success and non-zero on error.
 .SH EXAMPLES
 .TP
-\fBcoatl build examples/hello.coatl --emit=wat -o /tmp/hello.wat\fR
-Compile to WAT.
+\fBcoatl build examples/hello.coatl -o /tmp/hello\fR
+Compile to native binary.
 .TP
-\fBcoatl build examples/hello.coatl --emit=asm --toolchain=ir -o /tmp/hello.s\fR
-Compile through the IR pipeline to x86_64 assembly.
-.TP
-\fBcoatl lower-ir /tmp/prog.ir -o /tmp/prog.wat\fR
-Lower IR to WAT.
+\fBcoatl build examples/hello.coatl --emit=asm -o /tmp/hello.s\fR
+Compile to x86_64 assembly.
 .TP
 \fBcoatl --version\fR
 Print version.

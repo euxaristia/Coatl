@@ -8,7 +8,6 @@
 *.swo
 
 # Generated artifacts in project root
-/*.wat
 /*.s
 /*.ir
 
@@ -22,7 +21,6 @@
 *.log
 *.asm
 *.ir
-examples/*.wat
 examples/hello
 examples/hello_arm
 examples/test_fd

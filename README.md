@@ -2,7 +2,7 @@
 
 Coatl follows an ancient, sleek serpent aesthetic: fluid paths, precise control, and minimal friction.
 
-Coatl is a systems language project with a self-hosting compiler path and an IR-driven native backend path.
+Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends.
 
 ## Documentation
 
@@ -11,68 +11,52 @@ Coatl is a systems language project with a self-hosting compiler path and an IR-
 
 ## Quick Start
 
-Build WAT (default `auto` path prefers selfhost):
-```bash
-./coatl build ./examples/hello.coatl --emit=wat -o /tmp/hello.wat
-wasmtime --invoke main /tmp/hello.wat
-```
-
-Build x86_64 assembly via the IR pipeline:
-```bash
-./coatl build ./examples/hello.coatl --emit=asm --toolchain=ir -o /tmp/hello.s
-```
-
-Build x86_64 ELF object:
-```bash
-./coatl build ./examples/hello.coatl --emit=obj --toolchain=ir -o /tmp/hello.o
-```
-
 Build native x86_64 Linux binary:
 ```bash
-./coatl build ./examples/hello.coatl --emit=bin --toolchain=ir -o /tmp/hello.bin
-/tmp/hello.bin
+./coatl build ./examples/hello.coatl -o /tmp/hello
+/tmp/hello
+```
+
+Build x86_64 assembly:
+```bash
+./coatl build ./examples/hello.coatl -o /tmp/hello.s
+```
+
+Build ELF object:
+```bash
+./coatl build ./examples/hello.coatl -o /tmp/hello.o
 ```
 
 Emit textual IR:
 ```bash
-./coatl build ./examples/hello.coatl --emit=ir --toolchain=ir -o /tmp/hello.ir
+./coatl build ./examples/hello.coatl -o /tmp/hello.ir
 ```
 
 ## Core Tooling
 
-- `./coatl build ... --emit=wat|ir|asm|obj|bin`
-- `./coatl lower-ir input.ir -o output.wat`
+- `./coatl build ...`
+- `./coatl run-cbyte <input.cbyte>`
 - `./coatl --version`
 
 Environment flags:
-- `COATL_TOOLCHAIN=auto|selfhost|ir`
-- `COATL_IR_FIRST_BUILD=1` to force auto mode to skip selfhost-first attempt
+- `COATL_ARCH=x86_64|aarch64` (auto-detects by default)
+- `COATL_HOME` to a Coatl repo root if tools are not found
 
 ## Terminal Raw Mode Intrinsics
 
-For terminal games on Linux x86_64 `--emit=bin`, Coatl now exposes:
+For terminal games on Linux, Coatl exposes:
 - `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
 - `__tty_set_raw(fd: i32, mode_ptr: i32) -> i32`
 - `__tty_restore(fd: i32, mode_ptr: i32) -> i32`
 
 Behavior:
-- Native (`--emit=bin`, Linux x86_64): backed by `termios` (`ioctl`), returns `0` on success or errno on failure.
-- WASI/IR WAT lowering: unsupported by design, returns nonzero code `58` (graceful failure, no crash).
+- Native (Linux): backed by `termios` (`ioctl`), returns `0` on success or errno on failure.
 - Non-TTY stdin is preserved: calls fail with errno from the OS (for example `ENOTTY`).
 
 Caveats:
 - Raw mode should always be restored before process exit.
-- For robust apps, also restore on signal paths (SIGINT/SIGTERM) via external process supervision/cleanup.
-
-Migration note:
-- Terminal apps no longer need external `stty` wrappers for single-key input.
 
 ## Validation
-
-Primary strict suite:
-```bash
-./tests/run_strict_no_rust_suite.sh
-```
 
 IR seam smoke:
 ```bash
@@ -84,42 +68,24 @@ x86_64 runtime suite:
 ./tests/run_x86_runtime_suite.sh
 ```
 
-## Self-Hosting
-
-Seeded selfhost build:
+AArch64 runtime suite:
 ```bash
-./selfhost/build_with_selfhost.sh build ./examples/hello.coatl -o /tmp/hello-self.wat
-wasmtime --invoke main /tmp/hello-self.wat
-```
-
-Convergence/runtime checks:
-```bash
-./selfhost/check_self_compile.sh
-./selfhost/check_self_compile_seed.sh
-./selfhost/run_roundtrip_suite_seed.sh
-./selfhost/run_selfhost_runtime_suite.sh
-./selfhost/run_no_rust_ci.sh
-```
-
-Refresh committed seed:
-```bash
-./selfhost/update_seed.sh
+./tests/run_aarch64_runtime_suite.sh
 ```
 
 ## Repository Layout
 
 - `examples/` sample programs
 - `tests/` integration and smoke suites
-- `selfhost/` bootstrap compiler and docs
 - `tools/` IR frontend/lowerer/linker utilities
 - `ROADMAP.md` near-term milestones
 - `SPEC.md` language notes
 
 ## Safety & Memory Model
 
-Coatl is a low-level systems bootstrapping language. It is **not memory safe** and provides fewer guardrails than C.
+Coatl is a low-level systems language. It is **not memory safe** and provides fewer guardrails than C.
 
 - **Manual Memory:** Memory is accessed via raw intrinsics (__mem_load/__mem_store) with integer addresses. No pointers or bounds checks.
-- **Sandboxing:** Security is provided via the **WASI backend**, which isolates memory in a linear buffer.
+- **System Access:** Direct interaction with Linux system calls via assembly lowerers.
 
 For more details on how to write Coatl, see the [Syntax Guide](./SYNTAX.md).

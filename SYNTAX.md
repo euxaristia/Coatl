@@ -15,16 +15,16 @@ fn main() -> i32 {
 
 ## Data Types
 
-Coatl supports the following scalar types, with type-directed WebAssembly code generation:
+Coatl supports the following scalar types:
 
-| Type | Description | WASM type |
-|------|-------------|-----------|
-| `i32` | 32-bit signed integer | `i32` |
-| `bool` | Boolean (`true`/`false`, stored as i32 0/1) | `i32` |
-| `i64` | 64-bit signed integer | `i64` |
-| `f32` | 32-bit float | `f32` |
-| `f64` | 64-bit float | `f64` |
-| `str` | String handle (pointer to {ptr, len} header) | `i32` |
+| Type | Description |
+|------|-------------|
+| `i32` | 32-bit signed integer |
+| `bool` | Boolean (`true`/`false`, stored as i32 0/1) |
+| `i64` | 64-bit signed integer |
+| `f32` | 32-bit float |
+| `f64` | 64-bit float |
+| `str` | String handle (pointer to {ptr, len} header) |
 
 ### Composite Types
 
@@ -122,10 +122,10 @@ Since Coatl has no pointer syntax (`*ptr`), you must use intrinsics to read/writ
 - `__mem_load8(addr: i32) -> i32`: Read a byte.
 - `__mem_store8(addr: i32, val: i32)`: Write a byte.
 
-### System Calls (WASI)
+### System Calls (Linux)
 - `__fd_write(fd: i32, iov_ptr: i32, iov_cnt: i32, res_ptr: i32) -> i32`: Write to file descriptor.
 - `__fd_read(fd: i32, iov_ptr: i32, iov_cnt: i32, res_ptr: i32) -> i32`: Read from file descriptor.
-- `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32)`: Enable raw mode (if supported).
+- `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32)`: Enable raw mode.
 
 ## Comments
 

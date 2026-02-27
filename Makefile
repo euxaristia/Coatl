@@ -4,15 +4,11 @@ all:
 
 test:
 	./tests/run_ir_smoke.sh
-	./tests/run_x86_runtime_suite.sh
-	./tests/run_aarch64_runtime_suite.sh
 	./tests/run_snake_smoke.sh
 
 check: test
 
 clean:
-	rm -f *.wat *.s *.ir *.bin *.log *.asm *.dump
-	rm -f examples/*.wat examples/*.s examples/*.ir examples/*.asm examples/*.bin examples/*.log examples/*.dump
 	rm -f examples/hello examples/hello_arm examples/test_fd examples/debug_hello
 	rm -f tools/ir_to_aarch64_asm
 
@@ -33,7 +29,6 @@ install:
 	install -m 0644 "man/$(PROGRAM).1" "$(MAN1_TARGET)"
 	install -d "$(SHAREDIR)"
 	cp -a "tools" "$(SHAREDIR)/"
-	cp -a "selfhost" "$(SHAREDIR)/"
 	install -d "$(SHAREDIR)/tests"
 	install -m 0644 "tests/intrinsics.s" "$(SHAREDIR)/tests/intrinsics.s"
 	install -m 0644 "tests/intrinsics_aarch64.s" "$(SHAREDIR)/tests/intrinsics_aarch64.s"

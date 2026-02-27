@@ -1,12 +1,33 @@
-// Coatl Virtual Machine for .cbyte bytecode (Absolute Jump Fix)
+// Coatl Virtual Machine for .cbyte bytecode (Extended)
 fn state_base() -> i32 { return 70000000 }
 fn bytecode_base() -> i32 { return 80000000 }
 fn stack_base() -> i32 { return 90000000 }
-fn reg_base() -> i32 { return 95000000 }
+fn reg_base() -> i32 { return 95000000 } // Local registers
 
 fn iov_addr() -> i32 { return state_base() + 8200 }
+fn io_n_addr() -> i32 { return state_base() + 8208 }
+fn fd_slot() -> i32 { return state_base() + 8216 }
+fn pc_addr() -> i32 { return state_base() + 8400 }
 fn sp_addr() -> i32 { return state_base() + 8404 }
 fn obfuscation_key() -> i32 { return 172 } // 0xAC
+
+fn fetch_byte() -> i32 {
+  let pc: i32 = __mem_load(pc_addr())
+  let obf: i32 = __mem_load8(bytecode_base() + pc)
+  let b: i32 = obf - obfuscation_key() - pc
+  while (b < 0) { b = b + 256 }
+  b = b - (b / 256) * 256
+  __mem_store(pc_addr(), pc + 1)
+  return b
+}
+
+fn fetch_i32() -> i32 {
+  let b0: i32 = fetch_byte()
+  let b1: i32 = fetch_byte()
+  let b2: i32 = fetch_byte()
+  let b3: i32 = fetch_byte()
+  return b0 + (b1 * 256) + (b2 * 65536) + (b3 * 16777216)
+}
 
 fn push(v: i32) -> i32 {
   let sp: i32 = __mem_load(sp_addr())
@@ -22,19 +43,18 @@ fn pop() -> i32 {
 }
 
 fn read_bytecode(path_ptr: i32, path_len: i32) -> i32 {
-  let fd_slot: i32 = state_base() + 8216
-  __mem_store(fd_slot, 0)
-  let rc: i32 = __path_open(3, 0, path_ptr, path_len, 0, 1, 0, 0, fd_slot)
+  __mem_store(fd_slot(), 0)
+  let rc: i32 = __path_open(3, 0, path_ptr, path_len, 0, 1, 0, 0, fd_slot())
   if (rc != 0) { return 0 - 1 }
-  let fd: i32 = __mem_load(fd_slot)
+  let fd: i32 = __mem_load(fd_slot())
   let total: i32 = 0 let done: i32 = 0
   while (done == 0) {
-    __mem_store(state_base() + 8200, bytecode_base() + total)
-    __mem_store(state_base() + 8204, 4096)
-    __mem_store(state_base() + 8208, 0)
-    let rc_read: i32 = __fd_read(fd, state_base() + 8200, 1, state_base() + 8208)
+    __mem_store(iov_addr(), bytecode_base() + total)
+    __mem_store(iov_addr() + 4, 4096)
+    __mem_store(io_n_addr(), 0)
+    let rc_read: i32 = __fd_read(fd, iov_addr(), 1, io_n_addr())
     if (rc_read != 0) { __fd_close(fd) return 0 - 2 }
-    let nread: i32 = __mem_load(state_base() + 8208)
+    let nread: i32 = __mem_load(io_n_addr())
     if (nread <= 0) { done = 1 }
     else { total = total + nread }
   }
@@ -52,122 +72,32 @@ fn main() -> i32 {
   __mem_store8(name_ptr + 10, 101)
   
   if (read_bytecode(name_ptr, 11) <= 0) { return 0 - 5 }
+  if (__mem_load8(bytecode_base() + 0) != 67) { return 0 - 10 }
   
-  let pc: i32 = 4
-  let ver_obf: i32 = __mem_load8(bytecode_base() + pc)
-  pc = pc + 1
-  
-  let entry: i32 = 0 let k: i32 = 0
-  while (k < 4) {
-    let b: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-    while (b < 0) { b = b + 256 } b = b - (b / 256) * 256
-    if (k == 0) { entry = b }
-    if (k == 1) { entry = entry + (b * 256) }
-    if (k == 2) { entry = entry + (b * 65536) }
-    if (k == 3) { if (b < 128) { entry = entry + (b * 16777216) } else { entry = entry + ((b - 256) * 16777216) } }
-    pc = pc + 1 k = k + 1
-  }
-  pc = entry
+  __mem_store(pc_addr(), 5)
+  let entry: i32 = fetch_i32()
+  __mem_store(pc_addr(), entry)
   __mem_store(sp_addr(), 0)
   
   let running: i32 = 1
   while (running == 1) {
-    let instr_start: i32 = pc
-    // LOG PC
-    __mem_store8(state_base() + 1000, pc)
-    __mem_store(state_base() + 8200, state_base() + 1000) __mem_store(state_base() + 8204, 1)
-    __mem_store(state_base() + 8208, 0) __fd_write(1, state_base() + 8200, 1, state_base() + 8208)
-
-    let op: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-    while (op < 0) { op = op + 256 } op = op - (op / 256) * 256
-    pc = pc + 1
-
-    if (op == 10) { // ICONST
-      let v: i32 = 0 let j: i32 = 0
-      while (j < 4) {
-        let b: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-        while (b < 0) { b = b + 256 } b = b - (b / 256) * 256
-        if (j == 0) { v = b }
-        if (j == 1) { v = v + (b * 256) }
-        if (j == 2) { v = v + (b * 65536) }
-        if (j == 3) { if (b < 128) { v = v + (b * 16777216) } else { v = v + ((b - 256) * 16777216) } }
-        pc = pc + 1 j = j + 1
+    let op: i32 = fetch_byte()
+    if (op == 18) { push(fetch_i32()) } // ICONST
+    else { if (op == 45) { let a: i32 = pop() let b: i32 = pop() push(b + a) } // ADD
+    else { if (op == 56) { let a: i32 = pop() let b: i32 = pop() push(b - a) } // SUB
+    else { if (op == 133) { let r: i32 = fetch_i32() push(__mem_load(reg_base() + r * 4)) } // LOAD
+    else { if (op == 144) { let r: i32 = fetch_i32() __mem_store(reg_base() + r * 4, pop()) } // STORE
+    else { if (op == 111) { let off: i32 = fetch_i32() __mem_store(pc_addr(), __mem_load(pc_addr()) + off) } // JMP
+    else { if (op == 122) { let off: i32 = fetch_i32() if (pop() == 0) { __mem_store(pc_addr(), __mem_load(pc_addr()) + off) } } // JZ
+    else { if (op == 254) { 
+      let sys: i32 = fetch_i32()
+      if (sys == 1) { // write char
+        let c: i32 = pop() __mem_store8(state_base() + 1000, c)
+        __mem_store(iov_addr(), state_base() + 1000) __mem_store(iov_addr() + 4, 1)
+        __mem_store(io_n_addr(), 0) __fd_write(1, iov_addr(), 1, io_n_addr())
       }
-      push(v)
-    } else { if (op == 20) { // LOAD
-      let r: i32 = 0 let j: i32 = 0
-      while (j < 4) {
-        let b: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-        while (b < 0) { b = b + 256 } b = b - (b / 256) * 256
-        if (j == 0) { r = b }
-        if (j == 1) { r = r + (b * 256) }
-        if (j == 2) { r = r + (b * 65536) }
-        if (j == 3) { if (b < 128) { r = r + (b * 16777216) } else { r = r + ((b - 256) * 16777216) } }
-        pc = pc + 1 j = j + 1
-      }
-      push(__mem_load(reg_base() + r * 4))
-    } else { if (op == 30) { // STORE
-      let r: i32 = 0 let j: i32 = 0
-      while (j < 4) {
-        let b: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-        while (b < 0) { b = b + 256 } b = b - (b / 256) * 256
-        if (j == 0) { r = b }
-        if (j == 1) { r = r + (b * 256) }
-        if (j == 2) { r = r + (b * 65536) }
-        if (j == 3) { if (b < 128) { r = r + (b * 16777216) } else { r = r + ((b - 256) * 16777216) } }
-        pc = pc + 1 j = j + 1
-      }
-      __mem_store(reg_base() + r * 4, pop())
-    } else { if (op == 40) { let v2: i32 = pop() let v1: i32 = pop() push(v1 + v2) }
-    else { if (op == 41) { let v2: i32 = pop() let v1: i32 = pop() push(v1 - v2) }
-    else { if (op == 51) { let v2: i32 = pop() let v1: i32 = pop() if (v1 < v2) { push(1) } else { push(0) } }
-    else { if (op == 60) { // JMP
-      let off: i32 = 0 let j: i32 = 0
-      while (j < 4) {
-        let b: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-        while (b < 0) { b = b + 256 } b = b - (b / 256) * 256
-        if (j == 0) { off = b }
-        if (j == 1) { off = off + (b * 256) }
-        if (j == 2) { off = off + (b * 65536) }
-        if (j == 3) { if (b < 128) { off = off + (b * 16777216) } else { off = off + ((b - 256) * 16777216) } }
-        pc = pc + 1 j = j + 1
-      }
-      // Debug jump
-      __mem_store8(state_base() + 1000, 74) // 'J'
-      __mem_store(state_base() + 8200, state_base() + 1000) __mem_store(state_base() + 8204, 1)
-      __mem_store(state_base() + 8208, 0) __fd_write(1, state_base() + 8200, 1, state_base() + 8208)
-
-      pc = instr_start + off
-    } else { if (op == 61) { // JZ
-      let off: i32 = 0 let j: i32 = 0
-      while (j < 4) {
-        let b: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-        while (b < 0) { b = b + 256 } b = b - (b / 256) * 256
-        if (j == 0) { off = b }
-        if (j == 1) { off = off + (b * 256) }
-        if (j == 2) { off = off + (b * 65536) }
-        if (j == 3) { if (b < 128) { off = off + (b * 16777216) } else { off = off + ((b - 256) * 16777216) } }
-        pc = pc + 1 j = j + 1
-      }
-      if (pop() == 0) { pc = instr_start + off }
-    } else { if (op == 90) { // SYSCALL
-      let sys: i32 = 0 let j: i32 = 0
-      while (j < 4) {
-        let b: i32 = (__mem_load8(bytecode_base() + pc) - obfuscation_key())
-        while (b < 0) { b = b + 256 } b = b - (b / 256) * 256
-        if (j == 0) { sys = b }
-        if (j == 1) { sys = sys + (b * 256) }
-        if (j == 2) { sys = sys + (b * 65536) }
-        if (j == 3) { if (b < 128) { sys = sys + (b * 16777216) } else { sys = sys + ((b - 256) * 16777216) } }
-        pc = pc + 1 j = j + 1
-      }
-      if (sys == 1) { 
-        let c: i32 = pop() __mem_store8(state_base() + 2000, c)
-        __mem_store(state_base() + 8200, state_base() + 2000) __mem_store(state_base() + 8204, 1)
-        __mem_store(state_base() + 8208, 0) __fd_write(1, state_base() + 8200, 1, state_base() + 8208)
-      }
-    } else { if (op == 255) { running = 0 }
-    else { running = 0 }}}}}}}}}}
+    } else { if (op == 239) { running = 0 } // HALT
+    else { running = 0 }}}}}}}}}
   }
   return 0
 }
