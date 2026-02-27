@@ -23,7 +23,7 @@
 ## Types
 - Primitive: `i32`, `i64`, `f32`, `f64`, `bool`.
 - String: `str` (fat pointer: `{ptr: i32, len: i32}` header).
-- Arrays: `[T; N]` fixed-size arrays (heap-allocated via bump allocator).
+- Arrays: `[T N]` fixed-size arrays (heap-allocated via bump allocator).
 - Structs (passed by value, flattened to scalar fields).
 - Pointers: `*T` (raw, unsafe) and `&T` (borrowed, safe) are planned.
 - Enums: planned for future versions.
@@ -42,7 +42,7 @@ fn add(a: i32, b: i32) -> i32 {
 - Blocks are expressions; last expression is the block value.
 
 ## Statements (v0.1 subset)
-- `let` bindings: `let x: i32 = 42;`
+- `let` bindings: `let x: i32 = 42`
 - `return`.
 
 ## Ownership + Borrowing (v0.1 rules)
