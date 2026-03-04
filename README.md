@@ -46,8 +46,9 @@ Environment flags:
 
 For terminal games on Linux, Coatl exposes:
 - `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
-- `__tty_set_raw(fd: i32, mode_ptr: i32) -> i32`
+- `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32) -> i32`
 - `__tty_restore(fd: i32, mode_ptr: i32) -> i32`
+- `__tty_get_size(fd: i32, out_ptr: i32) -> i32`
 
 Behavior:
 - Native (Linux): backed by `termios` (`ioctl`), returns `0` on success or errno on failure.

@@ -179,9 +179,23 @@ __tty_set_raw:
   inc rdi
   dec rcx
   jnz .L_tty_copy
-  # Clear ICANON(2) and ECHO(8) in c_lflag at offset 12
+  # Clear flags for full raw mode
+  # c_iflag (offset 0) &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON)
+  mov eax, [rbp-64+0]
+  and eax, ~0x05EB
+  mov [rbp-64+0], eax
+  # c_oflag (offset 4) &= ~(OPOST)
+  mov eax, [rbp-64+4]
+  and eax, ~0x0001
+  mov [rbp-64+4], eax
+  # c_cflag (offset 8) &= ~(CSIZE|PARENB); c_cflag |= CS8
+  mov eax, [rbp-64+8]
+  and eax, ~0x0130
+  or eax, 0x0030
+  mov [rbp-64+8], eax
+  # c_lflag (offset 12) &= ~(ECHO|ECHONL|ICANON|IEXTEN|ISIG)
   mov eax, [rbp-64+12]
-  and eax, ~0x0A       # ~(ICANON|ECHO)
+  and eax, ~0x804B
   mov [rbp-64+12], eax
   # Set VMIN (c_cc[6]) and VTIME (c_cc[5]) at offset 17+6 and 17+5
   pop rcx              # vtime

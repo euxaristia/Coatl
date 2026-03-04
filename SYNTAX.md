@@ -125,7 +125,10 @@ Since Coatl has no pointer syntax (`*ptr`), you must use intrinsics to read/writ
 ### System Calls (Linux)
 - `__fd_write(fd: i32, iov_ptr: i32, iov_cnt: i32, res_ptr: i32) -> i32`: Write to file descriptor.
 - `__fd_read(fd: i32, iov_ptr: i32, iov_cnt: i32, res_ptr: i32) -> i32`: Read from file descriptor.
-- `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32)`: Enable raw mode.
+- `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`: Save current TTY mode.
+- `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32) -> i32`: Enable raw mode.
+- `__tty_restore(fd: i32, mode_ptr: i32) -> i32`: Restore saved mode.
+- `__tty_get_size(fd: i32, out_ptr: i32) -> i32`: Get terminal size (4x i16).
 
 ## Comments
 
