@@ -28,3 +28,7 @@ examples/test_fd
 examples/debug_hello
 examples/*.coatl
 tools/ir_to_aarch64_asm
+snake
+x86_hello
+examples/TermSnake/snake
+tests/x86_hello
