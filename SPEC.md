@@ -64,8 +64,9 @@ fn add(a: i32, b: i32) -> i32 {
 - Memory: `__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`
 - Terminal mode (POSIX/Linux x86_64 native bin lane):
   - `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
-  - `__tty_set_raw(fd: i32, mode_ptr: i32) -> i32`
+  - `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32) -> i32`
   - `__tty_restore(fd: i32, mode_ptr: i32) -> i32`
+  - `__tty_get_size(fd: i32, out_ptr: i32) -> i32`
 
 Notes:
 - TTY intrinsics return `0` on success, nonzero errno on failure.

@@ -9,6 +9,7 @@
 .globl __tty_get_mode
 .globl __tty_set_raw
 .globl __tty_restore
+.globl __tty_get_size
 
 .text
 
@@ -161,8 +162,31 @@ __tty_set_raw:
   strb w3, [x0], #1
   subs x2, x2, #1
   b.ne .L_tty_copy
+  // Clear flags for full raw mode
+  // c_iflag (offset 0) &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON)
+  ldr w0, [sp, #16]
+  mov w1, #0x05EB
+  mvn w1, w1
+  and w0, w0, w1
+  str w0, [sp, #16]
+  // c_oflag (offset 4) &= ~(OPOST)
+  ldr w0, [sp, #20]
+  mov w1, #0x0001
+  mvn w1, w1
+  and w0, w0, w1
+  str w0, [sp, #20]
+  // c_cflag (offset 8) &= ~(CSIZE|PARENB); c_cflag |= CS8
+  ldr w0, [sp, #24]
+  mov w1, #0x0130
+  mvn w1, w1
+  and w0, w0, w1
+  mov w1, #0x0030
+  orr w0, w0, w1
+  str w0, [sp, #24]
+  // c_lflag (offset 12) &= ~(ECHO|ECHONL|ICANON|IEXTEN|ISIG)
   ldr w0, [sp, #28]
-  mov w1, #0xFFFFFFF5        // ~(ICANON|ECHO)
+  mov w1, #0x804B
+  mvn w1, w1
   and w0, w0, w1
   str w0, [sp, #28]
   ldr w3, [sp, #92]          // vtime
@@ -199,6 +223,27 @@ __tty_restore:
   ldp x29, x30, [sp], #16
   ret
 .L_tty_restore_fail:
+  neg x0, x0
+  ldp x29, x30, [sp], #16
+  ret
+
+// __tty_get_size(fd, out_ptr) -> i32
+// Saves winsize {ws_row, ws_col, ws_xpixel, ws_ypixel} (4x i16) at out_ptr
+__tty_get_size:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  GET_COATL_MEM x8
+  add x1, x1, x8            // out_ptr = linear_ptr + base
+  mov x2, x1
+  mov x1, #0x5413           // TIOCGWINSZ
+  mov x8, #29               // ioctl
+  svc #0
+  cmp x0, #0
+  b.lt .L_tty_size_fail
+  mov x0, #0
+  ldp x29, x30, [sp], #16
+  ret
+.L_tty_size_fail:
   neg x0, x0
   ldp x29, x30, [sp], #16
   ret
