@@ -2,16 +2,15 @@
 
 ## Goals
 - Be a systems language that is **safer than C**, while preserving **predictable performance**.
-- Provide **explicit control** over memory and layout with **compiler-verified ownership**.
-- Stay **portable** with a **standalone compiler** (no LLVM dependency).
-- Support **x86_64** and **AArch64** as first-class targets.
+- Provide **explicit control** over memory and layout.
+- Stay **portable** with a **standalone Python-based compiler** (no LLVM dependency).
+- Support **x86_64** and **AArch64** as first-class native targets.
 
 ## Core Design Decisions
 - **Syntax:** C-like, expression-oriented with blocks.
-- **Memory model:** Ownership + borrowing (no GC). Move-by-default, explicit `&` borrow.
-- **Error handling:** `Result[T, E]` and `Option[T]`; no exceptions in v0.x.
-- **Modules:** File-based modules with explicit `import`.
-- **Interop:** C FFI supported via `extern` blocks.
+- **Memory model:** Manual memory access via intrinsics; ownership tracking planned.
+- **Modules:** File-based modules (initial implementation).
+- **Interop:** C FFI supported via assembly templates.
 
 ## Lexical Structure
 - Identifiers: ASCII letters, digits, `_`, not starting with digit.
@@ -19,14 +18,13 @@
 - Type keywords: `i32`, `i64`, `f32`, `f64`, `bool`, `str`.
 - Integers: decimal literals, with optional type suffix (`42i64`).
 - Floats: decimal with dot (`3.14`), optional suffix (`3.14f64`).
+- Strings: Double-quoted, supports hex escapes (e.g., `\x1b`).
 
 ## Types
 - Primitive: `i32`, `i64`, `f32`, `f64`, `bool`.
 - String: `str` (fat pointer: `{ptr: i32, len: i32}` header).
-- Arrays: `[T N]` fixed-size arrays (heap-allocated via bump allocator).
-- Structs (passed by value, flattened to scalar fields).
-- Pointers: `*T` (raw, unsafe) and `&T` (borrowed, safe) are planned.
-- Enums: planned for future versions.
+- Arrays: `[T N]` fixed-size arrays.
+- Structs: Flattened to fields in memory.
 
 ## Functions
 ```
@@ -34,7 +32,6 @@ fn add(a: i32, b: i32) -> i32 {
   return a + b;
 }
 ```
-- Functions are pure by default; `mut` allows mutation.
 - `main` is the entry point.
 
 ## Expressions (v0.1 subset)
@@ -45,31 +42,24 @@ fn add(a: i32, b: i32) -> i32 {
 - `let` bindings: `let x: i32 = 42`
 - `return`.
 
-## Ownership + Borrowing (v0.1 rules)
-- Values move by default.
-- `&T` is an immutable borrow; `&mut T` is a mutable borrow.
-- Borrow rules: many readers or one writer, not both.
-
-## Unsafe
-- Raw pointers `*T` are allowed in `unsafe` blocks (future).
-
 ## Codegen Targets
-- **x86_64 SysV** and **AArch64** are the primary targets.
+- **x86_64 Linux** (System V AMD64 ABI).
+- **AArch64 Linux**.
+- **CByte** (Custom obfuscated bytecode).
 
 ## CLI (compiler)
-- `coatl build <file>`
-- `coatl build <file> --emit=asm` (x86_64 SysV)
+- `coatl build <file>`: Compile to native binary.
+- `coatl build <file> -o out.s`: Emit assembly.
+- `coatl build <file> -o out.ir`: Emit IR.
+- `coatl run-cbyte <file>`: Execute bytecode via integrated VM.
 
-## Runtime Intrinsics (Current)
-- Memory: `__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`
-- Terminal mode (POSIX/Linux x86_64 native bin lane):
+## Runtime Intrinsics
+- Memory: `__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`.
+- Terminal mode:
   - `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
   - `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32) -> i32`
   - `__tty_restore(fd: i32, mode_ptr: i32) -> i32`
   - `__tty_get_size(fd: i32, out_ptr: i32) -> i32`
 
-Notes:
-- TTY intrinsics return `0` on success, nonzero errno on failure.
-
 ## Status
-- This is a draft; features will be staged via ROADMAP.md.
+- This is a draft; features are being incrementally implemented in the Python toolchain.

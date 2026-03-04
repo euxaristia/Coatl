@@ -1,35 +1,35 @@
 # Coatl Roadmap
 
-Last updated: 2026-02-05
+Last updated: 2026-03-04
 
 ## Completed
 
-- Lexer/parser/AST/type-checking baseline (`i32`/`bool`/`char`, string pointer literals)
-- x86_64 backend and direct IR->ASM lane
-- IR->OBJ and IR->BIN outputs on Linux
-- Internal minimal ELF linker for direct `--emit=bin` fallback path
-- Struct support across active compile/test lanes
-- **Type-directed codegen**: `bool`, `i64`, `f32`, `f64`, `str`, `[T N]` arrays
-- **IR v1 format** with type annotations on params, locals, returns, and binary operations
+- **Integrated Python Compiler**: Frontend (Lexer/Parser) and multiple Backends (x86_64, AArch64, CByte) integrated into a single standalone tool.
+- Lexer/parser/AST baseline (`i32`/`bool`/`i64`/`f32`/`f64`/`str`, string literals with hex escapes).
+- **x86_64 backend**: Direct IR->ASM and IR->BIN (linked with intrinsics) paths. Correct calling convention for 7+ arguments.
+- **AArch64 backend**: Native code generation for ARM64.
+- **CByte VM**: Obfuscated bytecode emitter and integrated virtual machine.
+- **Embedded Intrinsics**: Core memory and I/O assembly routines embedded directly in the compiler script.
+- Struct support across all native compile lanes.
+- **Type-directed codegen**: `bool`, `i64`, `f32`, `f64`, `str`, `[T N]` arrays.
 
 ## Current Focus
 
-- Increase subset frontend coverage so more programs compile through the IR-only lane
-- Keep strict suite green under constrained toolchains (`cc/gcc/clang/ld` blocked)
-- Extend x86_64 backend for typed codegen (i64, f32, f64 registers)
+- Improve error reporting and diagnostics in the Python-based frontend.
+- Optimize the generated assembly for better performance.
+- Extend the `cbyte` VM with more syscall support.
 
 ## Next Milestones
 
 ### v0.3
-- AArch64 backend
-- Broader backend coverage for structs and control-flow heavy programs
-- More negative tests for parser/type-checker behavior
+- Stable standard library interface for common tasks (e.g., file I/O beyond raw syscalls).
+- Broader test coverage for complex control-flow and nested struct scenarios.
 
 ### v0.4
-- Promote Coatl-in-Coatl workflow as the default development path
-- Deterministic self-compile + seed refresh checks in CI
+- Support for more target architectures.
+- Initial work on safer memory abstractions (ownership tracking).
 
 ### v1.0
-- Stable standard library surface
-- Package/dependency workflow
-- Debug info and better developer tooling
+- Stable language specification.
+- Package/dependency workflow.
+- Complete documentation and tutorials.
