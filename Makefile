@@ -3,8 +3,8 @@
 all:
 
 test:
-	./tests/run_ir_smoke.sh
-	./tests/run_snake_smoke.sh
+	python3 ./tests/run_ir_smoke.py
+	python3 ./tests/run_snake_smoke.py
 
 check: test
 
