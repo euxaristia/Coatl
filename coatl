@@ -1,159 +1,1054 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+import sys
+import os
+import subprocess
+import tempfile
+import struct
 
-SCRIPT_PATH="${BASH_SOURCE[0]}"
-if command -v realpath >/dev/null 2>&1; then
-  SCRIPT_PATH="$(realpath "$SCRIPT_PATH")"
-fi
-ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+# --- Intrinsics ---
 
-SUBSET_FRONTEND="$ROOT_DIR/tools/coatl_subset_to_ir.sh"
-IR_TO_X86_ASM="$ROOT_DIR/tools/ir_to_x86_64_asm.sh"
-IR_TO_AARCH64_ASM="$ROOT_DIR/tools/ir_to_aarch64_asm.sh"
-IR_TO_CBYTE="$ROOT_DIR/tools/ir_to_cbyte.sh"
-CBYTE_VM="$ROOT_DIR/tools/cbyte_vm.sh"
-X86_INTRINSICS="$ROOT_DIR/tests/intrinsics.s"
-AARCH64_INTRINSICS="$ROOT_DIR/tests/intrinsics_aarch64.s"
+INTRINSICS_X86_64 = """
+.globl __tty_get_size
+.intel_syntax noprefix
+.globl __mem_store
+.globl __mem_store8
+.globl __mem_load
+.globl __mem_load8
+.globl __fd_write
+.globl __fd_read
+.globl __fd_close
+.globl __path_open
+.globl __tty_get_mode
+.globl __tty_set_raw
+.globl __tty_restore
 
-usage() {
-  cat <<'EOF'
-usage:
-  ./coatl [build] <input.coatl> [-o <output>] [--arch=x86_64|aarch64]
-  ./coatl run-cbyte <input.cbyte>
-  ./coatl --version
+__mem_store:
+  lea r8, [rip+__coatl_mem]
+  add rdi, r8
+  mov [rdi], esi
+  ret
 
-  "build" is optional — passing a .coatl file directly implies build.
+__mem_store8:
+  lea r8, [rip+__coatl_mem]
+  add rdi, r8
+  mov [rdi], sil
+  ret
 
-  output type is inferred from -o extension:
-    .s → asm    .ir → IR    .o → obj    .cbyte → Bytecode (VM)
-    (no ext) → bin
+__mem_load:
+  lea r8, [rip+__coatl_mem]
+  add rdi, r8
+  movsxd rax, dword ptr [rdi]
+  ret
 
-  notes:
-  - default arch is "auto" (auto-detects from uname -m)
-EOF
-}
+__mem_load8:
+  lea r8, [rip+__coatl_mem]
+  add rdi, r8
+  movsx rax, byte ptr [rdi]
+  ret
 
-print_version() {
-  echo "coatl purified-native"
-}
+__fd_write:
+  lea r8, [rip+__coatl_mem]
+  push rcx
+  add rsi, r8
+  mov eax, [rsi+4]
+  push rax
+  mov eax, [rsi]
+  add rax, r8
+  push rax
+  mov rsi, rsp
+  mov eax, 20
+  syscall
+  add rsp, 16
+  pop rcx
+  lea r8, [rip+__coatl_mem]
+  add rcx, r8
+  mov [rcx], eax
+  mov eax, 0
+  ret
 
-if [[ $# -lt 1 ]]; then
-  usage
-  exit 1
-fi
+__fd_read:
+  lea r8, [rip+__coatl_mem]
+  push rcx
+  add rsi, r8
+  mov eax, [rsi+4]
+  push rax
+  mov eax, [rsi]
+  add rax, r8
+  push rax
+  mov rsi, rsp
+  mov eax, 19
+  syscall
+  add rsp, 16
+  pop rcx
+  lea r8, [rip+__coatl_mem]
+  add rcx, r8
+  mov [rcx], eax
+  mov eax, 0
+  ret
 
-case "${1:-}" in
-  --version|-V)
-    print_version
-    exit 0
-    ;;
-  --help|-h)
-    usage
-    exit 0
-    ;;
-esac
+__fd_close:
+  mov eax, 3
+  syscall
+  ret
 
-if [[ "$1" == *.coatl ]]; then
-  cmd="build"
-else
-  cmd="$1"
-  shift
-fi
+__path_open:
+  push rbp
+  mov rbp, rsp
+  push r9
+  mov r11, rsi
+  lea r10, [rip+__coatl_mem]
+  mov rsi, [rbp+16]
+  add rsi, r10
+  mov rdi, -100
+  mov rdx, 0
+  test r11, 1
+  jz .L_open_flags_done
+  mov rdx, 0x241
+.L_open_flags_done:
+  mov r10, 0x1A4
+  mov eax, 257
+  syscall
+  pop r11
+  lea r10, [rip+__coatl_mem]
+  add r11, r10
+  mov [r11], eax
+  mov eax, 0
+  pop rbp
+  ret
 
-if [[ "$cmd" == "run-cbyte" ]]; then
-  "$CBYTE_VM" "$1"
-  exit 0
-fi
+__tty_get_mode:
+  push rbp
+  mov rbp, rsp
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8
+  mov rdx, rsi
+  mov rsi, 0x5401
+  mov eax, 16
+  syscall
+  test rax, rax
+  js .L_tty_get_fail
+  mov eax, 0
+  pop rbp
+  ret
+.L_tty_get_fail:
+  neg rax
+  pop rbp
+  ret
 
-if [[ "$cmd" != "build" ]]; then
-  usage
-  exit 1
-fi
+__tty_set_raw:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 64
+  push rdi
+  push rdx
+  push rcx
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8
+  lea rdi, [rbp-64]
+  mov rcx, 60
+.L_tty_copy:
+  mov al, [rsi]
+  mov [rdi], al
+  inc rsi
+  inc rdi
+  dec rcx
+  jnz .L_tty_copy
+  mov eax, [rbp-64+0]
+  and eax, ~0x05EB
+  mov [rbp-64+0], eax
+  mov eax, [rbp-64+4]
+  and eax, ~0x0001
+  mov [rbp-64+4], eax
+  mov eax, [rbp-64+8]
+  and eax, ~0x0130
+  or eax, 0x0030
+  mov [rbp-64+8], eax
+  mov eax, [rbp-64+12]
+  and eax, ~0x804B
+  mov [rbp-64+12], eax
+  pop rcx
+  pop rdx
+  mov [rbp-64+17+6], dl
+  mov [rbp-64+17+5], cl
+  pop rdi
+  mov rsi, 0x5402
+  lea rdx, [rbp-64]
+  mov eax, 16
+  syscall
+  test rax, rax
+  js .L_tty_raw_fail
+  mov eax, 0
+  leave
+  ret
+.L_tty_raw_fail:
+  neg rax
+  leave
+  ret
 
-input="$1"
-input_abs="$(realpath "$input")"
-out="a.out"
-arch="x86_64"
-if [[ "$(uname -m)" == "aarch64" ]]; then arch="aarch64"; fi
+__tty_restore:
+  push rbp
+  mov rbp, rsp
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8
+  mov rdx, rsi
+  mov rsi, 0x5402
+  mov eax, 16
+  syscall
+  test rax, rax
+  js .L_tty_restore_fail
+  mov eax, 0
+  pop rbp
+  ret
+.L_tty_restore_fail:
+  neg rax
+  pop rbp
+  ret
 
-shift
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -o) out="$2"; shift 2 ;;
-    --arch=*) arch="${1#--arch=}"; shift ;;
-    *) shift ;;
-  esac
-done
+__tty_get_size:
+  push rbp
+  mov rbp, rsp
+  lea r8, [rip+__coatl_mem]
+  add rsi, r8
+  mov rdx, rsi
+  mov rsi, 0x5413
+  mov eax, 16
+  syscall
+  test rax, rax
+  js .L_tty_size_fail
+  mov eax, 0
+  pop rbp
+  ret
+.L_tty_size_fail:
+  neg rax
+  pop rbp
+  ret
+"""
 
-emit="bin"
-case "$out" in
-  *.s) emit="asm" ;;
-  *.ir) emit="ir" ;;
-  *.o) emit="obj" ;;
-  *.cbyte) emit="cbyte" ;;
-  *) emit="bin" ;;
-esac
+INTRINSICS_AARCH64 = """
+.globl __mem_store
+.globl __mem_store8
+.globl __mem_load
+.globl __mem_load8
+.globl __fd_write
+.globl __fd_read
+.globl __fd_close
+.globl __path_open
+.globl __tty_get_mode
+.globl __tty_set_raw
+.globl __tty_restore
+.globl __tty_get_size
 
-out_abs="$(realpath -m "$out")"
+.macro GET_COATL_MEM reg
+  adrp \\reg, __coatl_mem
+  add \\reg, \\reg, :lo12:__coatl_mem
+.endm
 
-assemble_asm_to_obj() {
-  if [[ "$arch" == "aarch64" ]]; then
-    as "$1" -o "$2"
-  else
-    as --64 "$1" -o "$2"
-  fi
-}
+__mem_store:
+  GET_COATL_MEM x8
+  add x0, x0, x8
+  str w1, [x0]
+  ret
 
-link_asm_to_bin() {
-  if [[ "$arch" == "aarch64" ]]; then
-    cc -fPIE -pie "$1" -o "$2"
-  else
-    cc -fPIE -pie "$1" -o "$2"
-  fi
-}
+__mem_store8:
+  GET_COATL_MEM x8
+  add x0, x0, x8
+  strb w1, [x0]
+  ret
 
-ir_pipeline_build_asm() {
-  local tmp_ir="$(mktemp /tmp/coatl-ir.XXXXXX.ir)"
-  local tmp_asm="$(mktemp /tmp/coatl-asm.XXXXXX.s)"
-  local backend="$IR_TO_X86_ASM"
-  if [[ "$arch" == "aarch64" ]]; then backend="$IR_TO_AARCH64_ASM"; fi
+__mem_load:
+  GET_COATL_MEM x8
+  add x0, x0, x8
+  ldrsw x0, [x0]
+  ret
 
-  "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"
-  "$backend" "$tmp_ir" -o "$tmp_asm"
-  
-  if [[ "$arch" == "x86_64" ]]; then
-    cat "$X86_INTRINSICS" >> "$tmp_asm"
-  else
-    cat "$AARCH64_INTRINSICS" >> "$tmp_asm"
-  fi
-  
-  cp "$tmp_asm" "$out_abs"
-  rm -f "$tmp_ir" "$tmp_asm"
-}
+__mem_load8:
+  GET_COATL_MEM x8
+  add x0, x0, x8
+  ldrsb x0, [x0]
+  ret
 
-if [[ "$emit" == "asm" ]]; then
-  ir_pipeline_build_asm
-elif [[ "$emit" == "bin" ]]; then
-  tmp_asm="$(mktemp /tmp/coatl-bin.XXXXXX.s)"
-  prev_out="$out_abs"
-  out_abs="$tmp_asm"
-  ir_pipeline_build_asm
-  out_abs="$prev_out"
-  link_asm_to_bin "$tmp_asm" "$out_abs"
-  rm -f "$tmp_asm"
-elif [[ "$emit" == "obj" ]]; then
-  tmp_asm="$(mktemp /tmp/coatl-obj.XXXXXX.s)"
-  prev_out="$out_abs"
-  out_abs="$tmp_asm"
-  ir_pipeline_build_asm
-  out_abs="$prev_out"
-  assemble_asm_to_obj "$tmp_asm" "$out_abs"
-  rm -f "$tmp_asm"
-elif [[ "$emit" == "ir" ]]; then
-  "$SUBSET_FRONTEND" "$input_abs" -o "$out_abs"
-elif [[ "$emit" == "cbyte" ]]; then
-  local tmp_ir="$(mktemp /tmp/coatl-ir.XXXXXX.ir)"
-  "$SUBSET_FRONTEND" "$input_abs" -o "$tmp_ir"
-  "$IR_TO_CBYTE" "$tmp_ir" -o "$out_abs"
-  rm -f "$tmp_ir"
-fi
+__fd_write:
+  GET_COATL_MEM x8
+  sub sp, sp, #48
+  str x8, [sp, #32]
+  str x3, [sp, #24]
+  add x9, x1, x8
+  ldr w10, [x9]
+  add x10, x10, x8
+  str x10, [sp, #0]
+  ldr w10, [x9, #4]
+  uxtw x10, w10
+  str x10, [sp, #8]
+  mov x1, sp
+  mov x2, #1
+  mov x8, #66
+  svc #0
+  ldr x8, [sp, #32]
+  ldr x3, [sp, #24]
+  add x3, x3, x8
+  str w0, [x3]
+  mov x0, #0
+  add sp, sp, #48
+  ret
+
+__fd_read:
+  GET_COATL_MEM x8
+  sub sp, sp, #48
+  str x8, [sp, #32]
+  str x3, [sp, #24]
+  add x9, x1, x8
+  ldr w10, [x9]
+  add x10, x10, x8
+  str x10, [sp, #0]
+  ldr w10, [x9, #4]
+  uxtw x10, w10
+  str x10, [sp, #8]
+  mov x1, sp
+  mov x2, #1
+  mov x8, #65
+  svc #0
+  ldr x8, [sp, #32]
+  ldr x3, [sp, #24]
+  add x3, x3, x8
+  str w0, [x3]
+  mov x0, #0
+  add sp, sp, #48
+  ret
+
+__fd_close:
+  mov x8, #57
+  svc #0
+  ret
+
+__path_open:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  sub sp, sp, #32
+  str x8, [sp, #16]
+  mov x11, x4
+  mov x12, x2
+  GET_COATL_MEM x8
+  str x8, [sp, #8]
+  add x1, x12, x8
+  mov x0, #-100
+  mov x2, #0
+  tst x11, #1
+  beq .L_open_flags_done
+  mov x2, #0x241
+.L_open_flags_done:
+  mov x3, #0x1A4
+  mov x8, #56
+  svc #0
+  ldr x8, [sp, #8]
+  ldr x5, [sp, #16]
+  add x5, x5, x8
+  str w0, [x5]
+  mov x0, #0
+  add sp, sp, #32
+  ldp x29, x30, [sp], #16
+  ret
+
+__tty_get_mode:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  GET_COATL_MEM x8
+  add x1, x1, x8
+  mov x2, x1
+  mov x1, #0x5401
+  mov x8, #29
+  svc #0
+  cmp x0, #0
+  b.lt .L_tty_get_fail
+  mov x0, #0
+  ldp x29, x30, [sp], #16
+  ret
+.L_tty_get_fail:
+  neg x0, x0
+  ldp x29, x30, [sp], #16
+  ret
+
+__tty_set_raw:
+  stp x29, x30, [sp, #-96]!
+  mov x29, sp
+  str x0, [sp, #80]
+  str w2, [sp, #88]
+  str w3, [sp, #92]
+  GET_COATL_MEM x8
+  add x1, x1, x8
+  add x0, sp, #16
+  mov x2, #60
+.L_tty_copy:
+  ldrb w3, [x1], #1
+  strb w3, [x0], #1
+  subs x2, x2, #1
+  b.ne .L_tty_copy
+  ldr w0, [sp, #16]
+  mov w1, #0x05EB
+  mvn w1, w1
+  and w0, w0, w1
+  str w0, [sp, #16]
+  ldr w0, [sp, #20]
+  mov w1, #0x0001
+  mvn w1, w1
+  and w0, w0, w1
+  str w0, [sp, #20]
+  ldr w0, [sp, #24]
+  mov w1, #0x0130
+  mvn w1, w1
+  and w0, w0, w1
+  mov w1, #0x0030
+  orr w0, w0, w1
+  str w0, [sp, #24]
+  ldr w0, [sp, #28]
+  mov w1, #0x804B
+  mvn w1, w1
+  and w0, w0, w1
+  str w0, [sp, #28]
+  ldr w3, [sp, #92]
+  ldr w2, [sp, #88]
+  strb w2, [sp, #39]
+  strb w3, [sp, #38]
+  ldr x0, [sp, #80]
+  mov x1, #0x5402
+  add x2, sp, #16
+  mov x8, #29
+  svc #0
+  cmp x0, #0
+  b.lt .L_tty_raw_fail
+  mov x0, #0
+  ldp x29, x30, [sp], #96
+  ret
+.L_tty_raw_fail:
+  neg x0, x0
+  ldp x29, x30, [sp], #96
+  ret
+
+__tty_restore:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  GET_COATL_MEM x8
+  add x1, x1, x8
+  mov x2, x1
+  mov x1, #0x5402
+  mov x8, #29
+  svc #0
+  cmp x0, #0
+  b.lt .L_tty_restore_fail
+  mov x0, #0
+  ldp x29, x30, [sp], #16
+  ret
+.L_tty_restore_fail:
+  neg x0, x0
+  ldp x29, x30, [sp], #16
+  ret
+
+__tty_get_size:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  GET_COATL_MEM x8
+  add x1, x1, x8
+  mov x2, x1
+  mov x1, #0x5413
+  mov x8, #29
+  svc #0
+  cmp x0, #0
+  b.lt .L_tty_size_fail
+  mov x0, #0
+  ldp x29, x30, [sp], #16
+  ret
+.L_tty_size_fail:
+  neg x0, x0
+  ldp x29, x30, [sp], #16
+  ret
+"""
+
+# --- Lexer ---
+
+TOK_IDENT, TOK_NUM, TOK_STR, TOK_SYM, TOK_EOF = "IDENT", "NUM", "STR", "SYM", "EOF"
+
+class Token:
+    def __init__(self, kind, value, line, col):
+        self.kind, self.value, self.line, self.col = kind, value, line, col
+    def __repr__(self): return f"Token({self.kind}, {repr(self.value)}, {self.line}:{self.col})"
+
+class Lexer:
+    def __init__(self, source):
+        self.source, self.pos, self.line, self.col = source, 0, 1, 1
+    def peek(self, n=0): return self.source[self.pos+n] if self.pos+n < len(self.source) else None
+    def advance(self):
+        c = self.peek()
+        if c:
+            self.pos += 1
+            if c == '\n': self.line += 1; self.col = 1
+            else: self.col += 1
+        return c
+    def tokenize(self):
+        tokens = []
+        while self.pos < len(self.source):
+            c = self.peek()
+            if c.isspace(): self.advance()
+            elif c == '/' and self.peek(1) == '/':
+                while self.peek() and self.peek() != '\n': self.advance()
+            elif c.isalpha() or c == '_':
+                s_l, s_c, val = self.line, self.col, ""
+                while self.peek() and (self.peek().isalnum() or self.peek() == '_'): val += self.advance()
+                tokens.append(Token(TOK_IDENT, val, s_l, s_c))
+            elif c.isdigit():
+                s_l, s_c, val = self.line, self.col, ""
+                while self.peek() and (self.peek().isdigit() or self.peek() == '.'): val += self.advance()
+                if self.source[self.pos:self.pos+3] == 'i64': val += 'i64'; self.pos += 3; self.col += 3
+                tokens.append(Token(TOK_NUM, val, s_l, s_c))
+            elif c == '"':
+                s_l, s_c, val = self.line, self.col, ""
+                self.advance()
+                while self.peek() and self.peek() != '"':
+                    if self.peek() == '\\':
+                        self.advance(); nc = self.advance()
+                        if nc == 'n': val += '\n'
+                        elif nc == 't': val += '\t'
+                        elif nc == 'r': val += '\r'
+                        elif nc == '"': val += '"'
+                        elif nc == '\\': val += '\\'
+                        elif nc == 'x':
+                            h1 = self.advance(); h2 = self.advance()
+                            val += chr(int(h1 + h2, 16))
+                        else: val += "\\" + nc
+                    else: val += self.advance()
+                self.advance()
+                tokens.append(Token(TOK_STR, val, s_l, s_c))
+            else:
+                s_l, s_c = self.line, self.col
+                for sym in ["==", "!=", "<=", ">=", "->", "&&", "||"]:
+                    if self.source[self.pos:self.pos+len(sym)] == sym:
+                        tokens.append(Token(TOK_SYM, sym, s_l, s_c)); self.pos += len(sym); self.col += len(sym); break
+                else: tokens.append(Token(TOK_SYM, self.advance(), s_l, s_c))
+        tokens.append(Token(TOK_EOF, "", self.line, self.col))
+        return tokens
+
+# --- IR Node ---
+
+class IRNode:
+    def __init__(self, kind, value=None, children=None, is_str=False):
+        self.kind, self.value, self.children, self.is_str = kind, value, (children if children is not None else []), is_str
+        for i, c in enumerate(self.children):
+            if isinstance(c, str): self.children[i] = Atom(c)
+    def to_ir(self, indent=0):
+        sp = "  " * indent
+        if self.kind == 'atom':
+            v = self.value
+            if self.is_str:
+                res = v.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+                final = ""
+                for c in res:
+                    if ord(c) < 32 or ord(c) > 126: final += f"\\x{ord(c):02x}"
+                    else: final += c
+                return f'"{final}"'
+            return str(v)
+        if not self.children: return "()"
+        head = self.children[0].value
+        if head in ['coatl_ir', 'fn', 'call', 'struct', 'field', 'param', 'let', 'ret', 'ident', 'int', 'int_i64', 'bool', 'string_typed', 'struct_lit']:
+            res = "(" + self.children[0].to_ir()
+            i = 1
+            while i < len(self.children) and self.children[i].kind == 'atom' and i < 3:
+                res += " " + self.children[i].to_ir(); i += 1
+            for c in self.children[i:]: res += "\n" + sp + "  " + c.to_ir(indent + 1)
+            return res + ")"
+        res = "(" + self.children[0].to_ir(indent)
+        for c in self.children[1:]:
+            if c.kind == 'atom' and len(self.children) < 4: res += " " + c.to_ir()
+            else: res += "\n" + sp + "  " + c.to_ir(indent + 1)
+        return res + ")"
+
+def Atom(v, is_str=False): return IRNode('atom', value=v, is_str=is_str)
+def List(c): return IRNode('list', children=c)
+
+# --- Parser ---
+
+class Parser:
+    def __init__(self, tokens): self.tokens, self.pos = tokens, 0
+    def peek(self, n=0): return self.tokens[self.pos + n] if self.pos + n < len(self.tokens) else self.tokens[-1]
+    def consume(self, k=None, v=None):
+        t = self.peek()
+        if (k and t.kind != k) or (v and t.value != v): raise Exception(f"Expected {k or v}, got {t} at {t.line}:{t.col}")
+        self.pos += 1; return t
+    def parse_sexpr(self):
+        t = self.peek()
+        if t.value == "(":
+            self.consume()
+            children = []
+            while self.peek().value != ")": children.append(self.parse_sexpr())
+            self.consume(); return List(children)
+        else:
+            self.pos += 1
+            if t.kind == TOK_STR:
+                val, j = "", 0
+                while j < len(t.value):
+                    if t.value[j] == '\\' and j + 1 < len(t.value):
+                        nc = t.value[j+1]
+                        if nc == 'n': val += '\n'; j += 2
+                        elif nc == 'r': val += '\r'; j += 2
+                        elif nc == 't': val += '\t'; j += 2
+                        elif nc == 'x' and j + 3 < len(t.value):
+                            val += chr(int(t.value[j+2:j+4], 16)); j += 4
+                        else: val += nc; j += 2
+                    else: val += t.value[j]; j += 1
+                return Atom(val, is_str=True)
+            return Atom(t.value)
+    def parse_program(self):
+        structs, fns, saved = [], [], self.pos
+        while self.peek().kind != TOK_EOF:
+            if self.peek().value == "struct": structs.append(self.parse_struct())
+            else: self.pos += 1
+        self.pos = saved
+        while self.peek().kind != TOK_EOF:
+            if self.peek().value == "fn": fns.append(self.parse_fn())
+            elif self.peek().value == "struct":
+                self.consume(); self.consume()
+                if self.peek().value == "{":
+                    self.consume(); d = 1
+                    while d > 0 and self.peek().kind != TOK_EOF:
+                        if self.peek().value == "{": d += 1
+                        elif self.peek().value == "}": d -= 1
+                        self.consume()
+            else: self.pos += 1
+        return List([Atom('coatl_ir'), Atom('v1'), List([Atom('structs')] + structs), List([Atom('functions')] + fns)])
+
+    def parse_struct(self):
+        self.consume(TOK_IDENT, "struct"); name = self.consume(TOK_IDENT).value; fields = []
+        if self.peek().value == "{":
+            self.consume();
+            while self.peek().value != "}":
+                fn = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); ft = self.consume(TOK_IDENT).value
+                fields.append(List([Atom('field'), Atom(fn), Atom(ft)]))
+                if self.peek().value == ",": self.consume()
+            self.consume()
+        return List([Atom('struct'), Atom(name)] + fields)
+
+    def parse_fn(self):
+        self.consume(TOK_IDENT, "fn"); name = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, "("); params = []
+        while self.peek().value != ")":
+            pn = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); pt = self.consume(TOK_IDENT).value
+            params.append(List([Atom('param'), Atom(pn), Atom(pt)]))
+            if self.peek().value == ",": self.consume()
+        self.consume(); rt = "i32"
+        if self.peek().value == "->": self.consume(); rt = self.consume(TOK_IDENT).value
+        block = List([Atom('block')])
+        if self.peek().value == "{":
+            self.consume();
+            while self.peek().value != "}": block.children.append(self.parse_stmt())
+            self.consume()
+        return List([Atom('fn'), Atom(name), List([Atom('params')] + params), List([Atom('ret'), Atom(rt)]), block])
+
+    def parse_stmt(self):
+        t = self.peek()
+        if t.value == "let":
+            self.consume(); n = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); ty = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, "="); e = self.parse_expr()
+            if self.peek().value == ";": self.consume()
+            return List([Atom('let'), Atom(n), Atom(ty), e])
+        if t.value == "return":
+            self.consume(); e = self.parse_expr()
+            if self.peek().value == ";": self.consume()
+            return List([Atom('return'), e])
+        if t.value == "if":
+            self.consume(); c = self.parse_expr(); self.consume(TOK_SYM, "{")
+            th = List([Atom('block')])
+            while self.peek().value != "}": th.children.append(self.parse_stmt())
+            self.consume(); res = List([Atom('if'), c, th])
+            if self.peek().value == "else":
+                self.consume(); self.consume(TOK_SYM, "{")
+                el = List([Atom('block')])
+                while self.peek().value != "}": el.children.append(self.parse_stmt())
+                self.consume(); res.children.append(List([Atom('else'), el]))
+            return res
+        if t.value == "while":
+            self.consume(); c = self.parse_expr(); self.consume(TOK_SYM, "{")
+            b = List([Atom('block')])
+            while self.peek().value != "}": b.children.append(self.parse_stmt())
+            self.consume(); return List([Atom('while'), c, b])
+        if t.kind == TOK_IDENT and self.peek(1).value == "=":
+            n = self.consume().value; self.consume(); e = self.parse_expr()
+            if self.peek().value == ";": self.consume()
+            return List([Atom('assign'), Atom(n), e])
+        if t.kind == TOK_IDENT and self.peek(1).value == "." and self.peek(3).value == "=":
+            v = self.consume().value; self.consume(); f = self.consume(TOK_IDENT).value; self.consume(); e = self.parse_expr()
+            if self.peek().value == ";": self.consume()
+            return List([Atom('field_assign'), Atom(v), Atom(f), e])
+        e = self.parse_expr()
+        if self.peek().value == ";": self.consume()
+        return List([Atom('expr'), e])
+
+    def parse_expr(self): return self.parse_or()
+    def parse_or(self):
+        l = self.parse_and()
+        while self.peek().value == "||": self.consume(); l = List([Atom('binary'), Atom('or'), l, self.parse_and(), Atom('bool')])
+        return l
+    def parse_and(self):
+        l = self.parse_cmp()
+        while self.peek().value == "&&": self.consume(); l = List([Atom('binary'), Atom('and'), l, self.parse_cmp(), Atom('bool')])
+        return l
+    def parse_cmp(self):
+        l = self.parse_add(); ops = {"==": "eq", "!=": "ne", "<": "lt", ">": "gt", "<=": "le", ">=": "ge"}
+        if self.peek().value in ops: op = ops[self.consume().value]; l = List([Atom('binary'), Atom(op), l, self.parse_add(), Atom('bool')])
+        return l
+    def parse_add(self):
+        l = self.parse_mul()
+        while self.peek().value in ["+", "-"]: op = "add" if self.consume().value == "+" else "sub"; l = List([Atom('binary'), Atom(op), l, self.parse_mul()])
+        return l
+    def parse_mul(self):
+        l = self.parse_term()
+        while self.peek().value in ["*", "/"]: op = "mul" if self.consume().value == "*" else "div"; l = List([Atom('binary'), Atom(op), l, self.parse_term()])
+        return l
+    def parse_term(self):
+        t = self.peek()
+        if t.value == "!": self.consume(); return List([Atom('binary'), Atom('eq'), self.parse_term(), List([Atom('int'), Atom('0')]), Atom('bool')])
+        if t.value == "(": self.consume(); e = self.parse_expr(); self.consume(TOK_SYM, ")"); return e
+        if t.kind == TOK_NUM:
+            v = self.consume().value
+            return List([Atom('int_i64' if v.endswith('i64') else 'int'), Atom(v[:-3] if v.endswith('i64') else v)])
+        if t.kind == TOK_STR: return List([Atom('string_typed'), Atom(self.consume().value, is_str=True)])
+        if t.kind == TOK_IDENT:
+            n = self.consume().value
+            if n in ["true", "false"]: return List([Atom('bool'), Atom('1' if n == 'true' else '0')])
+            if self.peek().value == "(":
+                self.consume(); args = []
+                while self.peek().value != ")":
+                    args.append(self.parse_expr())
+                    if self.peek().value == ",": self.consume()
+                self.consume();
+                if n == 'str_len': return List([Atom('str_len'), args[0]])
+                if n == 'str_ptr': return List([Atom('str_ptr'), args[0]])
+                return List([Atom('call'), Atom(n)] + args)
+            if self.peek().value == "{":
+                self.consume(); fields = []
+                while self.peek().value != "}":
+                    self.consume(); self.consume(); fields.append(self.parse_expr())
+                    if self.peek().value == ",": self.consume()
+                self.consume(); return List([Atom('struct_lit'), Atom(n)] + fields)
+            if self.peek().value == ".": self.consume(); return List([Atom('field'), Atom(n), Atom(self.consume(TOK_IDENT).value)])
+            return List([Atom('ident'), Atom(n)])
+        raise Exception(f"Unexpected {t}")
+
+# --- Backend ---
+
+class BaseBackend:
+    def __init__(self, ir): self.ir, self.output, self.vars, self.strings, self.label_count, self.current_fn, self.structs = ir, [], {}, {}, 0, None, {}
+    def emit(self, l): self.output.append(l)
+    def new_label(self, p="L"): self.label_count += 1; return f".{p}{self.label_count}"
+    def collect_strings(self, n):
+        if n.kind == 'list':
+            if n.children and n.children[0].value == 'string_typed':
+                v = n.children[1].value
+                if v not in self.strings: self.strings[v] = True
+            for c in n.children: self.collect_strings(c)
+
+class X86_64Backend(BaseBackend):
+    def lower(self):
+        fns, structs = None, None
+        for c in self.ir.children:
+            if c.kind == 'list' and c.children:
+                if c.children[0].value == 'functions': fns = c
+                elif c.children[0].value == 'structs': structs = c
+        if structs:
+            for s in structs.children[1:]: self.structs[s.children[1].value] = [f.children[1].value for f in s.children[2:]]
+        self.emit(".intel_syntax noprefix\n.bss\n.align 16\n.globl __coatl_mem\n__coatl_mem:\n  .zero 1048576\n__coatl_mem_inited:\n  .long 0\n.text\n__coatl_init_memory:\n  push rbp; mov rbp, rsp\n  mov eax, dword ptr [rip+__coatl_mem_inited]; test eax, eax; jne .L_mem_done\n  mov dword ptr [rip+__coatl_mem_inited], 1\n  lea rdx, [rip+__coatl_mem]")
+        if fns: self.collect_strings(fns)
+        off = 65536
+        for v in self.strings:
+            b_val = v.encode('utf-8')
+            for i, b in enumerate(b_val): self.emit(f"  mov byte ptr [rdx+{off+i}], {b}")
+            self.emit(f"  mov byte ptr [rdx+{off+len(b_val)}], 0"); self.strings[v] = off; off += len(b_val) + 1
+        self.emit(".L_mem_done:\n  pop rbp; ret")
+        if fns:
+            for f in fns.children[1:]: self.lower_fn(f)
+        self.emit(".globl coatl_start\ncoatl_start:\n  call __coatl_init_memory\n  call main\n  mov edi, eax; mov eax, 60; syscall")
+    def lower_fn(self, n):
+        self.current_fn, self.vars = n.children[1].value, {}; self.emit(f".global {self.current_fn}\n{self.current_fn}:")
+        self.emit("  push rbp; mov rbp, rsp; sub rsp, 4096")
+        rs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]; o = 8
+        for i, p in enumerate(n.children[2].children[1:]):
+            self.vars[p.children[1].value] = (o, p.children[2].value)
+            if i < len(rs): self.emit(f"  mov [rbp-{o}], {rs[i]}")
+            else:
+                # Handle 7+ args from stack (above RBP+16)
+                stack_off = 16 + (i - 6) * 8
+                self.emit(f"  mov rax, [rbp+{stack_off}]")
+                self.emit(f"  mov [rbp-{o}], rax")
+            o += 8
+        for s in n.children[4].children[1:]: self.lower_stmt(s)
+        self.emit(f".Lret_{self.current_fn}:; leave; ret")
+    def lower_stmt(self, n):
+        h = n.children[0].value
+        if h == "let":
+            v = n.children[1].value; o = (len(self.vars)+1)*8; self.vars[v] = (o, n.children[2].value); self.lower_expr(n.children[3]); self.emit(f"  mov [rbp-{o}], rax")
+        elif h == "assign": o, _ = self.vars[n.children[1].value]; self.lower_expr(n.children[2]); self.emit(f"  mov [rbp-{o}], rax")
+        elif h == "field_assign":
+            var, field = n.children[1].value, n.children[2].value
+            o, ty = self.vars[var]; fi = self.structs[ty].index(field)
+            self.lower_expr(n.children[3]); self.emit(f"  mov dword ptr [rbp-{o-fi*4}], eax")
+        elif h == "return": self.lower_expr(n.children[1]); self.emit(f"  jmp .Lret_{self.current_fn}")
+        elif h == "expr": self.lower_expr(n.children[1])
+        elif h == "if":
+            le, lnd = self.new_label("else"), self.new_label("endif"); self.lower_expr(n.children[1]); self.emit(f"  cmp rax, 0; je {le}")
+            for s in n.children[2].children[1:]: self.lower_stmt(s)
+            self.emit(f"  jmp {lnd}\n{le}:")
+            if len(n.children) > 3:
+                for s in n.children[3].children[1].children[1:]: self.lower_stmt(s)
+            self.emit(f"{lnd}:")
+        elif h == "while":
+            ls, lnd = self.new_label("while"), self.new_label("endwhile"); self.emit(f"{ls}:"); self.lower_expr(n.children[1]); self.emit(f"  cmp rax, 0; je {lnd}")
+            for s in n.children[2].children[1:]: self.lower_stmt(s)
+            self.emit(f"  jmp {ls}\n{lnd}:")
+    def lower_expr(self, n):
+        h = n.children[0].value
+        if h in ["int", "int_i64"]: self.emit(f"  mov rax, {n.children[1].value}")
+        elif h == "bool": self.emit(f"  mov rax, {n.children[1].value}")
+        elif h == "ident":
+            o, _ = self.vars[n.children[1].value]
+            self.emit(f"  movsxd rax, dword ptr [rbp-{o}]")
+        elif h == "field":
+            var, field = n.children[1].value, n.children[2].value
+            o, ty = self.vars[var]; fi = self.structs[ty].index(field)
+            self.emit(f"  movsxd rax, dword ptr [rbp-{o-fi*4}]")
+        elif h == "struct_lit":
+            for i, arg in enumerate(n.children[2:4]): # only supports 2 fields packed
+                self.lower_expr(arg)
+                if i == 0: self.emit("  push rax")
+                else: self.emit("  shl rax, 32; pop rcx; or rax, rcx")
+        elif h == "string_typed": self.emit(f"  mov rax, {self.strings[n.children[1].value]}")
+        elif h == "str_len" or h == "str_ptr": self.lower_expr(n.children[1]) # both are just offsets
+        elif h == "call":
+            rs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+            args = n.children[2:]
+            # Handle args 7+ by pushing them to stack in reverse order
+            for i in range(len(args) - 1, 5, -1):
+                self.lower_expr(args[i])
+                self.emit("  push rax")
+            for i in range(min(len(args), 6)):
+                self.lower_expr(args[i])
+                self.emit("  push rax")
+            for i in range(min(len(args), 6) - 1, -1, -1):
+                self.emit(f"  pop {rs[i]}")
+            self.emit(f"  call {n.children[1].value}")
+            # Clean up stack if we pushed 7+ args
+            if len(args) > 6:
+                self.emit(f"  add rsp, {(len(args) - 6) * 8}")
+        elif h == "binary":
+            op = n.children[1].value; self.lower_expr(n.children[2]); self.emit("  push rax"); self.lower_expr(n.children[3]); self.emit("  mov rcx, rax; pop rax")
+            if op == "add": self.emit("  add rax, rcx")
+            elif op == "sub": self.emit("  sub rax, rcx")
+            elif op == "mul": self.emit("  imul rax, rcx")
+            elif op == "div": self.emit("  cqo; idiv rcx")
+            elif op == "and": self.emit("  and rax, rcx")
+            elif op == "or": self.emit("  or rax, rcx")
+            else: self.emit(f"  cmp rax, rcx; set{ {'eq':'e','ne':'ne','lt':'l','gt':'g','le':'le','ge':'ge'}[op] } al; movzx rax, al")
+
+class AArch64Backend(BaseBackend):
+    def lower(self):
+        fns, structs = None, None
+        for c in self.ir.children:
+            if c.kind == 'list' and c.children:
+                if c.children[0].value == 'functions': fns = c
+                elif c.children[0].value == 'structs': structs = c
+        if structs:
+            for s in structs.children[1:]: self.structs[s.children[1].value] = [f.children[1].value for f in s.children[2:]]
+        self.emit(".bss\n.align 4\n.globl __coatl_mem\n__coatl_mem:\n  .zero 1048576\n__coatl_mem_inited:\n  .word 0\n.text\n__coatl_init_memory:\n  stp x29, x30, [sp, #-16]!\n  mov x29, sp\n  adrp x0, __coatl_mem_inited; ldr w1, [x0, :lo12:__coatl_mem_inited]; cbnz w1, .L_mem_done\n  mov w1, #1; str w1, [x0, :lo12:__coatl_mem_inited]\n  adrp x2, __coatl_mem; add x2, x2, :lo12:__coatl_mem")
+        if fns: self.collect_strings(fns)
+        off = 65536
+        for v in self.strings:
+            b_val = v.encode('utf-8')
+            for i, b in enumerate(b_val): self.emit(f"  mov w0, #{b}; strb w0, [x2, #{off+i}]")
+            self.emit(f"  strb wzr, [x2, #{off+len(b_val)}]"); self.strings[v] = off; off += len(b_val) + 1
+        self.emit(".L_mem_done:\n  ldp x29, x30, [sp], #16\n  ret")
+        if fns:
+            for f in fns.children[1:]: self.lower_fn(f)
+        self.emit(".globl coatl_start\ncoatl_start:\n  stp x29, x30, [sp, #-16]!\n  bl __coatl_init_memory\n  bl main\n  mov w0, w0; mov x8, #93; svc #0")
+    def lower_fn(self, n):
+        self.current_fn, self.vars = n.children[1].value, {}; self.emit(f".global {self.current_fn}\n{self.current_fn}:")
+        self.emit("  stp x29, x30, [sp, #-16]!; mov x29, sp; sub sp, sp, #4096")
+        rs = [f"x{i}" for i in range(8)]; o = 16
+        for i, p in enumerate(n.children[2].children[1:]):
+            self.vars[p.children[1].value] = (o, p.children[2].value)
+            if i < len(rs): self.emit(f"  str {rs[i]}, [x29, #-{o}]")
+            else:
+                # Handle 9+ args from stack (above X29+16)
+                stack_off = 16 + (i - 8) * 8
+                self.emit(f"  ldr x0, [x29, #{stack_off}]")
+                self.emit(f"  str x0, [x29, #-{o}]")
+            o += 8
+        for s in n.children[4].children[1:]: self.lower_stmt(s)
+        self.emit(f".Lret_{self.current_fn}:; add sp, sp, #4096; ldp x29, x30, [sp], #16; ret")
+    def lower_stmt(self, n):
+        h = n.children[0].value
+        if h == "let":
+            v = n.children[1].value; o = (len(self.vars)+2)*8; self.vars[v] = (o, n.children[2].value); self.lower_expr(n.children[3]); self.emit(f"  str x0, [x29, #-{o}]")
+        elif h == "assign": o, _ = self.vars[n.children[1].value]; self.lower_expr(n.children[2]); self.emit(f"  str x0, [x29, #-{o}]")
+        elif h == "field_assign":
+            var, field = n.children[1].value, n.children[2].value
+            o, ty = self.vars[var]; fi = self.structs[ty].index(field)
+            self.lower_expr(n.children[3]); self.emit(f"  str w0, [x29, #-{o-fi*4}]")
+        elif h == "return": self.lower_expr(n.children[1]); self.emit(f"  b .Lret_{self.current_fn}")
+        elif h == "expr": self.lower_expr(n.children[1])
+        elif h == "if":
+            le, lnd = self.new_label("else"), self.new_label("endif"); self.lower_expr(n.children[1]); self.emit(f"  cbz x0, {le}")
+            for s in n.children[2].children[1:]: self.lower_stmt(s)
+            self.emit(f"  b {lnd}\n{le}:")
+            if len(n.children) > 3:
+                for s in n.children[3].children[1].children[1:]: self.lower_stmt(s)
+            self.emit(f"{lnd}:")
+        elif h == "while":
+            ls, lnd = self.new_label("while"), self.new_label("endwhile"); self.emit(f"{ls}:"); self.lower_expr(n.children[1]); self.emit(f"  cbz x0, {lnd}")
+            for s in n.children[2].children[1:]: self.lower_stmt(s)
+            self.emit(f"  b {ls}\n{lnd}:")
+    def lower_expr(self, n):
+        h = n.children[0].value
+        if h in ["int", "int_i64", "bool"]: self.emit(f"  mov x0, #{n.children[1].value}")
+        elif h == "ident":
+            o, _ = self.vars[n.children[1].value]
+            self.emit(f"  ldrsw x0, [x29, #-{o}]")
+        elif h == "field":
+            var, field = n.children[1].value, n.children[2].value
+            o, ty = self.vars[var]; fi = self.structs[ty].index(field)
+            self.emit(f"  ldrsw x0, [x29, #-{o-fi*4}]")
+        elif h == "struct_lit":
+            for i, arg in enumerate(n.children[2:4]):
+                self.lower_expr(arg)
+                if i == 0: self.emit("  str x0, [sp, #-16]!")
+                else: self.emit("  lsl x0, x0, #32; ldr x1, [sp], #16; orr x0, x0, x1")
+        elif h == "string_typed": self.emit(f"  mov x0, #{self.strings[n.children[1].value]}")
+        elif h == "str_len" or h == "str_ptr": self.lower_expr(n.children[1])
+        elif h == "call":
+            args = n.children[2:]
+            for i in range(len(args)-1, 7, -1):
+                self.lower_expr(args[i])
+                self.emit("  str x0, [sp, #-16]!")
+            for i in range(min(len(args), 8)):
+                self.lower_expr(args[i]); self.emit("  str x0, [sp, #-16]!")
+            for i in range(min(len(args), 8)-1, -1, -1): self.emit(f"  ldr x{i}, [sp], #16")
+            self.emit(f"  bl {n.children[1].value}")
+            if len(args) > 8:
+                self.emit(f"  add sp, sp, #{(len(args)-8)*16}") # simplified SP management
+        elif h == "binary":
+            op = n.children[1].value; self.lower_expr(n.children[2]); self.emit("  str x0, [sp, #-16]!"); self.lower_expr(n.children[3]); self.emit("  mov x1, x0; ldr x0, [sp], #16")
+            if op == "add": self.emit("  add x0, x0, x1")
+            elif op == "sub": self.emit("  sub x0, x0, x1")
+            elif op == "mul": self.emit("  mul x0, x0, x1")
+            elif op == "div": self.emit("  sdiv x0, x0, x1")
+            elif op == "and": self.emit("  and x0, x0, x1")
+            elif op == "or": self.emit("  orr x0, x0, x1")
+            else: self.emit(f"  cmp x0, x1; cset w0, { {'eq':'eq','ne':'ne','lt':'lt','gt':'gt','le':'le','ge':'ge'}[op] }")
+
+class CByteBackend(BaseBackend):
+    def __init__(self, ir):
+        super().__init__(ir); self.bc = bytearray(); self.fns = {}
+    def emit_b(self, b): self.bc.append(b & 0xFF)
+    def emit_i(self, i): self.bc.extend(struct.pack("<i", i))
+    def lower(self):
+        self.bc.extend(b"CBYT"); self.emit_b(1); self.emit_i(0)
+        fns_node = next(c for c in self.ir.children if c.kind == 'list' and c.children and c.children[0].value == 'functions')
+        for f in fns_node.children[1:]:
+            self.fns[f.children[1].value] = len(self.bc)
+            self.lower_fn(f)
+        self.bc[5:9] = struct.pack("<i", self.fns.get("main", 9))
+        for i in range(4, len(self.bc)): self.bc[i] = (self.bc[i] + 172 + i) & 0xFF
+    def lower_fn(self, n):
+        self.vars = {}
+        for i, p in enumerate(n.children[2].children[1:]): self.vars[p.children[1].value] = i
+        for s in n.children[4].children[1:]: self.lower_stmt(s)
+        self.emit_b(239)
+    def lower_stmt(self, n):
+        h = n.children[0].value
+        if h == "let":
+            v = n.children[1].value; self.vars[v] = len(self.vars); self.lower_expr(n.children[3]); self.emit_b(144); self.emit_i(self.vars[v])
+        elif h == "assign": self.lower_expr(n.children[2]); self.emit_b(144); self.emit_i(self.vars[n.children[1].value])
+        elif h == "return": self.lower_expr(n.children[1]); self.emit_b(239)
+        elif h == "expr": self.lower_expr(n.children[1])
+    def lower_expr(self, n):
+        h = n.children[0].value
+        if h == "int": self.emit_b(18); self.emit_i(int(n.children[1].value))
+        elif h == "ident": self.emit_b(133); self.emit_i(self.vars[n.children[1].value])
+        elif h == "binary":
+            self.lower_expr(n.children[2]); self.lower_expr(n.children[3])
+            op = n.children[1].value
+            if op == "add": self.emit_b(45)
+            elif op == "sub": self.emit_b(56)
+        elif h == "call":
+            for a in n.children[2:]: self.lower_expr(a)
+            if n.children[1].value == "write_stdout": self.emit_b(254); self.emit_i(1)
+
+def run_cbyte(path):
+    with open(path, 'rb') as f: bc = bytearray(f.read())
+    if bc[:4] != b"CBYT": raise Exception("Not a cbyte file")
+    for i in range(4, len(bc)): bc[i] = (bc[i] - 172 - i) % 256
+    pc = struct.unpack("<i", bc[5:9])[0]; stack = []; regs = [0] * 1024
+    while pc < len(bc):
+        op = bc[pc]; pc += 1
+        if op == 18: stack.append(struct.unpack("<i", bc[pc:pc+4])[0]); pc += 4
+        elif op == 45: a, b = stack.pop(), stack.pop(); stack.append(b + a)
+        elif op == 56: a, b = stack.pop(), stack.pop(); stack.append(b - a)
+        elif op == 133: r = struct.unpack("<i", bc[pc:pc+4])[0]; stack.append(regs[r]); pc += 4
+        elif op == 144: r = struct.unpack("<i", bc[pc:pc+4])[0]; regs[r] = stack.pop(); pc += 4
+        elif op == 254:
+            sid = struct.unpack("<i", bc[pc:pc+4])[0]; pc += 4
+            if sid == 1: print(chr(stack.pop()), end="")
+        elif op == 239: break
+        else: break
+
+# --- Main ---
+
+def main():
+    if len(sys.argv) < 2: print("Coatl Compiler v2 (Python integrated)"); print("Usage: coatl [build|run-cbyte] <input> [-o <output>] [--arch=<arch>]"); sys.exit(1)
+    if sys.argv[1] == "run-cbyte": run_cbyte(sys.argv[2]); sys.exit(0)
+    args = sys.argv[1:]
+    if args[0] == "build": args = args[1:]
+    if not args: print("Usage: coatl [build] <input.coatl> [-o <output>] [--arch=<arch>]"); sys.exit(1)
+    inp = args[0]; out, arch = "a.out", ("aarch64" if subprocess.run(["uname", "-m"], capture_output=True, text=True).stdout.strip() == "aarch64" else "x86_64")
+    i = 1
+    while i < len(args):
+        if args[i] == "-o": out = args[i+1]; i += 2
+        elif args[i].startswith("--arch="): arch = args[i][7:]; i += 1
+        elif args[i].startswith("--toolchain="): i += 1
+        else: i += 1
+    if not os.path.exists(inp): print(f"Error: {inp} not found"); sys.exit(1)
+    with open(inp, 'r') as f: s = f.read()
+    if inp.endswith(".ir"):
+        tks, j = [], 0
+        while j < len(s):
+            if s[j].isspace(): j += 1
+            elif s[j] == "(": tks.append(Token(TOK_SYM, "(", 0, 0)); j += 1
+            elif s[j] == ")": tks.append(Token(TOK_SYM, ")", 0, 0)); j += 1
+            elif s[j] == '"':
+                j += 1; start = j
+                while j < len(s) and s[j] != '"':
+                    if s[j] == '\\': j += 2
+                    else: j += 1
+                tks.append(Token(TOK_STR, s[start:j], 0, 0)); j += 1
+            else:
+                start = j
+                while j < len(s) and not s[j].isspace() and s[j] not in "()": j += 1
+                tks.append(Token(TOK_IDENT, s[start:j], 0, 0))
+        tks.append(Token(TOK_EOF, "", 0, 0)); ir = Parser(tks).parse_sexpr()
+    else:
+        tks = Lexer(s).tokenize(); ir = Parser(tks).parse_program()
+    if out.endswith(".ir"):
+        with open(out, 'w') as f: f.write(ir.to_ir()); return
+    if out.endswith(".cbyte"):
+        bk = CByteBackend(ir); bk.lower()
+        with open(out, 'wb') as f: f.write(bk.bc); return
+    bk = (AArch64Backend(ir) if arch == "aarch64" else X86_64Backend(ir)); bk.lower()
+    
+    intr_content = INTRINSICS_AARCH64 if arch == "aarch64" else INTRINSICS_X86_64
+    asm = "\n".join(bk.output) + "\n" + intr_content
+    if out.endswith(".s"):
+        with open(out, 'w') as f: f.write(asm); return
+    tmp = tempfile.mktemp(suffix=".s")
+    with open(tmp, 'w') as f: f.write(asm)
+    
+    cc = os.environ.get("CC", "cc")
+    if arch == "aarch64" and subprocess.run(["uname", "-m"], capture_output=True, text=True).stdout.strip() != "aarch64":
+        if subprocess.run(["command", "-v", "aarch64-linux-gnu-gcc"], shell=True, capture_output=True).returncode == 0:
+            cc = "aarch64-linux-gnu-gcc"
+
+    subprocess.run([cc, "-fPIE", "-pie", "-e", "coatl_start", tmp, "-o", out], check=True)
+    os.remove(tmp)
+
+if __name__ == "__main__": main()

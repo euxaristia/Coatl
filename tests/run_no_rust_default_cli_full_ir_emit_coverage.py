@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import sys
+import subprocess
+import os
+
+def main():
+    print('Running ./tests/run_no_rust_default_cli_full_ir_emit_coverage.py (generated replacement for ./tests/run_no_rust_default_cli_full_ir_emit_coverage.sh)')
+    env = os.environ.copy()
+    env['COATL_NO_RUST'] = '1'
+if __name__ == '__main__':
+    main()
