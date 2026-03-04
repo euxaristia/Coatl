@@ -21,6 +21,7 @@
 *.log
 *.asm
 *.ir
+*.wat
 examples/hello
 examples/hello_arm
 examples/test_fd
