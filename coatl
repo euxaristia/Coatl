@@ -8,6 +8,26 @@ import struct
 # --- Intrinsics ---
 
 INTRINSICS_X86_64 = """
+
+.section .rodata
+__proc_self_cmdline:
+  .asciz "/proc/self/cmdline"
+
+.section .bss
+.align 8
+__args_inited:
+  .long 0
+__argc:
+  .long 0
+__argv_table:
+  .zero 256
+__cmdline_buf:
+  .zero 4096
+__pollfd:
+  .zero 8
+
+.text
+
 .globl __tty_get_size
 .intel_syntax noprefix
 .globl __mem_store
@@ -92,29 +112,35 @@ __fd_close:
   ret
 
 __path_open:
-  push rbp
-  mov rbp, rsp
-  push r9
-  mov r11, rsi
-  lea r10, [rip+__coatl_mem]
-  mov rsi, [rbp+16]
-  add rsi, r10
-  mov rdi, -100
-  mov rdx, 0
-  test r11, 1
-  jz .L_open_flags_done
-  mov rdx, 0x241
-.L_open_flags_done:
-  mov r10, 0x1A4
+  push rbx
+  push r12
+  mov r12, [rsp+40]
+  lea rbx, [rip+__coatl_mem]
+  mov rsi, rdx
+  add rsi, rbx
   mov eax, 257
+  mov edi, -100
+  xor edx, edx
+  xor r10d, r10d
+  xor r8d, r8d
+  xor r9d, r9d
   syscall
-  pop r11
-  lea r10, [rip+__coatl_mem]
-  add r11, r10
-  mov [r11], eax
-  mov eax, 0
-  pop rbp
+  cmp rax, 0
+  jl .L_open_fail
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], eax
+  xor eax, eax
+  pop r12
+  pop rbx
   ret
+.L_open_fail:
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], -1
+  mov eax, 1
+  pop r12
+  pop rbx
+  ret
+
 
 __tty_get_mode:
   push rbp
@@ -222,6 +248,187 @@ __tty_get_size:
   neg rax
   pop rbp
   ret
+
+.globl __get_argc
+.globl __get_argv
+.globl __path_create
+.globl __tty_has_input
+
+__init_args:
+  push rbp
+  mov rbp, rsp
+  push rbx
+  push r12
+  push r13
+  push r14
+  push r15
+  mov eax, dword ptr [rip+__args_inited]
+  test eax, eax
+  jne .L_init_done
+  mov dword ptr [rip+__args_inited], 1
+
+  # openat(AT_FDCWD, "/proc/self/cmdline", O_RDONLY)
+  mov eax, 257
+  mov edi, -100
+  lea rsi, [rip+__proc_self_cmdline]
+  xor edx, edx
+  xor r10d, r10d
+  xor r8d, r8d
+  xor r9d, r9d
+  syscall
+  cmp rax, 0
+  jl .L_init_fail
+  mov r12, rax
+
+  # read(fd, buf, 4096)
+  mov eax, 0
+  mov rdi, r12
+  lea rsi, [rip+__cmdline_buf]
+  mov edx, 4096
+  syscall
+  mov r13, rax
+
+  # close(fd)
+  mov eax, 3
+  mov rdi, r12
+  syscall
+
+  cmp r13, 0
+  jle .L_init_fail
+
+  xor r15d, r15d  # argc
+  xor ecx, ecx    # buffer index
+  mov r14d, 900000 # dst offset in __coatl_mem
+
+.L_parse_loop:
+  cmp rcx, r13
+  jge .L_parse_done
+  lea rbx, [rip+__cmdline_buf]
+  mov al, byte ptr [rbx + rcx]
+  cmp al, 0
+  jne .L_arg_start
+  inc rcx
+  jmp .L_parse_loop
+
+.L_arg_start:
+  cmp r15d, 64
+  jge .L_parse_done
+  mov edx, r14d
+  lea rbx, [rip+__argv_table]
+  mov dword ptr [rbx + r15*4], edx
+
+.L_copy_loop:
+  cmp rcx, r13
+  jge .L_copy_end
+  lea rbx, [rip+__cmdline_buf]
+  mov al, byte ptr [rbx + rcx]
+  cmp al, 0
+  je .L_copy_end
+  lea rbx, [rip+__coatl_mem]
+  mov byte ptr [rbx + r14], al
+  inc r14
+  inc rcx
+  jmp .L_copy_loop
+
+.L_copy_end:
+  lea rbx, [rip+__coatl_mem]
+  mov byte ptr [rbx + r14], 0
+  inc r14
+  inc r15d
+  cmp rcx, r13
+  jge .L_parse_loop
+  lea rbx, [rip+__cmdline_buf]
+  mov al, byte ptr [rbx + rcx]
+  cmp al, 0
+  jne .L_parse_loop
+  inc rcx
+  jmp .L_parse_loop
+
+.L_parse_done:
+  mov dword ptr [rip+__argc], r15d
+  jmp .L_init_done
+
+.L_init_fail:
+  mov dword ptr [rip+__argc], 0
+
+.L_init_done:
+  pop r15
+  pop r14
+  pop r13
+  pop r12
+  pop rbx
+  leave
+  ret
+
+__get_argc:
+  call __init_args
+  mov eax, dword ptr [rip+__argc]
+  ret
+
+__get_argv:
+  push rbx
+  call __init_args
+  mov ecx, dword ptr [rip+__argc]
+  cmp edi, ecx
+  jge .L_argv_fail
+  lea rbx, [rip+__argv_table]
+  mov eax, dword ptr [rbx + rdi*4]
+  pop rbx
+  ret
+.L_argv_fail:
+  pop rbx
+  xor eax, eax
+  ret
+
+__path_create:
+  push rbx
+  push r12
+  mov r12, rsi
+  lea rbx, [rip+__coatl_mem]
+  mov rsi, rdi
+  add rsi, rbx
+  mov eax, 257
+  mov edi, -100
+  mov edx, 577
+  mov r10d, 420
+  xor r8d, r8d
+  xor r9d, r9d
+  syscall
+  cmp rax, 0
+  jl .L_create_fail
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], eax
+  xor eax, eax
+  pop r12
+  pop rbx
+  ret
+.L_create_fail:
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], -1
+  mov eax, 1
+  pop r12
+  pop rbx
+  ret
+
+__tty_has_input:
+  mov dword ptr [rip+__pollfd], edi
+  mov word ptr [rip+__pollfd + 4], 1
+  mov word ptr [rip+__pollfd + 6], 0
+  mov edx, esi
+  mov esi, 1
+  lea rdi, [rip+__pollfd]
+  mov eax, 7
+  syscall
+  cmp rax, 0
+  jle .L_no_input
+  mov ax, word ptr [rip+__pollfd + 6]
+  test ax, 1
+  jz .L_no_input
+  mov eax, 1
+  ret
+.L_no_input:
+  xor eax, eax
+  ret
 """
 
 INTRINSICS_AARCH64 = """
@@ -236,6 +443,26 @@ INTRINSICS_AARCH64 = """
 .globl __tty_get_mode
 .globl __tty_set_raw
 .globl __tty_restore
+
+.section .rodata
+__proc_self_cmdline:
+  .asciz "/proc/self/cmdline"
+
+.section .bss
+.align 8
+__args_inited:
+  .long 0
+__argc:
+  .long 0
+__argv_table:
+  .zero 256
+__cmdline_buf:
+  .zero 4096
+__pollfd:
+  .zero 8
+
+.text
+
 .globl __tty_get_size
 
 .macro GET_COATL_MEM reg
@@ -323,30 +550,146 @@ __fd_close:
 __path_open:
   stp x29, x30, [sp, #-16]!
   mov x29, sp
-  sub sp, sp, #32
-  str x8, [sp, #16]
-  mov x11, x4
-  mov x12, x2
+  ldr x12, [x29, #16]
   GET_COATL_MEM x8
-  str x8, [sp, #8]
-  add x1, x12, x8
+  add x1, x2, x8
   mov x0, #-100
   mov x2, #0
-  tst x11, #1
-  beq .L_open_flags_done
-  mov x2, #0x241
-.L_open_flags_done:
-  mov x3, #0x1A4
+  mov x3, #0
   mov x8, #56
   svc #0
-  ldr x8, [sp, #8]
-  ldr x5, [sp, #16]
-  add x5, x5, x8
-  str w0, [x5]
+  cmp x0, #0
+  b.lt .L_open_fail
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  str w0, [x12]
   mov x0, #0
-  add sp, sp, #32
   ldp x29, x30, [sp], #16
   ret
+.L_open_fail:
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  mov w1, #-1
+  str w1, [x12]
+  mov x0, #1
+  ldp x29, x30, [sp], #16
+  ret
+
+__init_args:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  adrp x0, __args_inited; ldr w1, [x0, :lo12:__args_inited]
+  cbnz w1, .L_init_done
+  mov w1, #1; str w1, [x0, :lo12:__args_inited]
+  mov x0, #-100
+  adrp x1, __proc_self_cmdline; add x1, x1, :lo12:__proc_self_cmdline
+  mov x2, #0; mov x3, #0; mov x8, #56; svc #0
+  cmp x0, #0; b.lt .L_init_fail
+  mov x19, x0
+  mov x0, x19
+  adrp x1, __cmdline_buf; add x1, x1, :lo12:__cmdline_buf
+  mov x2, #4096; mov x8, #63; svc #0
+  mov x20, x0
+  mov x0, x19; mov x8, #57; svc #0
+  cmp x20, #0; b.le .L_init_fail
+  mov w21, #0; mov x22, #0; mov w23, #900000
+.L_parse_loop:
+  cmp x22, x20; b.ge .L_parse_done
+  adrp x0, __cmdline_buf; add x0, x0, :lo12:__cmdline_buf
+  ldrb w1, [x0, x22]
+  cbz w1, .L_parse_skip
+  cmp w21, #64; b.ge .L_parse_done
+  adrp x0, __argv_table; add x0, x0, :lo12:__argv_table
+  str w21, [x0, x21, lsl #2]
+.L_copy_loop:
+  cmp x22, x20; b.ge .L_copy_end
+  adrp x0, __cmdline_buf; add x0, x0, :lo12:__cmdline_buf
+  ldrb w1, [x0, x22]
+  cbz w1, .L_copy_end
+  GET_COATL_MEM x2; strb w1, [x2, x23]
+  add x23, x23, #1; add x22, x22, #1; b .L_copy_loop
+.L_copy_end:
+  GET_COATL_MEM x2; strb wzr, [x2, x23]
+  add x23, x23, #1; add w21, w21, #1; b .L_parse_loop
+.L_parse_skip:
+  add x22, x22, #1; b .L_parse_loop
+.L_parse_done:
+  adrp x0, __argc; str w21, [x0, :lo12:__argc]; b .L_init_done
+.L_init_fail:
+  adrp x0, __argc; str wzr, [x0, :lo12:__argc]
+.L_init_done:
+  ldp x29, x30, [sp], #16; ret
+
+__get_argc:
+  stp x29, x30, [sp, #-16]!
+  bl __init_args
+  adrp x0, __argc; ldr w0, [x0, :lo12:__argc]
+  ldp x29, x30, [sp], #16; ret
+
+__get_argv:
+  stp x29, x30, [sp, #-16]!
+  str x0, [sp, #16]
+  bl __init_args
+  ldr x0, [sp, #16]
+  adrp x1, __argc; ldr w1, [x1, :lo12:__argc]
+  cmp w0, w1; b.ge .L_argv_fail
+  adrp x1, __argv_table; add x1, x1, :lo12:__argv_table
+  ldr w0, [x1, x0, lsl #2]
+  ldp x29, x30, [sp], #16; ret
+.L_argv_fail:
+  mov x0, #0; ldp x29, x30, [sp], #16; ret
+
+__path_create:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  mov x12, x1
+  GET_COATL_MEM x8
+  add x1, x0, x8
+  mov x0, #-100
+  mov x2, #577
+  mov x3, #420
+  mov x8, #56
+  svc #0
+  cmp x0, #0
+  b.lt .L_create_fail
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  str w0, [x12]
+  mov x0, #0
+  ldp x29, x30, [sp], #16
+  ret
+.L_create_fail:
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  mov w1, #-1
+  str w1, [x12]
+  mov x0, #1
+  ldp x29, x30, [sp], #16
+  ret
+
+__tty_has_input:
+  adrp x8, __pollfd; add x8, x8, :lo12:__pollfd
+  str w0, [x8]
+  mov w9, #1
+  strh w9, [x8, #4]
+  strh wzr, [x8, #6]
+  mov x2, x1
+  mov x1, #1
+  mov x0, x8
+  mov x8, #73
+  svc #0
+  cmp x0, #0
+  b.le .L_no_input
+  adrp x8, __pollfd; add x8, x8, :lo12:__pollfd
+  ldrh w9, [x8, #6]
+  tst w9, #1
+  beq .L_no_input
+  mov x0, #1
+  ret
+.L_no_input:
+  mov x0, #0
+  ret
+
 
 __tty_get_mode:
   stp x29, x30, [sp, #-16]!
@@ -800,7 +1143,12 @@ class X86_64Backend(BaseBackend):
             self.emit(f"  jmp {ls}\n{lnd}:")
     def lower_expr(self, n):
         h = n.children[0].value
-        if h in ["int", "int_i64"]: self.emit(f"  mov rax, {n.children[1].value}")
+        if h in ["int", "int_i64"]:
+            val = n.children[1].value
+            if "." in val:
+                try: val = str(int(float(val)))
+                except: pass
+            self.emit(f"  mov rax, {val}")
         elif h == "bool": self.emit(f"  mov rax, {n.children[1].value}")
         elif h == "ident":
             o, _ = self.vars[n.children[1].value]
