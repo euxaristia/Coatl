@@ -2,7 +2,7 @@
 
 Coatl follows an ancient, sleek serpent aesthetic: fluid paths, precise control, and minimal friction.
 
-Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends.
+Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends. The compiler is implemented in Python for maximum portability and developer agility.
 
 ## Documentation
 
@@ -22,9 +22,9 @@ Build x86_64 assembly:
 ./coatl build ./examples/hello.coatl -o /tmp/hello.s
 ```
 
-Build ELF object:
+Build ELF binary (linked with intrinsics):
 ```bash
-./coatl build ./examples/hello.coatl -o /tmp/hello.o
+./coatl build ./examples/hello.coatl -o /tmp/hello
 ```
 
 Emit textual IR:
@@ -40,7 +40,6 @@ Emit textual IR:
 
 Environment flags:
 - `COATL_ARCH=x86_64|aarch64` (auto-detects by default)
-- `COATL_HOME` to a Coatl repo root if tools are not found
 
 ## Terminal Raw Mode Intrinsics
 
@@ -59,26 +58,26 @@ Caveats:
 
 ## Validation
 
-IR seam smoke:
+Run core tests:
 ```bash
-./tests/run_ir_smoke.sh
+make test
 ```
 
-x86_64 runtime suite:
+IR smoke suite:
 ```bash
-./tests/run_x86_runtime_suite.sh
+python3 tests/run_ir_smoke.py
 ```
 
-AArch64 runtime suite:
+Snake smoke test (x86_64 native):
 ```bash
-./tests/run_aarch64_runtime_suite.sh
+python3 tests/run_snake_smoke.py
 ```
 
 ## Repository Layout
 
 - `examples/` sample programs
 - `tests/` integration and smoke suites
-- `tools/` IR frontend/lowerer/linker utilities
+- `tools/` Python-based compiler and utilities
 - `ROADMAP.md` near-term milestones
 - `SPEC.md` language notes
 
@@ -87,6 +86,6 @@ AArch64 runtime suite:
 Coatl is a low-level systems language. It is **not memory safe** and provides fewer guardrails than C.
 
 - **Manual Memory:** Memory is accessed via raw intrinsics (__mem_load/__mem_store) with integer addresses. No pointers or bounds checks.
-- **System Access:** Direct interaction with Linux system calls via assembly lowerers.
+- **System Access:** Direct interaction with Linux system calls via assembly templates.
 
 For more details on how to write Coatl, see the [Syntax Guide](./SYNTAX.md).
