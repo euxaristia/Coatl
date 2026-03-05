@@ -19,7 +19,7 @@ def main():
             content = f.read()
             assert "(coatl_ir v1" in content
             assert "(fn main" in content
-            assert "(call __fd_write" in content
+            assert "(call __print" in content
 
         print("[ir-smoke] struct chain")
         struct_ir = os.path.join(tmp_dir, "struct_chain.ir")
