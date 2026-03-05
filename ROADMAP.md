@@ -15,6 +15,7 @@ Last updated: 2026-03-04
 
 ## Current Focus
 
+- **Module System & Import Statement**: Implement standard library file resolution and AST merging for a unified `std/*` wrapper.
 - Improve error reporting and diagnostics in the Python-based frontend.
 - Optimize the generated assembly for better performance.
 
