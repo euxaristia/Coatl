@@ -11,6 +11,24 @@ Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends
 
 ## Quick Start
 
+Here is a simple "Hello, world!" program in Coatl (`examples/hello.coatl`):
+
+```coatl
+fn main() -> i32 {
+  // message string is stored in the data segment pointer returned by the literal
+  let msg: i32 = "Hello, world!\n"
+  let iov: i32 = 64
+  let nwritten: i32 = 80
+
+  __mem_store(iov, msg)
+  __mem_store(iov + 4, 14)
+  __mem_store(nwritten, 0)
+
+  __fd_write(1, iov, 1, nwritten)
+  return 0
+}
+```
+
 Build native x86_64 Linux binary:
 ```bash
 ./coatl build ./examples/hello.coatl -o /tmp/hello
