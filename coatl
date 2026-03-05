@@ -993,9 +993,12 @@ class Parser:
                 return Atom(val, is_str=True)
             return Atom(t.value)
     def parse_program(self):
-        structs, fns, saved = [], [], self.pos
+        structs, fns, imports, saved = [], [], [], self.pos
         while self.peek().kind != TOK_EOF:
-            if self.peek().value == "struct": structs.append(self.parse_struct())
+            if self.peek().value == "import":
+                self.consume()
+                imports.append(self.consume(TOK_STR).value)
+            elif self.peek().value == "struct": structs.append(self.parse_struct())
             else: self.pos += 1
         self.pos = saved
         while self.peek().kind != TOK_EOF:
@@ -1009,7 +1012,8 @@ class Parser:
                         elif self.peek().value == "}": d -= 1
                         self.consume()
             else: self.pos += 1
-        return List([Atom('coatl_ir'), Atom('v1'), List([Atom('structs')] + structs), List([Atom('functions')] + fns)])
+        imp_nodes = [Atom(i, is_str=True) for i in imports]
+        return List([Atom('coatl_ir'), Atom('v1'), List([Atom('imports')] + imp_nodes), List([Atom('structs')] + structs), List([Atom('functions')] + fns)])
 
     def parse_struct(self):
         self.consume(TOK_IDENT, "struct"); name = self.consume(TOK_IDENT).value; fields = []
@@ -1356,8 +1360,36 @@ def main():
         elif args[i].startswith("--toolchain="): i += 1
         else: i += 1
     if not os.path.exists(inp): print(f"Error: {inp} not found"); sys.exit(1)
-    with open(inp, 'r') as f: s = f.read()
+    def parse_file_recursive(filepath, visited, all_structs, all_fns):
+        filepath = os.path.abspath(filepath)
+        if filepath in visited: return
+        visited.add(filepath)
+        if not os.path.exists(filepath): print(f"Error: imported file {filepath} not found"); sys.exit(1)
+        with open(filepath, 'r') as f: s = f.read()
+        
+        # Simplified parsing for module resolution: only python frontend is supported for imports, not raw IR linking
+        tks = Lexer(s).tokenize(); ir = Parser(tks).parse_program()
+        
+        # Extract components from the IR tree: ['coatl_ir', 'v1', ['imports', ...], ['structs', ...], ['functions', ...]]
+        imports_node, structs_node, fns_node = None, None, None
+        for child in ir.children:
+            if child.kind == 'list' and child.children:
+                if child.children[0].value == 'imports': imports_node = child
+                elif child.children[0].value == 'structs': structs_node = child
+                elif child.children[0].value == 'functions': fns_node = child
+                
+        if structs_node: all_structs.extend(structs_node.children[1:])
+        if fns_node: all_fns.extend(fns_node.children[1:])
+        
+        if imports_node:
+            for imp in imports_node.children[1:]:
+                # Resolve import path relative to the current file's directory
+                imp_path = os.path.join(os.path.dirname(filepath), imp.value + ".coatl")
+                parse_file_recursive(imp_path, visited, all_structs, all_fns)
+
     if inp.endswith(".ir"):
+        # Legacy IR logic (doesn't support multi-file imports)
+        with open(inp, 'r') as f: s = f.read()
         tks, j = [], 0
         while j < len(s):
             if s[j].isspace(): j += 1
@@ -1375,7 +1407,12 @@ def main():
                 tks.append(Token(TOK_IDENT, s[start:j], 0, 0))
         tks.append(Token(TOK_EOF, "", 0, 0)); ir = Parser(tks).parse_sexpr()
     else:
-        tks = Lexer(s).tokenize(); ir = Parser(tks).parse_program()
+        visited = set()
+        all_structs = []
+        all_fns = []
+        parse_file_recursive(inp, visited, all_structs, all_fns)
+        ir = List([Atom('coatl_ir'), Atom('v1'), List([Atom('structs')] + all_structs), List([Atom('functions')] + all_fns)])
+
     if out.endswith(".ir"):
         with open(out, 'w') as f: f.write(ir.to_ir()); return
     bk = (AArch64Backend(ir) if arch == "aarch64" else X86_64Backend(ir)); bk.lower()

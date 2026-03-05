@@ -31,6 +31,17 @@ def main():
             assert "(call sum_point" in content
 
         print("ir smoke suite passed")
+        
+        # Test 3: Module Smoke
+        print("[mod-smoke]")
+        mod_ir = tempfile.mktemp(suffix=".ir")
+        emit_ir(os.path.join(root_dir, "tests/module_smoke.coatl"), mod_ir)
+        with open(mod_ir, 'r') as f:
+            content = f.read()
+            assert "(imports" in content
+            assert "(fn main" in content
+            assert "(fn print" in content
+        print("module smoke suite passed")
 
 if __name__ == "__main__":
     try:
