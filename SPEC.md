@@ -33,7 +33,7 @@
 ## Functions
 
 ```coatl
-fn add(a: i32, b: i32) -> i32 {
+fn add(a: i32, b: i32) returns i32 {
   return a + b;
 }
 ```
@@ -66,10 +66,10 @@ fn add(a: i32, b: i32) -> i32 {
 
 - Memory: `__mem_load`, `__mem_store`, `__mem_load8`, `__mem_store8`.
 - Terminal mode:
-  - `__tty_get_mode(fd: i32, out_ptr: i32) -> i32`
-  - `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32) -> i32`
-  - `__tty_restore(fd: i32, mode_ptr: i32) -> i32`
-  - `__tty_get_size(fd: i32, out_ptr: i32) -> i32`
+  - `__tty_get_mode(fd: i32, out_ptr: i32) returns i32`
+  - `__tty_set_raw(fd: i32, mode_ptr: i32, vmin: i32, vtime: i32) returns i32`
+  - `__tty_restore(fd: i32, mode_ptr: i32) returns i32`
+  - `__tty_get_size(fd: i32, out_ptr: i32) returns i32`
 
 ## Status
 

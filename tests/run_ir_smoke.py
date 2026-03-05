@@ -27,7 +27,7 @@ def main():
         with open(struct_ir, 'r') as f:
             content = f.read()
             assert "(fn make_point" in content
-            assert "(param p Point)" in content
+            assert "(ret Point)" in content
             assert "(call sum_point" in content
 
         print("ir smoke suite passed")

@@ -1,4 +1,4 @@
-fn main() -> i32 {
+fn main() returns i32 {
   let msg: *u8 = "Hello from aarch64!\n"
   let len: i32 = 0
   while (__mem_load8(msg + len) != 0) {

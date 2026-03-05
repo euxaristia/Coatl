@@ -1,5 +1,5 @@
 // Test byte memory operations (for future string handling)
-fn main() -> i32 {
+fn main() returns i32 {
   // Store bytes at addresses 0-3
   __mem_store8(0, 72)  // 'H'
   __mem_store8(1, 101) // 'e'

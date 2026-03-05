@@ -1,4 +1,4 @@
-fn main() -> i32 {
+fn main() returns i32 {
   let fd_ptr: i32 = 4096
   let path_ptr: i32 = "probe_out.txt"
 

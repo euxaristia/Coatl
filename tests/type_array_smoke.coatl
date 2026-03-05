@@ -1,4 +1,4 @@
-fn main() -> i32 {
+fn main() returns i32 {
   let arr: [i32 4] = [0 4]
   arr[0] = 10
   arr[1] = 20

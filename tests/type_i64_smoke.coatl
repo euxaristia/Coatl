@@ -1,8 +1,8 @@
-fn add64(a: i64, b: i64) -> i64 {
+fn add64(a: i64, b: i64) returns i64 {
   return a + b
 }
 
-fn main() -> i32 {
+fn main() returns i32 {
   let x: i64 = 10i64
   let y: i64 = 32i64
   let sum: i64 = add64(x, y)

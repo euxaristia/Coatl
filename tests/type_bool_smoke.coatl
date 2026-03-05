@@ -1,11 +1,11 @@
-fn check(flag: bool) -> i32 {
+fn check(flag: bool) returns i32 {
   if (flag) {
     return 1
   }
   return 0
 }
 
-fn main() -> i32 {
+fn main() returns i32 {
   let a: bool = true
   let b: bool = false
   let r1: i32 = check(a)

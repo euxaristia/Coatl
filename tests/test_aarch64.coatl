@@ -1,9 +1,9 @@
-fn main() -> i32 {
+fn main() returns i32 {
   print("Hello from aarch64!\n")
   return 0
 }
 
-fn print(msg: *u8) -> i32 {
+fn print(msg: *u8) returns i32 {
   let len: i32 = 0
   while (__mem_load8(msg + len) != 0) {
     len = len + 1
