@@ -1,4 +1,6 @@
+import "../std/io"
+
 fn main() returns i32 {
-  __print("Hello, aarch64!\n")
+  print("Hello, aarch64!\n")
   return 0
 }

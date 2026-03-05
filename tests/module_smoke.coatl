@@ -1,6 +1,6 @@
 import "../std/io"
 
 fn main() returns i32 {
-  print("Hello, x86_64!\n")
+  print("Hello from a module!\n")
   return 0
 }
