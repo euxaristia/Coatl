@@ -3,7 +3,7 @@ struct Point {
   y: i32
 }
 
-fn main() -> i32 {
+fn main() returns i32 {
   let p: Point = Point { x: 1, y: 2 }
   p.x = p.x + 4
   p.y = p.y + 3

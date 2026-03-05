@@ -3,11 +3,11 @@ struct Point {
   y: i32
 }
 
-fn sum_point(p: Point) -> i32 {
+fn sum_point(p: Point) returns i32 {
   return p.x + p.y
 }
 
-fn main() -> i32 {
+fn main() returns i32 {
   let p: Point = Point { x: 4, y: 5 }
   return sum_point(p)
 }

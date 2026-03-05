@@ -1,4 +1,4 @@
-fn main() -> i32 {
+fn main() returns i32 {
   let s: i32 = "hello"
   return str_len(s)
 }

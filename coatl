@@ -861,6 +861,8 @@ __tty_get_size:
 # --- Lexer ---
 
 TOK_IDENT, TOK_NUM, TOK_STR, TOK_SYM, TOK_EOF = "IDENT", "NUM", "STR", "SYM", "EOF"
+KEYWORDS = {"fn", "let", "mut", "return", "if", "else", "while", "struct", "enum", "import", "extern", "true", "false", "returns"}
+SYMBOLS = ["==", "!=", "<=", ">=", "&&", "||", "+", "-", "*", "/", "=", "<", ">", "!", "(", ")", "{", "}", "[", "]", ":", ",", ".", ";"]
 
 class Token:
     def __init__(self, kind, value, line, col):
@@ -1027,7 +1029,7 @@ class Parser:
             params.append(List([Atom('param'), Atom(pn), Atom(pt)]))
             if self.peek().value == ",": self.consume()
         self.consume(); rt = "i32"
-        if self.peek().value == "->": self.consume(); rt = self.consume(TOK_IDENT).value
+        if self.peek().value == "returns": self.consume(); rt = self.consume(TOK_IDENT).value
         block = List([Atom('block')])
         if self.peek().value == "{":
             self.consume();

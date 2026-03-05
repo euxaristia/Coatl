@@ -1,4 +1,4 @@
-fn write_stdout(msg: i32, len: i32) -> i32 {
+fn write_stdout(msg: i32, len: i32) returns i32 {
   let iov: i32 = 64
   let nwritten: i32 = 72
   __mem_store(iov, msg)
@@ -11,7 +11,7 @@ fn write_stdout(msg: i32, len: i32) -> i32 {
   return __mem_load(nwritten)
 }
 
-fn main() -> i32 {
+fn main() returns i32 {
   let iterations: i32 = 100000
   let scale: i32 = 100000
   let target_pi_scaled: i32 = 314159

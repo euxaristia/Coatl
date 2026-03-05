@@ -1,4 +1,4 @@
-fn main() -> i32 {
+fn main() returns i32 {
   let mode: i32 = 512
   let iov: i32 = 576
   let nread: i32 = 584

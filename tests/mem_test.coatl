@@ -1,5 +1,5 @@
 // Test memory intrinsics: __mem_store and __mem_load
-fn main() -> i32 {
+fn main() returns i32 {
   // Store 42 at address 0
   __mem_store(0, 42)
   // Store 100 at address 4

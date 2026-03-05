@@ -3,7 +3,7 @@ struct Point {
   y: i32
 }
 
-fn choose(flag: i32, a: i32, b: i32) -> Point {
+fn choose(flag: i32, a: i32, b: i32) returns Point {
   let x: i32 = a + 1
   let y: i32 = b + 2
   if (flag == 0) {
@@ -12,7 +12,7 @@ fn choose(flag: i32, a: i32, b: i32) -> Point {
   return Point { x: x + 10, y: y + 20 }
 }
 
-fn main() -> i32 {
+fn main() returns i32 {
   let p: Point = choose(1, 1, 2)
   return p.x + p.y
 }

@@ -3,7 +3,7 @@ struct Point {
   y: i32
 }
 
-fn build(n: i32) -> Point {
+fn build(n: i32) returns Point {
   let x: i32 = 0
   let y: i32 = 0
   let i: i32 = 0
@@ -15,7 +15,7 @@ fn build(n: i32) -> Point {
   return Point { x: x, y: y }
 }
 
-fn main() -> i32 {
+fn main() returns i32 {
   let p: Point = build(3)
   return p.x + p.y
 }

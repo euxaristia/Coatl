@@ -1,4 +1,4 @@
-fn main() -> i32 {
+fn main() returns i32 {
   __print("Hello, x86_64!\n")
   return 0
 }
