@@ -4,13 +4,12 @@ coatl \- build Coatl sources to native Linux binaries
 .SH SYNOPSIS
 .B coatl
 .I build input.coatl
-[\fB--emit=\fRasm|ir|obj|bin|cbyte]
+[\fB--emit=\fRasm|ir|obj|bin]
 [\fB-o\fR \fIoutput\fR]
 [\fB--arch=\fRx86_64|aarch64]
 .br
 .B coatl
-.I run-cbyte input.cbyte
-.br
+
 .B coatl
 [\fB--help\fR|\fB-h\fR]
 .br
@@ -23,12 +22,9 @@ It compiles Coatl sources to various native and intermediate formats.
 .TP
 .B build
 Compile a \fI.coatl\fR source file. The default emission is a native binary.
-.TP
-.B run-cbyte
-Execute a Coatl bytecode file using the built-in VM.
 .SH OPTIONS
 .TP
-\fB--emit=\fRasm|ir|obj|bin|cbyte
+\fB--emit=\fRasm|ir|obj|bin
 Choose emitted output kind (default: \fBbin\fR).
 .TP
 \fB-o\fR \fIoutput\fR
