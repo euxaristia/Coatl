@@ -14,8 +14,10 @@ Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends
 Here is a simple "Hello, world!" program in Coatl (`examples/hello.coatl`):
 
 ```coatl
+import "std/io"
+
 fn main() returns i32 {
-  __print("Hello, world!\n")
+  io.print("Hello, world!\n")
   return 0
 }
 ```
