@@ -3,7 +3,6 @@ import sys
 import os
 import subprocess
 import tempfile
-import struct
 
 # --- Intrinsics ---
 
@@ -1285,67 +1284,11 @@ class AArch64Backend(BaseBackend):
             elif op == "or": self.emit("  orr x0, x0, x1")
             else: self.emit(f"  cmp x0, x1; cset w0, { {'eq':'eq','ne':'ne','lt':'lt','gt':'gt','le':'le','ge':'ge'}[op] }")
 
-class CByteBackend(BaseBackend):
-    def __init__(self, ir):
-        super().__init__(ir); self.bc = bytearray(); self.fns = {}
-    def emit_b(self, b): self.bc.append(b & 0xFF)
-    def emit_i(self, i): self.bc.extend(struct.pack("<i", i))
-    def lower(self):
-        self.bc.extend(b"CBYT"); self.emit_b(1); self.emit_i(0)
-        fns_node = next(c for c in self.ir.children if c.kind == 'list' and c.children and c.children[0].value == 'functions')
-        for f in fns_node.children[1:]:
-            self.fns[f.children[1].value] = len(self.bc)
-            self.lower_fn(f)
-        self.bc[5:9] = struct.pack("<i", self.fns.get("main", 9))
-        for i in range(4, len(self.bc)): self.bc[i] = (self.bc[i] + 172 + i) & 0xFF
-    def lower_fn(self, n):
-        self.vars = {}
-        for i, p in enumerate(n.children[2].children[1:]): self.vars[p.children[1].value] = i
-        for s in n.children[4].children[1:]: self.lower_stmt(s)
-        self.emit_b(239)
-    def lower_stmt(self, n):
-        h = n.children[0].value
-        if h == "let":
-            v = n.children[1].value; self.vars[v] = len(self.vars); self.lower_expr(n.children[3]); self.emit_b(144); self.emit_i(self.vars[v])
-        elif h == "assign": self.lower_expr(n.children[2]); self.emit_b(144); self.emit_i(self.vars[n.children[1].value])
-        elif h == "return": self.lower_expr(n.children[1]); self.emit_b(239)
-        elif h == "expr": self.lower_expr(n.children[1])
-    def lower_expr(self, n):
-        h = n.children[0].value
-        if h == "int": self.emit_b(18); self.emit_i(int(n.children[1].value))
-        elif h == "ident": self.emit_b(133); self.emit_i(self.vars[n.children[1].value])
-        elif h == "binary":
-            self.lower_expr(n.children[2]); self.lower_expr(n.children[3])
-            op = n.children[1].value
-            if op == "add": self.emit_b(45)
-            elif op == "sub": self.emit_b(56)
-        elif h == "call":
-            for a in n.children[2:]: self.lower_expr(a)
-            if n.children[1].value == "write_stdout": self.emit_b(254); self.emit_i(1)
-
-def run_cbyte(path):
-    with open(path, 'rb') as f: bc = bytearray(f.read())
-    if bc[:4] != b"CBYT": raise Exception("Not a cbyte file")
-    for i in range(4, len(bc)): bc[i] = (bc[i] - 172 - i) % 256
-    pc = struct.unpack("<i", bc[5:9])[0]; stack = []; regs = [0] * 1024
-    while pc < len(bc):
-        op = bc[pc]; pc += 1
-        if op == 18: stack.append(struct.unpack("<i", bc[pc:pc+4])[0]); pc += 4
-        elif op == 45: a, b = stack.pop(), stack.pop(); stack.append(b + a)
-        elif op == 56: a, b = stack.pop(), stack.pop(); stack.append(b - a)
-        elif op == 133: r = struct.unpack("<i", bc[pc:pc+4])[0]; stack.append(regs[r]); pc += 4
-        elif op == 144: r = struct.unpack("<i", bc[pc:pc+4])[0]; regs[r] = stack.pop(); pc += 4
-        elif op == 254:
-            sid = struct.unpack("<i", bc[pc:pc+4])[0]; pc += 4
-            if sid == 1: print(chr(stack.pop()), end="")
-        elif op == 239: break
-        else: break
 
 # --- Main ---
 
 def main():
-    if len(sys.argv) < 2: print("Coatl Compiler v2 (Python integrated)"); print("Usage: coatl [build|run-cbyte] <input> [-o <output>] [--arch=<arch>]"); sys.exit(1)
-    if sys.argv[1] == "run-cbyte": run_cbyte(sys.argv[2]); sys.exit(0)
+    if len(sys.argv) < 2: print("Coatl Compiler v2 (Python integrated)"); print("Usage: coatl [build] <input> [-o <output>] [--arch=<arch>]"); sys.exit(1)
     args = sys.argv[1:]
     if args[0] == "build": args = args[1:]
     if not args: print("Usage: coatl [build] <input.coatl> [-o <output>] [--arch=<arch>]"); sys.exit(1)
@@ -1379,9 +1322,6 @@ def main():
         tks = Lexer(s).tokenize(); ir = Parser(tks).parse_program()
     if out.endswith(".ir"):
         with open(out, 'w') as f: f.write(ir.to_ir()); return
-    if out.endswith(".cbyte"):
-        bk = CByteBackend(ir); bk.lower()
-        with open(out, 'wb') as f: f.write(bk.bc); return
     bk = (AArch64Backend(ir) if arch == "aarch64" else X86_64Backend(ir)); bk.lower()
     
     intr_content = INTRINSICS_AARCH64 if arch == "aarch64" else INTRINSICS_X86_64

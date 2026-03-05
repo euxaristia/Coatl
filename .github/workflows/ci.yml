@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  compiler-tests:
+    name: Compiler & Binary Integrity
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify toolchain
+        run: |
+          python3 --version
+          cc --version
+
+      # ── hard gates (must pass) ──
+
+      - name: IR smoke tests
+        run: python3 tests/run_ir_smoke.py
+
+      - name: TermSnake build smoke
+        run: python3 tests/run_snake_smoke.py
+
+      # ── soft gates (report-only, known pre-existing failures) ──
+
+      - name: x86_64 binary integrity (known failures)
+        continue-on-error: true
+        run: python3 tests/run_ir_x86_subset_asm_smoke.py
+
+      - name: Full IR emit coverage (known failures)
+        continue-on-error: true
+        run: python3 tests/run_full_ir_emit_coverage.py
