@@ -6,8 +6,7 @@ Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends
 
 ## Documentation
 
-- Wiki: <https://github.com/euxaristia/Coatl/wiki>
-- Language draft/spec: `SPEC.md`
+The official documentation is available on the GitHub Wiki: <https://github.com/euxaristia/Coatl/wiki>
 
 ## Quick Start
 
@@ -100,8 +99,8 @@ python3 tests/run_snake_smoke.py
 - `examples/` sample programs
 - `tests/` integration and smoke suites
 - `tools/` Python-based compiler and utilities
-- `ROADMAP.md` near-term milestones
-- `SPEC.md` language notes
+- `std/` Standard library modules
+- `man/` Manual pages
 
 ## Safety & Memory Model
 
@@ -109,5 +108,3 @@ Coatl is a low-level systems language. It is **not memory safe** and provides fe
 
 - **Manual Memory:** Memory is accessed via raw intrinsics (__mem_load/__mem_store) with integer addresses. No pointers or bounds checks.
 - **System Access:** Direct interaction with Linux system calls via assembly templates.
-
-For more details on how to write Coatl, see the [Syntax Guide](./SYNTAX.md).
