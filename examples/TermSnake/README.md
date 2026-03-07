@@ -10,7 +10,7 @@ A terminal Snake game written in pure Coatl using only Coatl/WASI intrinsics:
 
 ```bash
 cd ~/Documents/Projects/TermSnake
-coatl build snake.coatl --emit=bin -o snake
+coatl.py build snake.coatl --emit=bin -o snake
 ./snake
 ```
 

@@ -5,7 +5,7 @@ import sys
 
 def main():
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    coatl_bin = os.path.join(root_dir, "coatl")
+    coatl_bin = os.path.join(root_dir, "coatl.py")
     tests_dir = os.path.join(root_dir, "tests")
     
     coatl_files = [f for f in os.listdir(tests_dir) if f.endswith(".coatl")]

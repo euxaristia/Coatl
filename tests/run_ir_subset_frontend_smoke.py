@@ -16,7 +16,7 @@ def main():
     # 
     # echo "[ir-subset-frontend] emit IR via toolchain=ir"
     # IR="$TMP_DIR/hello-subset.ir"
-    # "$ROOT_DIR/coatl" build "$ROOT_DIR/examples/hello.coatl" --toolchain=ir -o "$IR"
+    # "$ROOT_DIR/coatl.py" build "$ROOT_DIR/examples/hello.coatl" --toolchain=ir -o "$IR"
     # 
     # if [[ ! -s "$IR" ]]; then
     #   echo "[FAIL] no IR output"

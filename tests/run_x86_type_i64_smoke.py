@@ -18,8 +18,8 @@ def main():
     # ASM="$TMP_DIR/type_i64_smoke.s"
     # BIN="$TMP_DIR/type_i64_smoke.bin"
     # 
-    # # We use the full build pipeline: coatl -> ir -> asm -> bin
-    # "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/type_i64_smoke.coatl" --toolchain=ir -o "$BIN"
+    # # We use the full build pipeline: coatl.py -> ir -> asm -> bin
+    # "$ROOT_DIR/coatl.py" build "$ROOT_DIR/tests/type_i64_smoke.coatl" --toolchain=ir -o "$BIN"
     # 
     # echo "Running binary..."
     # set +e

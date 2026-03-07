@@ -11,7 +11,7 @@ def detect_qemu_prefix(arch, cc=None):
 
 def main():
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    coatl_bin = os.path.join(root_dir, "coatl")
+    coatl_bin = os.path.join(root_dir, "coatl.py")
     snake_src = os.path.join(root_dir, "examples/TermSnake/snake.coatl")
     
     with tempfile.TemporaryDirectory(prefix="coatl-snake-smoke-") as tmp_dir:
@@ -37,7 +37,7 @@ def main():
         snake_aarch64 = os.path.join(tmp_dir, "snake_aarch64")
         try:
             # Note: CC environment variable might need to be set for cross-compilation if not on aarch64
-            # But our coatl script just calls 'cc'. If we are cross-compiling, we might need a cross-cc.
+            # But our coatl.py script just calls 'cc'. If we are cross-compiling, we might need a cross-cc.
             env = os.environ.copy()
             if my_arch != "aarch64" and subprocess.run(["command", "-v", "aarch64-linux-gnu-gcc"], shell=True, capture_output=True).returncode == 0:
                 env["CC"] = "aarch64-linux-gnu-gcc"

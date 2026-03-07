@@ -58,9 +58,9 @@ fn add(a: i32, b: i32) returns i32 {
 
 ## CLI (compiler)
 
-- `coatl build <file>`: Compile to native binary.
-- `coatl build <file> -o out.s`: Emit assembly.
-- `coatl build <file> -o out.ir`: Emit IR.
+- `coatl.py build <file>`: Compile to native binary.
+- `coatl.py build <file> -o out.s`: Emit assembly.
+- `coatl.py build <file> -o out.ir`: Emit IR.
 
 ## Runtime Intrinsics
 

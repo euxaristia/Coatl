@@ -1,22 +1,22 @@
 .TH COATL 1 "February 2026" "Coatl" "User Commands"
 .SH NAME
-coatl \- build Coatl sources to native Linux binaries
+coatl.py \- build Coatl sources to native Linux binaries
 .SH SYNOPSIS
-.B coatl
+.B coatl.py
 .I build input.coatl
 [\fB--emit=\fRasm|ir|obj|bin]
 [\fB-o\fR \fIoutput\fR]
 [\fB--arch=\fRx86_64|aarch64]
 .br
-.B coatl
+.B coatl.py
 
-.B coatl
+.B coatl.py
 [\fB--help\fR|\fB-h\fR]
 .br
-.B coatl
+.B coatl.py
 [\fB--version\fR|\fB-V\fR]
 .SH DESCRIPTION
-\fBcoatl\fR is the command-line launcher for the Coatl compiler pipeline.
+\fBcoatl.py\fR is the command-line launcher for the Coatl compiler pipeline.
 It compiles Coatl sources to various native and intermediate formats.
 .SH COMMANDS
 .TP
@@ -52,13 +52,13 @@ Path to Coatl runtime assets (contains \fItools/\fR).
 Returns 0 on success and non-zero on error.
 .SH EXAMPLES
 .TP
-\fBcoatl build examples/hello.coatl -o /tmp/hello\fR
+\fBcoatl.py build examples/hello.coatl -o /tmp/hello\fR
 Compile to native binary.
 .TP
-\fBcoatl build examples/hello.coatl --emit=asm -o /tmp/hello.s\fR
+\fBcoatl.py build examples/hello.coatl --emit=asm -o /tmp/hello.s\fR
 Compile to x86_64 assembly.
 .TP
-\fBcoatl --version\fR
+\fBcoatl.py --version\fR
 Print version.
 .SH SEE ALSO
 Project wiki and language notes:

@@ -20,7 +20,7 @@ def main():
             i += 1
             
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    coatl_bin = os.path.join(script_dir, "../coatl")
+    coatl_bin = os.path.join(script_dir, "../coatl.py")
     
     cmd = [coatl_bin, "build", input_file, "--arch=aarch64", "-o", output_file]
     subprocess.run(cmd, check=True)
