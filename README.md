@@ -25,33 +25,33 @@ fn main() returns i32 {
 Build native x86_64 Linux binary:
 
 ```bash
-./coatl build ./examples/hello.coatl -o /tmp/hello
+./coatl.py build ./examples/hello.coatl -o /tmp/hello
 /tmp/hello
 ```
 
 Build x86_64 assembly:
 
 ```bash
-./coatl build ./examples/hello.coatl -o /tmp/hello.s
+./coatl.py build ./examples/hello.coatl -o /tmp/hello.s
 ```
 
 Build ELF binary (linked with intrinsics):
 
 ```bash
-./coatl build ./examples/hello.coatl -o /tmp/hello
+./coatl.py build ./examples/hello.coatl -o /tmp/hello
 ```
 
 Emit textual IR:
 
 ```bash
-./coatl build ./examples/hello.coatl -o /tmp/hello.ir
+./coatl.py build ./examples/hello.coatl -o /tmp/hello.ir
 ```
 
 ## Core Tooling
 
-- `./coatl build ...`
+- `./coatl.py build ...`
 
-- `./coatl --version`
+- `./coatl.py --version`
 
 Environment flags:
 

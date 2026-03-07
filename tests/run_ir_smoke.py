@@ -6,7 +6,7 @@ import sys
 
 def main():
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    coatl_bin = os.path.join(root_dir, "coatl")
+    coatl_bin = os.path.join(root_dir, "coatl.py")
     
     with tempfile.TemporaryDirectory(prefix="coatl-ir-smoke-") as tmp_dir:
         def emit_ir(src, out):

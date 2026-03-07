@@ -15,7 +15,7 @@ clean:
 PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 MANDIR ?= $(PREFIX)/share/man
-PROGRAM ?= coatl
+PROGRAM ?= coatl.py
 SHAREDIR ?= $(PREFIX)/share/$(PROGRAM)
 TARGET ?= $(BINDIR)/$(PROGRAM)
 MAN1_TARGET ?= $(MANDIR)/man1/$(PROGRAM).1

@@ -7,7 +7,7 @@ import platform
 
 def main():
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    coatl_bin = os.path.join(root_dir, "coatl")
+    coatl_bin = os.path.join(root_dir, "coatl.py")
     
     if platform.system() != "Linux":
         print("ir x86 subset asm smoke currently supports Linux only")

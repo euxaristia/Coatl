@@ -18,7 +18,7 @@ def main():
     # ASM="$TMP_DIR/type_f32_smoke.s"
     # BIN="$TMP_DIR/type_f32_smoke.bin"
     # 
-    # "$ROOT_DIR/coatl" build "$ROOT_DIR/tests/type_f32_smoke.coatl" --toolchain=ir -o "$BIN"
+    # "$ROOT_DIR/coatl.py" build "$ROOT_DIR/tests/type_f32_smoke.coatl" --toolchain=ir -o "$BIN"
     # 
     # echo "Running binary..."
     # set +e

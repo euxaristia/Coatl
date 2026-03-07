@@ -20,7 +20,7 @@ def main():
             i += 1
             
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    coatl_bin = os.path.join(script_dir, "../coatl")
+    coatl_bin = os.path.join(script_dir, "../coatl.py")
     
     # Since our coatl script doesn't support IR as input yet, we have a problem.
     # But wait, I can just make it support IR as input!
@@ -31,12 +31,12 @@ def main():
     # IR -> ir_to_x86_64_asm -> ASM
     # ASM -> link -> BIN
     
-    # My Python 'coatl' script currently does:
+    # My Python 'coatl.py' script currently does:
     # Coatl Source -> IR -> ASM -> BIN
     
-    # I should update 'coatl' to accept .ir files.
+    # I should update 'coatl.py' to accept .ir files.
     
-    print("Warning: ir_to_x86_64_asm.py currently assumes input is Coatl source or coatl script is updated.")
+    print("Warning: ir_to_x86_64_asm.py currently assumes input is Coatl source or coatl.py script is updated.")
     cmd = [coatl_bin, "build", input_file, "--arch=x86_64", "-o", output_file]
     subprocess.run(cmd, check=True)
 

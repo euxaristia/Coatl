@@ -1405,10 +1405,11 @@ class AArch64Backend(BaseBackend):
 # --- Main ---
 
 def main():
-    if len(sys.argv) < 2: print("Coatl Compiler v2 (Python integrated)"); print("Usage: coatl [build] <input> [-o <output>] [--arch=<arch>]"); sys.exit(1)
+    if len(sys.argv) < 2: print("Coatl Compiler v2 (Python integrated)"); print("Usage: coatl.py [build] <input> [-o <output>] [--arch=<arch>]"); sys.exit(1)
     args = sys.argv[1:]
-    if args[0] == "build": args = args[1:]
-    if not args: print("Usage: coatl [build] <input.coatl> [-o <output>] [--arch=<arch>]"); sys.exit(1)
+    if args[0] == "build":
+        args = args[1:]
+    if not args: print("Usage: coatl.py [build] <input.coatl> [-o <output>] [--arch=<arch>]"); sys.exit(1)
     inp = args[0]; out, arch = "a.out", ("aarch64" if subprocess.run(["uname", "-m"], capture_output=True, text=True).stdout.strip() == "aarch64" else "x86_64")
 
     i = 1
