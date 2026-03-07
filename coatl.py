@@ -900,7 +900,9 @@ class Lexer:
                     while self.peek() and self.peek().lower() in "0123456789abcdef": val += self.advance()
                 else:
                     while self.peek() and (self.peek().isdigit() or self.peek() == '.'): val += self.advance()
-                if self.source[self.pos:self.pos+3] == 'i64': val += 'i64'; self.pos += 3; self.col += 3
+                for suf in ["i64", "i32", "f64", "f32"]:
+                    if self.source[self.pos:self.pos+len(suf)] == suf:
+                        val += suf; self.pos += len(suf); self.col += len(suf); break
                 tokens.append(Token(TOK_NUM, val, s_l, s_c))
             elif c == '"':
                 s_l, s_c, val = self.line, self.col, ""
@@ -950,7 +952,7 @@ class IRNode:
             return str(v)
         if not self.children: return "()"
         head = self.children[0].value
-        if head in ['coatl_ir', 'fn', 'call', 'struct', 'field', 'param', 'let', 'ret', 'ident', 'int', 'int_i64', 'bool', 'string_typed', 'struct_lit']:
+        if head in ['coatl_ir', 'fn', 'call', 'struct', 'field', 'param', 'let', 'ret', 'ident', 'int', 'int_i64', 'f32', 'f64', 'bool', 'string_typed', 'struct_lit']:
             res = "(" + self.children[0].to_ir()
             i = 1
             while i < len(self.children) and self.children[i].kind == 'atom' and i < 3:
@@ -1021,12 +1023,23 @@ class Parser:
         imp_nodes = [Atom(i, is_str=True) for i in imports]
         return List([Atom('coatl_ir'), Atom('v1'), List([Atom('imports')] + imp_nodes), List([Atom('structs')] + structs), List([Atom('functions')] + fns)])
 
+    def parse_type(self):
+        t = self.peek()
+        if t.value == "[":
+            self.consume(TOK_SYM, "["); ty = self.parse_type(); sz = self.consume(TOK_NUM).value; self.consume(TOK_SYM, "]")
+            return f"[{ty} {sz}]"
+        elif t.value == "*":
+            # Handle pointer types like *i32 for AArch64 tests
+            self.consume(TOK_SYM, "*"); ty = self.parse_type()
+            return f"*{ty}"
+        return self.consume(TOK_IDENT).value
+
     def parse_struct(self):
         self.consume(TOK_IDENT, "struct"); name = self.consume(TOK_IDENT).value; fields = []
         if self.peek().value == "{":
             self.consume();
             while self.peek().value != "}":
-                fn = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); ft = self.consume(TOK_IDENT).value
+                fn = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); ft = self.parse_type()
                 fields.append(List([Atom('field'), Atom(fn), Atom(ft)]))
                 if self.peek().value == ",": self.consume()
             self.consume()
@@ -1035,11 +1048,16 @@ class Parser:
     def parse_fn(self):
         self.consume(TOK_IDENT, "fn"); name = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, "("); params = []
         while self.peek().value != ")":
-            pn = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); pt = self.consume(TOK_IDENT).value
+            pn = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); pt = self.parse_type()
             params.append(List([Atom('param'), Atom(pn), Atom(pt)]))
             if self.peek().value == ",": self.consume()
         self.consume(); rt = "i32"
-        if self.peek().value in ["returns", "->"]: self.consume(); rt = self.consume(TOK_IDENT).value
+        if self.peek().value in ["returns", "->"]:
+            self.consume()
+            if self.peek().value == "i32": # legacy for SPEC.md/ROADMAP.md consistency if needed, but parse_type is better
+                rt = self.consume().value
+            else:
+                rt = self.parse_type()
         block = List([Atom('block')])
         if self.peek().value == "{":
             self.consume();
@@ -1050,7 +1068,7 @@ class Parser:
     def parse_stmt(self):
         t = self.peek()
         if t.value == "let":
-            self.consume(); n = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); ty = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, "="); e = self.parse_expr()
+            self.consume(); n = self.consume(TOK_IDENT).value; self.consume(TOK_SYM, ":"); ty = self.parse_type(); self.consume(TOK_SYM, "="); e = self.parse_expr()
             if self.peek().value == ";": self.consume()
             return List([Atom('let'), Atom(n), Atom(ty), e])
         if t.value == "return":
@@ -1087,6 +1105,10 @@ class Parser:
             b = List([Atom('block')])
             while self.peek().value != "}": b.children.append(self.parse_stmt())
             self.consume(); return List([Atom('while'), c, b])
+        if t.kind == TOK_IDENT and self.peek(1).value == "[":
+            n = self.consume().value; self.consume(); idx = self.parse_expr(); self.consume(TOK_SYM, "]"); self.consume(TOK_SYM, "="); e = self.parse_expr()
+            if self.peek().value == ";": self.consume()
+            return List([Atom('array_assign'), Atom(n), idx, e])
         if t.kind == TOK_IDENT and self.peek(1).value == "=":
             n = self.consume().value; self.consume(); e = self.parse_expr()
             if self.peek().value == ";": self.consume()
@@ -1136,9 +1158,16 @@ class Parser:
             if self.peek().value == ";": self.consume()
             return List([Atom("syscall")])
         if t.value == "(": self.consume(); e = self.parse_expr(); self.consume(TOK_SYM, ")"); return e
+        if t.value == "[":
+            self.consume(); val = self.parse_expr(); sz = self.consume(TOK_NUM).value; self.consume(TOK_SYM, "]")
+            return List([Atom('array_lit'), val, Atom(sz)])
         if t.kind == TOK_NUM:
             v = self.consume().value
-            return List([Atom('int_i64' if v.endswith('i64') else 'int'), Atom(v[:-3] if v.endswith('i64') else v)])
+            if v.endswith('i64'): return List([Atom('int_i64'), Atom(v[:-3])])
+            if v.endswith('f32'): return List([Atom('f32'), Atom(v[:-3])])
+            if v.endswith('f64'): return List([Atom('f64'), Atom(v[:-3])])
+            if v.endswith('i32'): return List([Atom('int'), Atom(v[:-3])])
+            return List([Atom('int'), Atom(v)])
         if t.kind == TOK_STR: return List([Atom('string_typed'), Atom(self.consume().value, is_str=True)])
         if t.kind == TOK_IDENT:
             n = self.consume().value
@@ -1159,6 +1188,8 @@ class Parser:
                     if self.peek().value == ",": self.consume()
                 self.consume(); return List([Atom('struct_lit'), Atom(n)] + fields)
             if self.peek().value == ".": self.consume(); return List([Atom('field'), Atom(n), Atom(self.consume(TOK_IDENT).value)])
+            if self.peek().value == "[":
+                self.consume(); idx = self.parse_expr(); self.consume(TOK_SYM, "]"); return List([Atom('array_index'), Atom(n), idx])
             return List([Atom('ident'), Atom(n)])
         raise Exception(f"Unexpected {t}")
 
@@ -1308,36 +1339,46 @@ class AArch64Backend(BaseBackend):
         off = 65536
         for v in self.strings:
             b_val = v.encode('utf-8')
-            for i, b in enumerate(b_val): self.emit(f"  mov w0, #{b}; strb w0, [x2, #{off+i}]")
-            self.emit(f"  strb wzr, [x2, #{off+len(b_val)}]"); self.strings[v] = off; off += len(b_val) + 1
+            for i, b in enumerate(b_val):
+                self.safe_mov_imm("x1", off+i); self.emit(f"  mov w0, #{b}; strb w0, [x2, x1]")
+            self.safe_mov_imm("x1", off+len(b_val)); self.emit(f"  strb wzr, [x2, x1]"); self.strings[v] = off; off += len(b_val) + 1
         self.emit(".L_mem_done:\n  ldp x29, x30, [sp], #16\n  ret")
         if fns:
             for f in fns.children[1:]: self.lower_fn(f)
         self.emit(".globl coatl_start\ncoatl_start:\n  stp x29, x30, [sp, #-16]!\n  bl __coatl_init_memory\n  bl main\n  mov w0, w0; mov x8, #93; svc #0")
+    def ldr_x29(self, reg, off):
+        if -256 <= off <= 4095: self.emit(f"  ldr {reg}, [x29, #{off}]")
+        else: self.safe_mov_imm("x1", off); self.emit(f"  ldr {reg}, [x29, x1]")
+    def ldrsw_x29(self, reg, off):
+        if -256 <= off <= 4095: self.emit(f"  ldrsw {reg}, [x29, #{off}]")
+        else: self.safe_mov_imm("x1", off); self.emit(f"  ldrsw {reg}, [x29, x1]")
+    def str_x29(self, reg, off):
+        if -256 <= off <= 4095: self.emit(f"  str {reg}, [x29, #{off}]")
+        else: self.safe_mov_imm("x1", off); self.emit(f"  str {reg}, [x29, x1]")
     def lower_fn(self, n):
         self.current_fn, self.vars = n.children[1].value, {}; self.emit(f".global {self.current_fn}\n{self.current_fn}:")
         self.emit("  stp x29, x30, [sp, #-16]!; mov x29, sp; sub sp, sp, #4096")
         rs = [f"x{i}" for i in range(8)]; o = 16
         for i, p in enumerate(n.children[2].children[1:]):
             self.vars[p.children[1].value] = (o, p.children[2].value)
-            if i < len(rs): self.emit(f"  str {rs[i]}, [x29, #-{o}]")
+            if i < len(rs): self.str_x29(rs[i], -o)
             else:
                 # Handle 9+ args from stack (above X29+16)
                 stack_off = 16 + (i - 8) * 8
-                self.emit(f"  ldr x0, [x29, #{stack_off}]")
-                self.emit(f"  str x0, [x29, #-{o}]")
+                self.ldr_x29("x0", stack_off)
+                self.str_x29("x0", -o)
             o += 8
         for s in n.children[4].children[1:]: self.lower_stmt(s)
         self.emit(f".Lret_{self.current_fn}:; add sp, sp, #4096; ldp x29, x30, [sp], #16; ret")
     def lower_stmt(self, n):
         h = n.children[0].value
         if h == "let":
-            v = n.children[1].value; o = (len(self.vars)+2)*8; self.vars[v] = (o, n.children[2].value); self.lower_expr(n.children[3]); self.emit(f"  str x0, [x29, #-{o}]")
-        elif h == "assign": o, _ = self.vars[n.children[1].value]; self.lower_expr(n.children[2]); self.emit(f"  str x0, [x29, #-{o}]")
+            v = n.children[1].value; o = (len(self.vars)+2)*8; self.vars[v] = (o, n.children[2].value); self.lower_expr(n.children[3]); self.str_x29("x0", -o)
+        elif h == "assign": o, _ = self.vars[n.children[1].value]; self.lower_expr(n.children[2]); self.str_x29("x0", -o)
         elif h == "field_assign":
             var, field = n.children[1].value, n.children[2].value
             o, ty = self.vars[var]; fi = self.structs[ty].index(field)
-            self.lower_expr(n.children[3]); self.emit(f"  str w0, [x29, #-{o-fi*4}]")
+            self.lower_expr(n.children[3]); self.str_x29("x0", -(o-fi*4))
         elif h == "return": self.lower_expr(n.children[1]); self.emit(f"  b .Lret_{self.current_fn}")
         elif h == "expr": self.lower_expr(n.children[1])
         elif h == "if":
@@ -1363,22 +1404,29 @@ class AArch64Backend(BaseBackend):
             ls, lnd = self.new_label("while"), self.new_label("endwhile"); self.emit(f"{ls}:"); self.lower_expr(n.children[1]); self.emit(f"  cbz x0, {lnd}")
             for s in n.children[2].children[1:]: self.lower_stmt(s)
             self.emit(f"  b {ls}\n{lnd}:")
+    def safe_mov_imm(self, reg, val):
+        if 0 <= val <= 65535: self.emit(f"  mov {reg}, #{val}")
+        else:
+            self.emit(f"  movz {reg}, #{val & 0xffff}")
+            if (val >> 16) & 0xffff: self.emit(f"  movk {reg}, #{(val >> 16) & 0xffff}, lsl #16")
+            if (val >> 32) & 0xffff: self.emit(f"  movk {reg}, #{(val >> 32) & 0xffff}, lsl #32")
+            if (val >> 48) & 0xffff: self.emit(f"  movk {reg}, #{(val >> 48) & 0xffff}, lsl #48")
     def lower_expr(self, n):
         h = n.children[0].value
-        if h in ["int", "int_i64", "bool"]: self.emit(f"  mov x0, #{n.children[1].value}")
+        if h in ["int", "int_i64", "bool"]: self.safe_mov_imm("x0", int(n.children[1].value))
         elif h == "ident":
             o, _ = self.vars[n.children[1].value]
-            self.emit(f"  ldrsw x0, [x29, #-{o}]")
+            self.ldrsw_x29("x0", -o)
         elif h == "field":
             var, field = n.children[1].value, n.children[2].value
             o, ty = self.vars[var]; fi = self.structs[ty].index(field)
-            self.emit(f"  ldrsw x0, [x29, #-{o-fi*4}]")
+            self.ldrsw_x29("x0", -(o-fi*4))
         elif h == "struct_lit":
             for i, arg in enumerate(n.children[2:4]):
                 self.lower_expr(arg)
                 if i == 0: self.emit("  str x0, [sp, #-16]!")
                 else: self.emit("  lsl x0, x0, #32; ldr x1, [sp], #16; orr x0, x0, x1")
-        elif h == "string_typed": self.emit(f"  mov x0, #{self.strings[n.children[1].value]}")
+        elif h == "string_typed": self.safe_mov_imm("x0", self.strings[n.children[1].value])
         elif h == "str_len" or h == "str_ptr": self.lower_expr(n.children[1])
         elif h == "call":
             args = n.children[2:]
