@@ -18,6 +18,26 @@ impl IRNode {
     pub fn as_atom(&self) -> Option<&String> {
         match self { IRNode::Atom(s) => Some(s), _ => None }
     }
+    pub fn to_ir(&self) -> String {
+        match self {
+            IRNode::Atom(s) => {
+                if s.contains(' ') || s.is_empty() || s.contains('\n') || s.contains('\"') {
+                    format!("\"{}\"", s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t"))
+                } else {
+                    s.clone()
+                }
+            }
+            IRNode::List(l) => {
+                let mut res = String::from("(");
+                for (i, item) in l.iter().enumerate() {
+                    if i > 0 { res.push(' '); }
+                    res.push_str(&item.to_ir());
+                }
+                res.push(')');
+                res
+            }
+        }
+    }
 }
 
 pub struct IRParser {
@@ -1935,6 +1955,11 @@ fn main() {
         ])
     };
 
+    if output_path.ends_with(".ir") {
+        fs::write(output_path, ir.to_ir()).expect("Failed to write IR output");
+        return;
+    }
+
     let output = if arch == "aarch64" {
         let mut backend = AArch64Backend::new(ir);
         backend.lower();
@@ -1946,7 +1971,38 @@ fn main() {
     };
 
     if !output_path.is_empty() {
-        fs::write(output_path, output).expect("Failed to write output");
+        if output_path.ends_with(".s") || output_path.ends_with(".ir") {
+            fs::write(output_path, output).expect("Failed to write output");
+        } else {
+            // Need to assemble and link
+            let mut tmp_s = env::temp_dir();
+            tmp_s.push("coatl_tmp.s");
+            fs::write(&tmp_s, output).expect("Failed to write temp assembly");
+            
+            let cc = env::var("CC").unwrap_or_else(|_| "cc".to_string());
+            let mut cmd = process::Command::new(&cc);
+            cmd.args(&["-fPIE", "-pie", "-e", "coatl_start", tmp_s.to_str().unwrap(), "-o", &output_path]);
+            
+            // Special handling for aarch64 cross-compilation match
+            if arch == "aarch64" {
+                let machine = process::Command::new("uname").arg("-m").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
+                if machine != "aarch64" {
+                    // Try to find cross compiler
+                    let cross_cc = "aarch64-linux-gnu-gcc";
+                    if process::Command::new("command").args(&["-v", cross_cc]).status().map(|s| s.success()).unwrap_or(false) {
+                        cmd = process::Command::new(cross_cc);
+                        cmd.args(&["-fPIE", "-pie", "-e", "coatl_start", tmp_s.to_str().unwrap(), "-o", &output_path]);
+                    }
+                }
+            }
+
+            let status = cmd.status().expect("Failed to run linker");
+            if !status.success() {
+                eprintln!("Linker failed");
+                process::exit(1);
+            }
+            let _ = fs::remove_file(tmp_s);
+        }
     } else {
         print!("{}", output);
     }

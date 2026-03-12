@@ -1,31 +1,34 @@
-.PHONY: all install uninstall test check clean
+.PHONY: all install uninstall test check clean build
 
-all:
-
-test:
-	python3 ./tests/run_ir_smoke.py
-	python3 ./tests/run_snake_smoke.py
-
-check: test
-
-clean:
-	rm -f examples/hello examples/hello_arm examples/test_fd examples/debug_hello
-	rm -f tools/ir_to_aarch64_asm
-
+PROGRAM = coatl
 PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 MANDIR ?= $(PREFIX)/share/man
-PROGRAM ?= coatl.py
 MAN_SRC ?= coatl.1
 SHAREDIR ?= $(PREFIX)/share/$(PROGRAM)
 TARGET ?= $(BINDIR)/$(PROGRAM)
 MAN1_TARGET ?= $(MANDIR)/man1/$(MAN_SRC)
 VERSION ?= $(shell git describe --always --dirty --tags 2>/dev/null || echo dev)
 
-install:
+all: build
+
+build:
+	cargo build --release
+
+test: build
+	COATL_BIN=./target/release/coatl python3 ./tests/run_ir_smoke.py
+	COATL_BIN=./target/release/coatl python3 ./tests/run_snake_smoke.py
+
+check: test
+
+clean:
+	cargo clean
+	rm -f examples/hello examples/hello_arm examples/test_fd examples/debug_hello
+	rm -f tools/ir_to_aarch64_asm
+
+install: build
 	install -d "$(BINDIR)"
-	install -m 0755 "$(PROGRAM)" "$(TARGET)"
-	sed -i 's/COATL_VERSION:-dev/COATL_VERSION:-$(VERSION)/' "$(TARGET)"
+	install -m 0755 "target/release/$(PROGRAM)" "$(TARGET)"
 	install -d "$(MANDIR)/man1"
 	install -m 0644 "man/$(MAN_SRC)" "$(MAN1_TARGET)"
 	install -d "$(SHAREDIR)"

@@ -11,9 +11,15 @@ def detect_qemu_prefix(arch, cc=None):
 
 def main():
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    coatl_bin = os.path.join(root_dir, "coatl.py")
+    coatl_bin = os.environ.get("COATL_BIN", os.path.join(root_dir, "coatl.py"))
     snake_src = os.path.join(root_dir, "examples/TermSnake/snake.coatl")
     
+    def run_coatl(args, env=None):
+        if coatl_bin.endswith(".py"):
+            subprocess.run(["python3", coatl_bin, "build"] + args, check=True, env=env)
+        else:
+            subprocess.run([coatl_bin] + args, check=True, env=env)
+
     with tempfile.TemporaryDirectory(prefix="coatl-snake-smoke-") as tmp_dir:
         my_arch = platform.machine()
         
@@ -21,7 +27,7 @@ def main():
         print("[snake-smoke] Testing x86_64")
         snake_x86 = os.path.join(tmp_dir, "snake_x86")
         try:
-            subprocess.run([coatl_bin, "build", snake_src, "--arch=x86_64", "-o", snake_x86], check=True)
+            run_coatl([snake_src, "--arch=x86_64", "-o", snake_x86])
             
             if my_arch == "x86_64":
                 # Feed 'q' to exit immediately
@@ -42,7 +48,7 @@ def main():
             if my_arch != "aarch64" and subprocess.run(["command", "-v", "aarch64-linux-gnu-gcc"], shell=True, capture_output=True).returncode == 0:
                 env["CC"] = "aarch64-linux-gnu-gcc"
             
-            subprocess.run([coatl_bin, "build", snake_src, "--arch=aarch64", "-o", snake_aarch64], check=True, env=env)
+            run_coatl([snake_src, "--arch=aarch64", "-o", snake_aarch64], env=env)
             
             if my_arch == "aarch64":
                 subprocess.run([snake_aarch64], input=b"q\n", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
