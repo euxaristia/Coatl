@@ -15,7 +15,7 @@ def main():
     # unless specifically asked to avoid system toolchain.
     # Coatl's intrinsics need to be linked too.
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    intrinsics = os.path.join(script_dir, "../tests/intrinsics.s")
+    intrinsics = os.path.join(script_dir, "../runtime/intrinsics.s")
     
     cmd = ["cc", "-fPIE", "-pie", "-e", "coatl_start", input_file, intrinsics, "-o", output_file]
     subprocess.run(cmd, check=True)

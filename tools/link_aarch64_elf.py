@@ -13,7 +13,7 @@ def main():
     output_file = sys.argv[3]
     
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    intrinsics = os.path.join(script_dir, "../tests/intrinsics_aarch64.s")
+    intrinsics = os.path.join(script_dir, "../runtime/intrinsics_aarch64.s")
     
     cc = os.environ.get("CC", "cc")
     if platform.machine() != "aarch64" and cc == "cc":
