@@ -9,7 +9,29 @@
 .globl __tty_get_mode
 .globl __tty_set_raw
 .globl __tty_restore
+.globl __print
+.globl __get_argc
+.globl __get_argv
+.globl __path_create
+.globl __tty_has_input
 .globl __tty_get_size
+
+.section .rodata
+__proc_self_cmdline:
+  .asciz "/proc/self/cmdline"
+
+.section .bss
+.align 8
+__args_inited:
+  .long 0
+__argc:
+  .long 0
+__argv_table:
+  .zero 256
+__cmdline_buf:
+  .zero 4096
+__pollfd:
+  .zero 8
 
 .text
 
@@ -33,62 +55,60 @@ __mem_store8:
 __mem_load:
   GET_COATL_MEM x8
   add x0, x0, x8
-  ldr w0, [x0]
+  ldrsw x0, [x0]
   ret
 
 __mem_load8:
   GET_COATL_MEM x8
   add x0, x0, x8
-  ldrb w0, [x0]
+  ldrsb x0, [x0]
   ret
 
 __fd_write:
-  // x0=fd, x1=iov_off, x2=cnt, x3=res_off
   GET_COATL_MEM x8
   sub sp, sp, #48
-  str x8, [sp, #32]           // save coatl_mem base
-  str x3, [sp, #24]           // save res_off
-  add x9, x1, x8              // x9 = absolute iov struct address
-  ldr w10, [x9]               // load iov_base offset from coatl memory
-  add x10, x10, x8            // convert to absolute address
-  str x10, [sp, #0]           // iovec[0].iov_base
-  ldr w10, [x9, #4]           // load iov_len
-  uxtw x10, w10               // zero-extend to 64-bit
-  str x10, [sp, #8]           // iovec[0].iov_len
-  mov x1, sp                  // x1 = pointer to iovec on stack
-  mov x2, #1                  // x2 = iovcnt = 1
-  mov x8, #66                 // writev
+  str x8, [sp, #32]
+  str x3, [sp, #24]
+  add x9, x1, x8
+  ldr w10, [x9]
+  add x10, x10, x8
+  str x10, [sp, #0]
+  ldr w10, [x9, #4]
+  uxtw x10, w10
+  str x10, [sp, #8]
+  mov x1, sp
+  mov x2, #1
+  mov x8, #66
   svc #0
-  ldr x8, [sp, #32]           // restore coatl_mem base
-  ldr x3, [sp, #24]           // restore res_off
-  add x3, x3, x8              // res = res_off + base
-  str w0, [x3]                // store bytes written
-  mov x0, #0                  // return 0 (success)
+  ldr x8, [sp, #32]
+  ldr x3, [sp, #24]
+  add x3, x3, x8
+  str w0, [x3]
+  mov x0, #0
   add sp, sp, #48
   ret
 
 __fd_read:
-  // x0=fd, x1=iov_off, x2=cnt, x3=res_off
   GET_COATL_MEM x8
   sub sp, sp, #48
-  str x8, [sp, #32]           // save coatl_mem base
-  str x3, [sp, #24]           // save res_off
-  add x9, x1, x8              // x9 = absolute iov struct address
-  ldr w10, [x9]               // load iov_base offset from coatl memory
-  add x10, x10, x8            // convert to absolute address
-  str x10, [sp, #0]           // iovec[0].iov_base
-  ldr w10, [x9, #4]           // load iov_len
-  uxtw x10, w10               // zero-extend to 64-bit
-  str x10, [sp, #8]           // iovec[0].iov_len
-  mov x1, sp                  // x1 = pointer to iovec on stack
-  mov x2, #1                  // x2 = iovcnt = 1
-  mov x8, #65                 // readv
+  str x8, [sp, #32]
+  str x3, [sp, #24]
+  add x9, x1, x8
+  ldr w10, [x9]
+  add x10, x10, x8
+  str x10, [sp, #0]
+  ldr w10, [x9, #4]
+  uxtw x10, w10
+  str x10, [sp, #8]
+  mov x1, sp
+  mov x2, #1
+  mov x8, #65
   svc #0
-  ldr x8, [sp, #32]           // restore coatl_mem base
-  ldr x3, [sp, #24]           // restore res_off
-  add x3, x3, x8              // res = res_off + base
-  str w0, [x3]                // store bytes read
-  mov x0, #0                  // return 0 (success)
+  ldr x8, [sp, #32]
+  ldr x3, [sp, #24]
+  add x3, x3, x8
+  str w0, [x3]
+  mov x0, #0
   add sp, sp, #48
   ret
 
@@ -98,44 +118,183 @@ __fd_close:
   ret
 
 __path_open:
-  // Coatl calling convention: all 9 args in x0-x8
-  // x0=dirfd, x1=dirflags, x2=path_ptr, x3=path_len,
-  // x4=oflags, x5=rights_base, x6=rights_inh, x7=fdflags, x8=fd_ptr
   stp x29, x30, [sp, #-16]!
   mov x29, sp
-  sub sp, sp, #32
-  str x8, [sp, #16]          // save fd_ptr (coatl offset) from x8 (arg 9)
-  mov x11, x4                // save oflags from x4 (arg 5)
-  mov x12, x2                // save path_ptr from x2 (arg 3)
+  ldr x12, [x29, #16]
   GET_COATL_MEM x8
-  str x8, [sp, #8]           // save coatl_mem base
-  add x1, x12, x8            // path = path_off + base
-  mov x0, #-100              // AT_FDCWD
+  add x1, x2, x8
+  mov x0, #-100
   mov x2, #0
-  tst x11, #1                // check CREAT bit
-  beq .L_open_flags_done
-  mov x2, #0x241
-.L_open_flags_done:
-  mov x3, #0x1A4             // mode 0644
-  mov x8, #56                // openat
+  mov x3, #0
+  mov x8, #56
   svc #0
-  ldr x8, [sp, #8]           // restore coatl_mem base
-  ldr x5, [sp, #16]          // load fd_ptr (coatl offset)
-  add x5, x5, x8             // fd_ptr + base
-  str w0, [x5]               // store fd
-  mov x0, #0                 // return 0 (success)
-  add sp, sp, #32
+  cmp x0, #0
+  b.lt .L_open_fail
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  str w0, [x12]
+  mov x0, #0
   ldp x29, x30, [sp], #16
   ret
+.L_open_fail:
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  mov w1, #-1
+  str w1, [x12]
+  mov x0, #1
+  ldp x29, x30, [sp], #16
+  ret
+
+__print:
+  stp x29, x30, [sp, #-32]!
+  mov x29, sp
+  str x19, [sp, #16]
+  str x20, [sp, #24]
+  GET_COATL_MEM x8
+  add x19, x0, x8
+  mov x20, #0
+.L_print_len_loop:
+  ldrb w9, [x19, x20]
+  cbz w9, .L_print_len_done
+  add x20, x20, #1
+  b .L_print_len_loop
+.L_print_len_done:
+  mov x0, #1
+  mov x1, x19
+  mov x2, x20
+  mov x8, #64
+  svc #0
+  mov x0, #0
+  ldr x19, [sp, #16]
+  ldr x20, [sp, #24]
+  ldp x29, x30, [sp], #32
+  ret
+
+
+__init_args:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  adrp x0, __args_inited; ldr w1, [x0, :lo12:__args_inited]
+  cbnz w1, .L_init_done
+  mov w1, #1; str w1, [x0, :lo12:__args_inited]
+  mov x0, #-100
+  adrp x1, __proc_self_cmdline; add x1, x1, :lo12:__proc_self_cmdline
+  mov x2, #0; mov x3, #0; mov x8, #56; svc #0
+  cmp x0, #0; b.lt .L_init_fail
+  mov x19, x0
+  mov x0, x19
+  adrp x1, __cmdline_buf; add x1, x1, :lo12:__cmdline_buf
+  mov x2, #4096; mov x8, #63; svc #0
+  mov x20, x0
+  mov x0, x19; mov x8, #57; svc #0
+  cmp x20, #0; b.le .L_init_fail
+  mov w21, #0; mov x22, #0; mov w23, #48032; movk w23, #13, lsl #16
+.L_parse_loop:
+  cmp x22, x20; b.ge .L_parse_done
+  adrp x0, __cmdline_buf; add x0, x0, :lo12:__cmdline_buf
+  ldrb w1, [x0, x22]
+  cbz w1, .L_parse_skip
+  cmp w21, #64; b.ge .L_parse_done
+  adrp x0, __argv_table; add x0, x0, :lo12:__argv_table
+  str w21, [x0, x21, lsl #2]
+.L_copy_loop:
+  cmp x22, x20; b.ge .L_copy_end
+  adrp x0, __cmdline_buf; add x0, x0, :lo12:__cmdline_buf
+  ldrb w1, [x0, x22]
+  cbz w1, .L_copy_end
+  GET_COATL_MEM x2; strb w1, [x2, x23]
+  add x23, x23, #1; add x22, x22, #1; b .L_copy_loop
+.L_copy_end:
+  GET_COATL_MEM x2; strb wzr, [x2, x23]
+  add x23, x23, #1; add w21, w21, #1; b .L_parse_loop
+.L_parse_skip:
+  add x22, x22, #1; b .L_parse_loop
+.L_parse_done:
+  adrp x0, __argc; str w21, [x0, :lo12:__argc]; b .L_init_done
+.L_init_fail:
+  adrp x0, __argc; str wzr, [x0, :lo12:__argc]
+.L_init_done:
+  ldp x29, x30, [sp], #16; ret
+
+__get_argc:
+  stp x29, x30, [sp, #-16]!
+  bl __init_args
+  adrp x0, __argc; ldr w0, [x0, :lo12:__argc]
+  ldp x29, x30, [sp], #16; ret
+
+__get_argv:
+  stp x29, x30, [sp, #-16]!
+  str x0, [sp, #16]
+  bl __init_args
+  ldr x0, [sp, #16]
+  adrp x1, __argc; ldr w1, [x1, :lo12:__argc]
+  cmp w0, w1; b.ge .L_argv_fail
+  adrp x1, __argv_table; add x1, x1, :lo12:__argv_table
+  ldr w0, [x1, x0, lsl #2]
+  ldp x29, x30, [sp], #16; ret
+.L_argv_fail:
+  mov x0, #0; ldp x29, x30, [sp], #16; ret
+
+__path_create:
+  stp x29, x30, [sp, #-16]!
+  mov x29, sp
+  mov x12, x1
+  GET_COATL_MEM x8
+  add x1, x0, x8
+  mov x0, #-100
+  mov x2, #577
+  mov x3, #420
+  mov x8, #56
+  svc #0
+  cmp x0, #0
+  b.lt .L_create_fail
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  str w0, [x12]
+  mov x0, #0
+  ldp x29, x30, [sp], #16
+  ret
+.L_create_fail:
+  GET_COATL_MEM x8
+  add x12, x12, x8
+  mov w1, #-1
+  str w1, [x12]
+  mov x0, #1
+  ldp x29, x30, [sp], #16
+  ret
+
+__tty_has_input:
+  adrp x8, __pollfd; add x8, x8, :lo12:__pollfd
+  str w0, [x8]
+  mov w9, #1
+  strh w9, [x8, #4]
+  strh wzr, [x8, #6]
+  mov x2, x1
+  mov x1, #1
+  mov x0, x8
+  mov x8, #73
+  svc #0
+  cmp x0, #0
+  b.le .L_no_input
+  adrp x8, __pollfd; add x8, x8, :lo12:__pollfd
+  ldrh w9, [x8, #6]
+  tst w9, #1
+  beq .L_no_input
+  mov x0, #1
+  ret
+.L_no_input:
+  mov x0, #0
+  ret
+
 
 __tty_get_mode:
   stp x29, x30, [sp, #-16]!
   mov x29, sp
   GET_COATL_MEM x8
-  add x1, x1, x8            // mode_ptr = out_ptr + base
+  add x1, x1, x8
   mov x2, x1
-  mov x1, #0x5401           // TCGETS
-  mov x8, #29               // ioctl
+  mov x1, #0x5401
+  mov x8, #29
   svc #0
   cmp x0, #0
   b.lt .L_tty_get_fail
@@ -150,32 +309,28 @@ __tty_get_mode:
 __tty_set_raw:
   stp x29, x30, [sp, #-96]!
   mov x29, sp
-  str x0, [sp, #80]          // save fd
-  str w2, [sp, #88]          // save vmin (i32)
-  str w3, [sp, #92]          // save vtime (i32)
+  str x0, [sp, #80]
+  str w2, [sp, #88]
+  str w3, [sp, #92]
   GET_COATL_MEM x8
-  add x1, x1, x8            // mode_ptr = out_ptr + base
-  add x0, sp, #16           // x0 = stack buffer (leave x29/x30 intact)
-  mov x2, #60               // termios size
+  add x1, x1, x8
+  add x0, sp, #16
+  mov x2, #60
 .L_tty_copy:
   ldrb w3, [x1], #1
   strb w3, [x0], #1
   subs x2, x2, #1
   b.ne .L_tty_copy
-  // Clear flags for full raw mode
-  // c_iflag (offset 0) &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON)
   ldr w0, [sp, #16]
   mov w1, #0x05EB
   mvn w1, w1
   and w0, w0, w1
   str w0, [sp, #16]
-  // c_oflag (offset 4) &= ~(OPOST)
   ldr w0, [sp, #20]
   mov w1, #0x0001
   mvn w1, w1
   and w0, w0, w1
   str w0, [sp, #20]
-  // c_cflag (offset 8) &= ~(CSIZE|PARENB); c_cflag |= CS8
   ldr w0, [sp, #24]
   mov w1, #0x0130
   mvn w1, w1
@@ -183,20 +338,19 @@ __tty_set_raw:
   mov w1, #0x0030
   orr w0, w0, w1
   str w0, [sp, #24]
-  // c_lflag (offset 12) &= ~(ECHO|ECHONL|ICANON|IEXTEN|ISIG)
   ldr w0, [sp, #28]
   mov w1, #0x804B
   mvn w1, w1
   and w0, w0, w1
   str w0, [sp, #28]
-  ldr w3, [sp, #92]          // vtime
-  ldr w2, [sp, #88]          // vmin
-  strb w2, [sp, #39]         // VMIN at offset 16+(17+6)
-  strb w3, [sp, #38]         // VTIME at offset 16+(17+5)
-  ldr x0, [sp, #80]          // fd
-  mov x1, #0x5402           // TCSETS
-  add x2, sp, #16           // &stack_termios
-  mov x8, #29               // ioctl
+  ldr w3, [sp, #92]
+  ldr w2, [sp, #88]
+  strb w2, [sp, #39]
+  strb w3, [sp, #38]
+  ldr x0, [sp, #80]
+  mov x1, #0x5402
+  add x2, sp, #16
+  mov x8, #29
   svc #0
   cmp x0, #0
   b.lt .L_tty_raw_fail
@@ -212,10 +366,10 @@ __tty_restore:
   stp x29, x30, [sp, #-16]!
   mov x29, sp
   GET_COATL_MEM x8
-  add x1, x1, x8            // mode_ptr = out_ptr + base
+  add x1, x1, x8
   mov x2, x1
-  mov x1, #0x5402           // TCSETS
-  mov x8, #29               // ioctl
+  mov x1, #0x5402
+  mov x8, #29
   svc #0
   cmp x0, #0
   b.lt .L_tty_restore_fail
@@ -227,16 +381,14 @@ __tty_restore:
   ldp x29, x30, [sp], #16
   ret
 
-// __tty_get_size(fd, out_ptr) -> i32
-// Saves winsize {ws_row, ws_col, ws_xpixel, ws_ypixel} (4x i16) at out_ptr
 __tty_get_size:
   stp x29, x30, [sp, #-16]!
   mov x29, sp
   GET_COATL_MEM x8
-  add x1, x1, x8            // out_ptr = linear_ptr + base
+  add x1, x1, x8
   mov x2, x1
-  mov x1, #0x5413           // TIOCGWINSZ
-  mov x8, #29               // ioctl
+  mov x1, #0x5413
+  mov x8, #29
   svc #0
   cmp x0, #0
   b.lt .L_tty_size_fail

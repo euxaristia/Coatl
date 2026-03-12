@@ -1,5 +1,25 @@
-.globl __tty_get_size
 .intel_syntax noprefix
+
+.section .rodata
+__proc_self_cmdline:
+  .asciz "/proc/self/cmdline"
+
+.section .bss
+.align 8
+__args_inited:
+  .long 0
+__argc:
+  .long 0
+__argv_table:
+  .zero 256
+__cmdline_buf:
+  .zero 4096
+__pollfd:
+  .zero 8
+
+.text
+
+.globl __tty_get_size
 .globl __mem_store
 .globl __mem_store8
 .globl __mem_load
@@ -11,6 +31,11 @@
 .globl __tty_get_mode
 .globl __tty_set_raw
 .globl __tty_restore
+.globl __print
+.globl __get_argc
+.globl __get_argv
+.globl __path_create
+.globl __tty_has_input
 
 __mem_store:
   lea r8, [rip+__coatl_mem]
@@ -27,65 +52,53 @@ __mem_store8:
 __mem_load:
   lea r8, [rip+__coatl_mem]
   add rdi, r8
-  mov eax, [rdi]
+  movsxd rax, dword ptr [rdi]
   ret
 
 __mem_load8:
   lea r8, [rip+__coatl_mem]
   add rdi, r8
-  movzx rax, byte ptr [rdi]
+  movsx rax, byte ptr [rdi]
   ret
 
 __fd_write:
-  # rdi=fd, rsi=iov_off, rdx=cnt, rcx=res_off
-  # Build native iovec on stack from 32-bit coatl memory fields
   lea r8, [rip+__coatl_mem]
-  push rcx             # save res_off
-  add rsi, r8          # rsi = real iov pointer in coatl_mem
-  # Read 32-bit iov fields and build 64-bit native iovec on stack
-  mov eax, [rsi+4]     # iov_len (32-bit)
-  push rax             # native iov_len (64-bit, zero-extended)
-  mov eax, [rsi]       # iov_base offset (32-bit)
-  add rax, r8          # real pointer
-  push rax             # native iov_base (64-bit)
-  mov rsi, rsp         # rsi = pointer to native iovec on stack
-
-  mov eax, 20          # writev
+  push rcx
+  add rsi, r8
+  mov eax, [rsi+4]
+  push rax
+  mov eax, [rsi]
+  add rax, r8
+  push rax
+  mov rsi, rsp
+  mov eax, 20
   syscall
-  add rsp, 16          # free native iovec
-
-  # store bytes written at res_off and return 0
-  pop rcx              # rcx = res_off
-  lea r8, [rip+__coatl_mem]
-  add rcx, r8
-  mov [rcx], eax       # *res_ptr = bytes written (32-bit)
-  mov eax, 0           # WASI success
-  ret
-
-__fd_read:
-  # rdi=fd, rsi=iov_off, rdx=cnt, rcx=res_off
-  # Build native iovec on stack from 32-bit coatl memory fields
-  lea r8, [rip+__coatl_mem]
-  push rcx             # save res_off
-  add rsi, r8          # rsi = real iov pointer in coatl_mem
-  # Read 32-bit iov fields and build 64-bit native iovec on stack
-  mov eax, [rsi+4]     # iov_len (32-bit)
-  push rax             # native iov_len (64-bit, zero-extended)
-  mov eax, [rsi]       # iov_base offset (32-bit)
-  add rax, r8          # real pointer
-  push rax             # native iov_base (64-bit)
-  mov rsi, rsp         # rsi = pointer to native iovec on stack
-
-  mov eax, 19          # readv
-  syscall
-  add rsp, 16          # free native iovec
-
-  # store bytes read at res_off and return 0
+  add rsp, 16
   pop rcx
   lea r8, [rip+__coatl_mem]
   add rcx, r8
-  mov [rcx], eax       # *res_ptr = bytes read (32-bit)
-  mov eax, 0           # WASI success
+  mov [rcx], eax
+  mov eax, 0
+  ret
+
+__fd_read:
+  lea r8, [rip+__coatl_mem]
+  push rcx
+  add rsi, r8
+  mov eax, [rsi+4]
+  push rax
+  mov eax, [rsi]
+  add rax, r8
+  push rax
+  mov rsi, rsp
+  mov eax, 19
+  syscall
+  add rsp, 16
+  pop rcx
+  lea r8, [rip+__coatl_mem]
+  add rcx, r8
+  mov [rcx], eax
+  mov eax, 0
   ret
 
 __fd_close:
@@ -94,59 +107,71 @@ __fd_close:
   ret
 
 __path_open:
+  push rbx
+  push r12
+  mov r12, [rsp+40]
+  lea rbx, [rip+__coatl_mem]
+  mov rsi, rdx
+  add rsi, rbx
+  mov eax, 257
+  mov edi, -100
+  xor edx, edx
+  xor r10d, r10d
+  xor r8d, r8d
+  xor r9d, r9d
+  syscall
+  cmp rax, 0
+  jl .L_open_fail
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], eax
+  xor eax, eax
+  pop r12
+  pop rbx
+  ret
+.L_open_fail:
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], -1
+  mov eax, 1
+  pop r12
+  pop rbx
+  ret
+
+__print:
   push rbp
   mov rbp, rsp
-  # Compiler pushes args left-to-right, pops last 6 into regs:
-  #   rdi=pathlen(arg4), rsi=oflags(arg5), rdx=fs_rights_base(arg6),
-  #   rcx=fs_rights_inh(arg7), r8=fdflags(arg8), r9=fd_ptr(arg9)
-  # Stack: [rbp+16]=path_off(arg3), [rbp+24]=dirflags(arg2), [rbp+32]=dirfd(arg1)
-
-  # Save fd_ptr (r9) and oflags (rsi) before clobbering regs
-  push r9              # save fd_ptr
-  mov r11, rsi         # r11 = oflags
-
-  # openat(dirfd, path, flags, mode)
-  # Linux syscall: rdi=dirfd, rsi=path, rdx=flags, r10=mode
-  lea r10, [rip+__coatl_mem]
-  mov rsi, [rbp+16]    # path_off
-  add rsi, r10         # real path pointer
-  mov rdi, -100        # AT_FDCWD
-
-  # Map WASI oflags to Linux flags
-  mov rdx, 0
-  test r11, 1          # CREAT bit
-  jz .L_open_flags_done
-  mov rdx, 0x241       # WRONLY|CREAT|TRUNC
-.L_open_flags_done:
-
-  mov r10, 0x1A4       # mode 0644 octal
-  mov eax, 257         # openat
+  push r12
+  push r13
+  lea r8, [rip+__coatl_mem]
+  mov r12, rdi
+  add r12, r8
+  mov r13, 0
+.L_print_len_loop:
+  mov al, byte ptr [r12 + r13]
+  cmp al, 0
+  je .L_print_len_done
+  inc r13
+  jmp .L_print_len_loop
+.L_print_len_done:
+  mov eax, 1
+  mov edi, 1
+  mov rsi, r12
+  mov rdx, r13
   syscall
-
-  # Store result fd at fd_ptr in linear memory
-  pop r11              # r11 = fd_ptr
-  lea r10, [rip+__coatl_mem]
-  add r11, r10
-  mov [r11], eax       # store fd
-
-  mov eax, 0           # WASI success
+  mov eax, 0
+  pop r13
+  pop r12
   pop rbp
   ret
 
-# __tty_get_mode(fd, out_ptr) -> i32
-# Saves current termios at out_ptr in linear memory via ioctl TCGETS
 __tty_get_mode:
   push rbp
   mov rbp, rsp
-  # rdi=fd, rsi=out_ptr
   lea r8, [rip+__coatl_mem]
-  add rsi, r8          # real pointer into linear memory
-  # ioctl(fd, TCGETS=0x5401, termios_ptr)
+  add rsi, r8
   mov rdx, rsi
   mov rsi, 0x5401
-  mov eax, 16          # SYS_ioctl
+  mov eax, 16
   syscall
-  # return 0 on success, errno on failure
   test rax, rax
   js .L_tty_get_fail
   mov eax, 0
@@ -157,19 +182,15 @@ __tty_get_mode:
   pop rbp
   ret
 
-# __tty_set_raw(fd, mode_ptr, vmin, vtime) -> i32
-# Copies saved termios, clears ICANON|ECHO in c_lflag, sets VMIN/VTIME, applies via TCSETS
 __tty_set_raw:
   push rbp
   mov rbp, rsp
   sub rsp, 64
-  # rdi=fd, rsi=mode_ptr, rdx=vmin, rcx=vtime
-  push rdi             # save fd
-  push rdx             # save vmin
-  push rcx             # save vtime
+  push rdi
+  push rdx
+  push rcx
   lea r8, [rip+__coatl_mem]
-  add rsi, r8          # real mode_ptr
-  # Copy 60 bytes of termios from mode_ptr to stack buffer
+  add rsi, r8
   lea rdi, [rbp-64]
   mov rcx, 60
 .L_tty_copy:
@@ -179,34 +200,27 @@ __tty_set_raw:
   inc rdi
   dec rcx
   jnz .L_tty_copy
-  # Clear flags for full raw mode
-  # c_iflag (offset 0) &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON)
   mov eax, [rbp-64+0]
   and eax, ~0x05EB
   mov [rbp-64+0], eax
-  # c_oflag (offset 4) &= ~(OPOST)
   mov eax, [rbp-64+4]
   and eax, ~0x0001
   mov [rbp-64+4], eax
-  # c_cflag (offset 8) &= ~(CSIZE|PARENB); c_cflag |= CS8
   mov eax, [rbp-64+8]
   and eax, ~0x0130
   or eax, 0x0030
   mov [rbp-64+8], eax
-  # c_lflag (offset 12) &= ~(ECHO|ECHONL|ICANON|IEXTEN|ISIG)
   mov eax, [rbp-64+12]
   and eax, ~0x804B
   mov [rbp-64+12], eax
-  # Set VMIN (c_cc[6]) and VTIME (c_cc[5]) at offset 17+6 and 17+5
-  pop rcx              # vtime
-  pop rdx              # vmin
+  pop rcx
+  pop rdx
   mov [rbp-64+17+6], dl
   mov [rbp-64+17+5], cl
-  # ioctl(fd, TCSETS=0x5402, &stack_termios)
-  pop rdi              # fd
+  pop rdi
   mov rsi, 0x5402
   lea rdx, [rbp-64]
-  mov eax, 16          # SYS_ioctl
+  mov eax, 16
   syscall
   test rax, rax
   js .L_tty_raw_fail
@@ -218,17 +232,14 @@ __tty_set_raw:
   leave
   ret
 
-# __tty_restore(fd, mode_ptr) -> i32
-# Restores saved termios via ioctl TCSETS
 __tty_restore:
   push rbp
   mov rbp, rsp
-  # rdi=fd, rsi=mode_ptr
   lea r8, [rip+__coatl_mem]
   add rsi, r8
   mov rdx, rsi
   mov rsi, 0x5402
-  mov eax, 16          # SYS_ioctl
+  mov eax, 16
   syscall
   test rax, rax
   js .L_tty_restore_fail
@@ -240,18 +251,14 @@ __tty_restore:
   pop rbp
   ret
 
-# __tty_get_size(fd, out_ptr) -> i32
-# Saves winsize {ws_row, ws_col, ws_xpixel, ws_ypixel} (4x i16) at out_ptr
 __tty_get_size:
   push rbp
   mov rbp, rsp
-  # rdi=fd, rsi=out_ptr
   lea r8, [rip+__coatl_mem]
-  add rsi, r8          # real pointer into linear memory
-  # ioctl(fd, TIOCGWINSZ=0x5413, winsize_ptr)
+  add rsi, r8
   mov rdx, rsi
   mov rsi, 0x5413
-  mov eax, 16          # SYS_ioctl
+  mov eax, 16
   syscall
   test rax, rax
   js .L_tty_size_fail
@@ -261,4 +268,180 @@ __tty_get_size:
 .L_tty_size_fail:
   neg rax
   pop rbp
+  ret
+
+__init_args:
+  push rbp
+  mov rbp, rsp
+  push rbx
+  push r12
+  push r13
+  push r14
+  push r15
+  mov eax, dword ptr [rip+__args_inited]
+  test eax, eax
+  jne .L_init_done
+  mov dword ptr [rip+__args_inited], 1
+
+  # openat(AT_FDCWD, "/proc/self/cmdline", O_RDONLY)
+  mov eax, 257
+  mov edi, -100
+  lea rsi, [rip+__proc_self_cmdline]
+  xor edx, edx
+  xor r10d, r10d
+  xor r8d, r8d
+  xor r9d, r9d
+  syscall
+  cmp rax, 0
+  jl .L_init_fail
+  mov r12, rax
+
+  # read(fd, buf, 4096)
+  mov eax, 0
+  mov rdi, r12
+  lea rsi, [rip+__cmdline_buf]
+  mov edx, 4096
+  syscall
+  mov r13, rax
+
+  # close(fd)
+  mov eax, 3
+  mov rdi, r12
+  syscall
+
+  cmp r13, 0
+  jle .L_init_fail
+
+  xor r15d, r15d  # argc
+  xor ecx, ecx    # buffer index
+  mov r14d, 900000 # dst offset in __coatl_mem
+
+.L_parse_loop:
+  cmp rcx, r13
+  jge .L_parse_done
+  lea rbx, [rip+__cmdline_buf]
+  mov al, byte ptr [rbx + rcx]
+  cmp al, 0
+  jne .L_arg_start
+  inc rcx
+  jmp .L_parse_loop
+
+.L_arg_start:
+  cmp r15d, 64
+  jge .L_parse_done
+  mov edx, r14d
+  lea rbx, [rip+__argv_table]
+  mov dword ptr [rbx + r15*4], edx
+
+.L_copy_loop:
+  cmp rcx, r13
+  jge .L_copy_end
+  lea rbx, [rip+__cmdline_buf]
+  mov al, byte ptr [rbx + rcx]
+  cmp al, 0
+  je .L_copy_end
+  lea rbx, [rip+__coatl_mem]
+  mov byte ptr [rbx + r14], al
+  inc r14
+  inc rcx
+  jmp .L_copy_loop
+
+.L_copy_end:
+  lea rbx, [rip+__coatl_mem]
+  mov byte ptr [rbx + r14], 0
+  inc r14
+  inc r15d
+  cmp rcx, r13
+  jge .L_parse_loop
+  lea rbx, [rip+__cmdline_buf]
+  mov al, byte ptr [rbx + rcx]
+  cmp al, 0
+  jne .L_parse_loop
+  inc rcx
+  jmp .L_parse_loop
+
+.L_parse_done:
+  mov dword ptr [rip+__argc], r15d
+  jmp .L_init_done
+
+.L_init_fail:
+  mov dword ptr [rip+__argc], 0
+
+.L_init_done:
+  pop r15
+  pop r14
+  pop r13
+  pop r12
+  pop rbx
+  leave
+  ret
+
+__get_argc:
+  call __init_args
+  mov eax, dword ptr [rip+__argc]
+  ret
+
+__get_argv:
+  push rbx
+  call __init_args
+  mov ecx, dword ptr [rip+__argc]
+  cmp edi, ecx
+  jge .L_argv_fail
+  lea rbx, [rip+__argv_table]
+  mov eax, dword ptr [rbx + rdi*4]
+  pop rbx
+  ret
+.L_argv_fail:
+  pop rbx
+  xor eax, eax
+  ret
+
+__path_create:
+  push rbx
+  push r12
+  mov r12, rsi
+  lea rbx, [rip+__coatl_mem]
+  mov rsi, rdi
+  add rsi, rbx
+  mov eax, 257
+  mov edi, -100
+  mov edx, 577
+  mov r10d, 420
+  xor r8d, r8d
+  xor r9d, r9d
+  syscall
+  cmp rax, 0
+  jl .L_create_fail
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], eax
+  xor eax, eax
+  pop r12
+  pop rbx
+  ret
+.L_create_fail:
+  lea rbx, [rip+__coatl_mem]
+  mov dword ptr [rbx + r12], -1
+  mov eax, 1
+  pop r12
+  pop rbx
+  ret
+
+__tty_has_input:
+  mov dword ptr [rip+__pollfd], edi
+  mov word ptr [rip+__pollfd + 4], 1
+  mov word ptr [rip+__pollfd + 6], 0
+  mov edx, esi
+  mov esi, 1
+  lea rdi, [rip+__pollfd]
+  mov eax, 7
+  syscall
+  cmp rax, 0
+  jle .L_no_input
+  mov ax, word ptr [rip+__pollfd + 6]
+  test ax, 1
+  jz .L_no_input
+  mov eax, 1
+  ret
+.L_no_input:
+  xor eax, eax
   ret
