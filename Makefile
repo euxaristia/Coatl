@@ -16,8 +16,7 @@ build:
 	cargo build --release
 
 test: build
-	COATL_BIN=./target/release/coatl python3 ./tests/run_ir_smoke.py
-	COATL_BIN=./target/release/coatl python3 ./tests/run_snake_smoke.py
+	cargo test
 
 check: test
 

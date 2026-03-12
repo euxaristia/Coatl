@@ -1397,6 +1397,7 @@ struct X86_64Backend {
     output: Vec<String>,
     vars: HashMap<String, (i32, String)>,
     strings: HashMap<String, i32>,
+    structs: HashMap<String, Vec<String>>,
     label_count: i32,
     current_fn: String,
 }
@@ -1408,6 +1409,7 @@ impl X86_64Backend {
             output: Vec::new(),
             vars: HashMap::new(),
             strings: HashMap::new(),
+            structs: HashMap::new(),
             label_count: 0,
             current_fn: String::new(),
         }
@@ -1436,15 +1438,27 @@ impl X86_64Backend {
 
     fn lower(&mut self) {
         let mut fns: Vec<IRNode> = Vec::new();
+        let mut structs_list: Vec<IRNode> = Vec::new();
+
         if let IRNode::List(root) = &self.ir {
             for child in root {
                 if let IRNode::List(c) = child {
                     if !c.is_empty() {
                         if c[0].as_atom().map(|s| s == "functions").unwrap_or(false) {
                             fns = c[1..].to_vec();
+                        } else if c[0].as_atom().map(|s| s == "structs").unwrap_or(false) {
+                            structs_list = c[1..].to_vec();
                         }
                     }
                 }
+            }
+        }
+
+        for s in structs_list {
+            if let IRNode::List(sl) = s {
+                let name = sl[1].as_atom().unwrap().clone();
+                let fields = sl[2..].iter().map(|f| f.as_list().unwrap()[1].as_atom().unwrap().clone()).collect();
+                self.structs.insert(name, fields);
             }
         }
 
@@ -1541,6 +1555,14 @@ impl X86_64Backend {
                 self.lower_expr(&l[2]);
                 self.emit(format!("  mov [rbp-{}], rax", off));
             }
+            "field_assign" => {
+                let var_name = l[1].as_atom().unwrap();
+                let field_name = l[2].as_atom().unwrap();
+                let (off, ty) = self.vars.get(var_name).unwrap().clone();
+                let fi = self.structs.get(&ty).unwrap().iter().position(|f| f == field_name).unwrap();
+                self.lower_expr(&l[3]);
+                self.emit(format!("  mov dword ptr [rbp-{}], eax", off - (fi as i32 * 4)));
+            }
             "if" => {
                 let l_else = self.new_label("L_else");
                 let l_end = self.new_label("L_end");
@@ -1592,7 +1614,24 @@ impl X86_64Backend {
             "ident" => {
                 let name = l[1].as_atom().unwrap();
                 let off = self.vars.get(name).unwrap().0;
-                self.emit(format!("  movsxd rax, dword ptr [rbp-{}]", off));
+                self.emit(format!("  mov rax, [rbp-{}]", off));
+            }
+            "field" => {
+                let var_name = l[1].as_atom().unwrap();
+                let field_name = l[2].as_atom().unwrap();
+                let (off, ty) = self.vars.get(var_name).unwrap().clone();
+                let fi = self.structs.get(&ty).unwrap().iter().position(|f| f == field_name).unwrap();
+                self.emit(format!("  movsxd rax, dword ptr [rbp-{}]", off - (fi as i32 * 4)));
+            }
+            "struct_lit" => {
+                for (i, arg) in l[2..4].iter().enumerate() {
+                    self.lower_expr(arg);
+                    if i == 0 {
+                        self.emit("  push rax".to_string());
+                    } else {
+                        self.emit("  shl rax, 32; pop rcx; or rax, rcx".to_string());
+                    }
+                }
             }
             "binary" => {
                 let op = l[1].as_atom().unwrap();
@@ -1615,14 +1654,16 @@ impl X86_64Backend {
                 let name = l[1].as_atom().unwrap();
                 let regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
                 let args = &l[2..];
-                for (i, arg) in args.iter().enumerate() {
+                for i in (6..args.len()).rev() {
+                    self.lower_expr(&args[i]);
+                    self.emit("  push rax".to_string());
+                }
+                for arg in args.iter().take(6) {
                     self.lower_expr(arg);
-                    if i < 6 {
-                        self.emit("  push rax".to_string());
-                        self.emit(format!("  pop {}", regs[i]));
-                    } else {
-                        self.emit("  push rax".to_string());
-                    }
+                    self.emit("  push rax".to_string());
+                }
+                for i in (0..std::cmp::min(args.len(), 6)).rev() {
+                    self.emit(format!("  pop {}", regs[i]));
                 }
                 self.emit(format!("  call {}", name));
                 if args.len() > 6 { self.emit(format!("  add rsp, {}", (args.len() - 6) * 8)); }
@@ -1643,6 +1684,7 @@ struct AArch64Backend {
     output: Vec<String>,
     vars: HashMap<String, (i32, String)>,
     strings: HashMap<String, i32>,
+    structs: HashMap<String, Vec<String>>,
     label_count: i32,
     current_fn: String,
 }
@@ -1654,6 +1696,7 @@ impl AArch64Backend {
             output: Vec::new(),
             vars: HashMap::new(),
             strings: HashMap::new(),
+            structs: HashMap::new(),
             label_count: 0,
             current_fn: String::new(),
         }
@@ -1708,15 +1751,27 @@ impl AArch64Backend {
 
     fn lower(&mut self) {
         let mut fns: Vec<IRNode> = Vec::new();
+        let mut structs_list: Vec<IRNode> = Vec::new();
+
         if let IRNode::List(root) = &self.ir {
             for child in root {
                 if let IRNode::List(c) = child {
                     if !c.is_empty() {
                         if c[0].as_atom().map(|s| s == "functions").unwrap_or(false) {
                             fns = c[1..].to_vec();
+                        } else if c[0].as_atom().map(|s| s == "structs").unwrap_or(false) {
+                            structs_list = c[1..].to_vec();
                         }
                     }
                 }
+            }
+        }
+
+        for s in structs_list {
+            if let IRNode::List(sl) = s {
+                let name = sl[1].as_atom().unwrap().clone();
+                let fields = sl[2..].iter().map(|f| f.as_list().unwrap()[1].as_atom().unwrap().clone()).collect();
+                self.structs.insert(name, fields);
             }
         }
 
