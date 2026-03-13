@@ -1,3 +1,5 @@
+mod intrinsics;
+
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -539,8 +541,7 @@ fn parse_file_recursive(filepath: PathBuf, visited: &mut HashSet<PathBuf>, all_s
     }
 }
 
-const INTRINSICS_X86_64: &str = include_str!("../runtime/intrinsics.s");
-const INTRINSICS_AARCH64: &str = include_str!("../runtime/intrinsics_aarch64.s");
+use intrinsics::{INTRINSICS_X86_64, INTRINSICS_AARCH64};
 
 struct X86_64Backend {
     ir: IRNode,
@@ -1129,6 +1130,10 @@ impl AArch64Backend {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    if args.len() >= 2 && (args[1] == "-V" || args[1] == "--version") {
+        println!("coatl {}", env!("CARGO_PKG_VERSION"));
+        process::exit(0);
+    }
     if args.len() < 2 { println!("Usage: coatl <input.coatl|input.ir> [-o output.s] [--arch=<arch>]"); process::exit(1); }
     let mut input_path = String::new();
     let mut output_path = String::new();
