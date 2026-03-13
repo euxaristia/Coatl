@@ -2,7 +2,7 @@
 
 Coatl follows an ancient, sleek serpent aesthetic: fluid paths, precise control, and minimal friction.
 
-Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends. The compiler is implemented in Python for maximum portability and developer agility.
+Coatl is a native systems language focusing on x86_64 and AArch64 Linux backends. The compiler is implemented in Rust.
 
 ## Documentation
 
@@ -21,40 +21,48 @@ fn main() returns i32 {
 }
 ```
 
-Build native x86_64 Linux binary:
+Build and install the compiler:
 
 ```bash
-./coatl.py build ./examples/hello.coatl -o /tmp/hello
+cargo build --release
+```
+
+Build a native x86_64 Linux binary:
+
+```bash
+./target/release/coatl examples/hello.coatl -o /tmp/hello
 /tmp/hello
 ```
 
 Build x86_64 assembly:
 
 ```bash
-./coatl.py build ./examples/hello.coatl -o /tmp/hello.s
-```
-
-Build ELF binary (linked with intrinsics):
-
-```bash
-./coatl.py build ./examples/hello.coatl -o /tmp/hello
+./target/release/coatl examples/hello.coatl -o /tmp/hello.s
 ```
 
 Emit textual IR:
 
 ```bash
-./coatl.py build ./examples/hello.coatl -o /tmp/hello.ir
+./target/release/coatl examples/hello.coatl -o /tmp/hello.ir
 ```
 
 ## Core Tooling
 
-- `./coatl.py build ...`
+Usage:
 
-- `./coatl.py --version`
+```
+coatl <input.coatl|input.ir> [-o output] [--arch=<arch>]
+```
+
+Output format is inferred from the `-o` extension:
+- `.s` — assembly source
+- `.ir` — textual IR
+- anything else — linked ELF binary
 
 Environment flags:
 
-- `COATL_ARCH=x86_64|aarch64` (auto-detects by default)
+- `CC` — override the C compiler/linker (default: `cc`)
+- `--arch=x86_64|aarch64` — target architecture (default: `x86_64`)
 
 ## Terminal Raw Mode Intrinsics
 
@@ -76,35 +84,24 @@ Caveats:
 
 ## Validation
 
-Run core tests:
+Run all tests:
 
 ```bash
-make test
-```
-
-IR smoke suite:
-
-```bash
-python3 tests/run_ir_smoke.py
-```
-
-Snake smoke test (x86_64 native):
-
-```bash
-python3 tests/run_snake_smoke.py
+cargo test
 ```
 
 ## Repository Layout
 
-- `examples/` sample programs
-- `tests/` integration and smoke suites
-- `tools/` Python-based compiler and utilities
-- `std/` Standard library modules
-- `man/` Manual pages
+- `examples/` — sample programs
+- `tests/` — integration and smoke suites
+- `src/` — compiler source (Rust)
+- `runtime/` — intrinsics assembly (`intrinsics.s`, `intrinsics_aarch64.s`)
+- `std/` — standard library modules
+- `man/` — manual pages
 
 ## Safety & Memory Model
 
 Coatl is a low-level systems language. It is **not memory safe** and provides fewer guardrails than C.
 
-- **Manual Memory:** Memory is accessed via raw intrinsics (__mem_load/__mem_store) with integer addresses. No pointers or bounds checks.
+- **Manual Memory:** Memory is accessed via raw intrinsics (`__mem_load`/`__mem_store`) with integer addresses. No pointers or bounds checks.
 - **System Access:** Direct interaction with Linux system calls via assembly templates.
