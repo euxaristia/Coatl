@@ -849,14 +849,14 @@ __tty_get_size:
 pub const INTRINSICS_X86_64: &str = x86_64_asm_text!();
 pub const INTRINSICS_AARCH64: &str = aarch64_asm_text!();
 
-#[cfg(target_arch = "x86_64")]
-std::arch::global_asm!(
-    ".weak __coatl_mem\n",
-    x86_64_asm_body!(),
-);
-
-#[cfg(target_arch = "aarch64")]
-std::arch::global_asm!(
-    ".weak __coatl_mem\n",
-    aarch64_asm_text!(),
-);
+// #[cfg(target_arch = "x86_64")]
+// std::arch::global_asm!(
+//     ".weak __coatl_mem\n",
+//     x86_64_asm_body!(),
+// );
+// 
+// #[cfg(target_arch = "aarch64")]
+// std::arch::global_asm!(
+//     ".weak __coatl_mem\n",
+//     aarch64_asm_text!(),
+// );

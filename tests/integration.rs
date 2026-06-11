@@ -149,6 +149,10 @@ fn test_x86_subset_asm_smoke() {
 
 #[test]
 fn test_snake_smoke() {
+    if env::consts::OS != "linux" {
+        println!("Skipping snake compilation tests (not linux)");
+        return;
+    }
     let root_dir = env::current_dir().unwrap();
     let src_path = root_dir.join("examples/TermSnake/snake.coatl");
 
