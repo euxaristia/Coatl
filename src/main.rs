@@ -509,10 +509,22 @@ impl Parser {
 }
 
 fn parse_file_recursive(filepath: PathBuf, visited: &mut HashSet<PathBuf>, all_structs: &mut Vec<IRNode>, all_fns: &mut Vec<IRNode>, _all_imports: &mut Vec<IRNode>) {
-    let filepath = fs::canonicalize(filepath).expect("Failed to canonicalize path");
+    let filepath = match fs::canonicalize(&filepath) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error: failed to resolve path '{}': {}", filepath.display(), e);
+            process::exit(1);
+        }
+    };
     if visited.contains(&filepath) { return; }
     visited.insert(filepath.clone());
-    let source = fs::read_to_string(&filepath).expect("Failed to read file");
+    let source = match fs::read_to_string(&filepath) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error: failed to read file '{}': {}", filepath.display(), e);
+            process::exit(1);
+        }
+    };
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize();
     let mut parser = Parser::new(tokens);
@@ -1130,26 +1142,63 @@ impl AArch64Backend {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        println!("Usage: coatl <input.coatl|input.ir> [-o output.s] [--arch=<arch>]");
+        println!("\nOptions:");
+        println!("  -o <file>      Write output to <file> (e.g., .s, .ir, or executable binary)");
+        println!("  --arch=<arch>  Target architecture (x86_64 or aarch64) [default: x86_64]");
+        println!("  -h, --help     Print help information");
+        println!("  -V, --version  Print version information");
+        process::exit(0);
+    }
     if args.len() >= 2 && (args[1] == "-V" || args[1] == "--version") {
         println!("coatl {}", env!("CARGO_PKG_VERSION"));
         process::exit(0);
     }
-    if args.len() < 2 { println!("Usage: coatl <input.coatl|input.ir> [-o output.s] [--arch=<arch>]"); process::exit(1); }
+    if args.len() < 2 {
+        println!("Usage: coatl <input.coatl|input.ir> [-o output.s] [--arch=<arch>]");
+        process::exit(1);
+    }
     let mut input_path = String::new();
     let mut output_path = String::new();
     let mut arch = "x86_64".to_string();
 
     let mut i = 1;
     while i < args.len() {
-        if args[i] == "-o" { output_path = args[i+1].clone(); i += 2; }
+        if args[i] == "-o" {
+            if i + 1 >= args.len() {
+                eprintln!("Error: missing argument for '-o'");
+                process::exit(1);
+            }
+            output_path = args[i+1].clone();
+            i += 2;
+        }
         else if args[i].starts_with("--arch=") { arch = args[i][7..].to_string(); i += 1; }
         else { input_path = args[i].clone(); i += 1; }
     }
 
+    if input_path.is_empty() {
+        eprintln!("Error: no input file specified");
+        println!("Usage: coatl <input.coatl|input.ir> [-o output.s] [--arch=<arch>]");
+        process::exit(1);
+    }
+
     let ir = if input_path.ends_with(".ir") {
-        let source = fs::read_to_string(&input_path).expect("Failed to read input file");
+        let source = match fs::read_to_string(&input_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Error: failed to read input file '{}': {}", input_path, e);
+                process::exit(1);
+            }
+        };
         let mut parser = IRParser::new(&source);
-        parser.parse().expect("Failed to parse IR")
+        match parser.parse() {
+            Some(node) => node,
+            None => {
+                eprintln!("Error: failed to parse IR");
+                process::exit(1);
+            }
+        }
     } else {
         let mut all_structs = Vec::new();
         let mut all_fns = Vec::new();
