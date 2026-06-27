@@ -849,13 +849,20 @@ __tty_get_size:
 pub const INTRINSICS_X86_64: &str = x86_64_asm_text!();
 pub const INTRINSICS_AARCH64: &str = aarch64_asm_text!();
 
-#[cfg(target_arch = "x86_64")]
+// These blocks embed the runtime intrinsics into the `coatl` binary itself. The
+// assembly is Linux/GNU-as specific (raw `syscall`, `.section .bss`, a weak
+// `__coatl_mem`, etc.), so it is only emitted when building for Linux. The compiler
+// never calls these routines at runtime — they are consumed by the backends as the
+// INTRINSICS_* string constants above — so gating them out on other hosts (e.g.
+// x86_64-pc-windows-msvc, where link.exe rejects the __coatl_mem relocations) lets the
+// compiler build and emit Linux assembly/IR cross-platform.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 std::arch::global_asm!(
     ".weak __coatl_mem\n",
     x86_64_asm_body!(),
 );
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 std::arch::global_asm!(
     ".weak __coatl_mem\n",
     aarch64_asm_text!(),
