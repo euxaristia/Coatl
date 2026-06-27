@@ -13,10 +13,10 @@ The official documentation is available on the GitHub Wiki: <https://github.com/
 Here is a simple "Hello, world!" program in Coatl (`examples/hello.coatl`):
 
 ```coatl
-import "std/io"
+import "../std/io"
 
 fn main() returns i32 {
-  io.print("Hello, world!\n")
+  print("Hello, world!\n")
   return 0
 }
 ```
@@ -94,8 +94,7 @@ cargo test
 
 - `examples/` — sample programs
 - `tests/` — integration and smoke suites
-- `src/` — compiler source (Rust)
-- `runtime/` — intrinsics assembly (`intrinsics.s`, `intrinsics_aarch64.s`)
+- `src/` — compiler source (Rust): `main.rs` (lexer, parser, IR, backends, CLI) and `intrinsics.rs` (embedded runtime intrinsics)
 - `std/` — standard library modules
 - `man/` — manual pages
 

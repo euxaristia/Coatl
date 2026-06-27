@@ -1,68 +1,69 @@
-.TH COATL 1 "February 2026" "Coatl" "User Commands"
+.TH COATL 1 "June 2026" "Coatl" "User Commands"
 .SH NAME
-coatl.py \- build Coatl sources to native Linux binaries
+coatl \- compile Coatl sources to native Linux binaries, assembly, or IR
 .SH SYNOPSIS
-.B coatl.py
-.I build input.coatl
-[\fB--emit=\fRasm|ir|obj|bin]
+.B coatl
+.I input.coatl\fR|\fIinput.ir
 [\fB-o\fR \fIoutput\fR]
 [\fB--arch=\fRx86_64|aarch64]
 .br
-.B coatl.py
-
-.B coatl.py
-[\fB--help\fR|\fB-h\fR]
-.br
-.B coatl.py
+.B coatl
 [\fB--version\fR|\fB-V\fR]
 .SH DESCRIPTION
-\fBcoatl.py\fR is the command-line launcher for the Coatl compiler pipeline.
-It compiles Coatl sources to various native and intermediate formats.
-.SH COMMANDS
+.B coatl
+is the Coatl compiler, implemented as a single Rust crate. It lexes and parses
+a \fI.coatl\fR source file into an S-expression intermediate representation (IR),
+lowers the IR to native assembly, and (by default) assembles and links the result
+into a native Linux ELF binary using the system C compiler.
+.PP
+A \fI.ir\fR file may be given as input instead, in which case the Coatl front end
+is skipped and the IR is read directly.
+.SH ARGUMENTS
 .TP
-.B build
-Compile a \fI.coatl\fR source file. The default emission is a native binary.
+.I input.coatl | input.ir
+The input file. A \fI.coatl\fR file is compiled from source; a \fI.ir\fR file is
+parsed directly as IR.
 .SH OPTIONS
 .TP
-\fB--emit=\fRasm|ir|obj|bin
-Choose emitted output kind (default: \fBbin\fR).
-.TP
 \fB-o\fR \fIoutput\fR
-Write output to the given path.
+Write output to the given path. The output kind is inferred from the extension:
+.RS
+.IP \(bu 2
+\fB.s\fR \(em assembly source for the selected architecture
+.IP \(bu 2
+\fB.ir\fR \(em textual S-expression IR
+.IP \(bu 2
+any other extension \(em assembled and linked native ELF binary
+.RE
+If \fB-o\fR is omitted, the generated assembly is written to standard output.
 .TP
 \fB--arch=\fRx86_64|aarch64
-Select target architecture. Default is auto-detected.
-.TP
-\fB--help\fR, \fB-h\fR
-Show usage help.
+Select the target architecture. Default is \fBx86_64\fR.
 .TP
 \fB--version\fR, \fB-V\fR
-Show version string.
+Print the compiler version and exit.
 .SH ENVIRONMENT
 .TP
-\fBCOATL_ARCH\fR
-Default architecture when \fB--arch\fR is omitted.
-.TP
-\fBCOATL_VERSION\fR
-Fallback version string if Git metadata is unavailable.
-.TP
-\fBCOATL_HOME\fR
-Path to Coatl runtime assets (contains \fItools/\fR).
+.B CC
+The C compiler/linker used for the final assemble-and-link step. Default is \fBcc\fR.
+When \fB--arch=aarch64\fR is selected on a non-ARM64 host, \fBaarch64-linux-gnu-gcc\fR
+is used for linking when available.
 .SH EXIT STATUS
 Returns 0 on success and non-zero on error.
 .SH EXAMPLES
 .TP
-\fBcoatl.py build examples/hello.coatl -o /tmp/hello\fR
-Compile to native binary.
+\fBcoatl examples/hello.coatl -o /tmp/hello\fR
+Compile to a native binary.
 .TP
-\fBcoatl.py build examples/hello.coatl --emit=asm -o /tmp/hello.s\fR
-Compile to x86_64 assembly.
+\fBcoatl examples/hello.coatl -o /tmp/hello.s\fR
+Emit x86_64 assembly.
 .TP
-\fBcoatl.py --version\fR
-Print version.
+\fBcoatl examples/hello.coatl -o /tmp/hello.ir\fR
+Emit textual IR.
+.TP
+\fBcoatl examples/hello.coatl --arch=aarch64 -o /tmp/hello_arm\fR
+Cross-compile to an AArch64 binary.
 .SH SEE ALSO
-Project wiki and language notes:
+Project wiki:
 .br
-\fBhttps://github.com/euxaristia/Coatl/wiki\fR
-.br
-\fBSPEC.md\fR in the Coatl repository.
+.B https://github.com/euxaristia/Coatl/wiki
